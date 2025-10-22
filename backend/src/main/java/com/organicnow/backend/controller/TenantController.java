@@ -4,12 +4,15 @@ import com.organicnow.backend.dto.CreateTenantContractRequest;
 import com.organicnow.backend.dto.TenantDto;
 import com.organicnow.backend.dto.TenantDetailDto;
 import com.organicnow.backend.dto.UpdateTenantContractRequest;
+import com.organicnow.backend.model.TenantDocument;
 import com.organicnow.backend.service.TenantService;
 import com.organicnow.backend.service.TenantContractService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/tenant")
@@ -25,20 +28,17 @@ public class TenantController {
         this.tenantContractService = tenantContractService;
     }
 
-    // ✅ List (join contract + tenant + room + package)
     @GetMapping("/list")
     public ResponseEntity<?> list() {
         return ResponseEntity.ok(tenantService.list());
     }
 
-    // ✅ Create tenant + contract
     @PostMapping("/create")
     public ResponseEntity<TenantDto> create(@RequestBody CreateTenantContractRequest req) {
         TenantDto dto = tenantContractService.create(req);
         return ResponseEntity.status(201).body(dto);
     }
 
-    // ✅ Update by contractId
     @PutMapping("/update/{contractId}")
     public ResponseEntity<TenantDto> update(@PathVariable Long contractId,
                                             @RequestBody UpdateTenantContractRequest req) {
@@ -46,29 +46,52 @@ public class TenantController {
         return ResponseEntity.ok(dto);
     }
 
-    // ✅ Delete contract (soft: ลบเฉพาะ contract)
     @DeleteMapping("/delete/{contractId}")
     public ResponseEntity<Void> delete(@PathVariable Long contractId) {
         tenantContractService.delete(contractId);
         return ResponseEntity.noContent().build();
     }
 
-    // ✅ Detail by contractId (เฉพาะตัวเลข)
     @GetMapping("/{contractId:\\d+}")
     public ResponseEntity<TenantDetailDto> detail(@PathVariable Long contractId) {
         TenantDetailDto dto = tenantContractService.getDetail(contractId);
         return ResponseEntity.ok(dto);
     }
 
-    // ✅ Download Contract PDF
     @GetMapping("/{contractId:\\d+}/pdf")
     public ResponseEntity<byte[]> downloadContractPdf(@PathVariable Long contractId) {
         byte[] pdfBytes = tenantContractService.generateContractPdf(contractId);
-
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=tenant_" + contractId + "_contract.pdf")
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdfBytes);
     }
+    // ✅ ค้นหาผู้เช่าด้วย keyword
+    @GetMapping("/search")
+    public ResponseEntity<List<TenantDocument>> searchTenant(@RequestParam String keyword) {
+        List<TenantDocument> results = tenantSearchService.searchByName(keyword);
+        return ResponseEntity.ok(results);
+    }
+
+    // ✅ Reindex tenant ทั้งหมด (กรณี import จาก PostgreSQL)
+    @GetMapping("/reindex")
+    public ResponseEntity<String> reindexAll() {
+        List<Tenant> tenants = tenantService.getAllTenants();
+
+        List<TenantDocument> docs = tenants.stream()
+                .map(t -> TenantDocument.builder()
+                        .id(t.getId())
+                        .firstName(t.getFirstName())
+                        .lastName(t.getLastName())
+                        .email(t.getEmail())
+                        .phoneNumber(t.getPhoneNumber())
+                        .nationalId(t.getNationalId())
+                        .build())
+                .toList();
+
+        tenantSearchService.indexAll(docs);
+        return ResponseEntity.ok("✅ Reindexed " + docs.size() + " tenants.");
+    }
+
 }

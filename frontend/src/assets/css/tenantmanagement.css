@@ -191,3 +191,17 @@
 .form-Button-Swal:hover {
   opacity: 0.9;
 }
+
+/* ✅ ปิด scroll แนวนอน โดยไม่แตะ layout เดิม */
+html, body {
+  overflow-x: hidden !important;
+}
+
+/* ปิดเฉพาะส่วนที่อาจทำให้เกิด scroll */
+.table-wrapper,
+.table-wrapper-detail,
+.toolbar-wrapper,
+.container-fluid,
+.row {
+  overflow-x: hidden !important;
+}
