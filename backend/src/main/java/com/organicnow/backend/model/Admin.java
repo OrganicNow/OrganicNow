@@ -27,4 +27,8 @@ public class Admin {
     @Size(max = 255)
     @Column(name = "admin_password", nullable = false, length = 255)
     private String adminPassword; // password ของ admin (ภายหลังควรเก็บ hash)
+
+    @NotNull
+    @Column(name = "admin_role", nullable = false)
+    private Integer adminRole = 0; // 0 = Admin ปกติ, 1 = Super Admin
 }
