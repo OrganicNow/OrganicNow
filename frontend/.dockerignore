@@ -3,3 +3,4 @@ dist
 .git
 .gitignore
 Dockerfile
+Dockerfile.prod

@@ -25,4 +25,5 @@ public class Room {
     @Min(0)
     @Column(name = "room_floor", nullable = false)
     private Integer roomFloor;   // Room_Floor
+
 }

@@ -2,15 +2,14 @@ import React, { useEffect, useMemo, useState } from "react";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
 import Pagination from "../component/pagination";
-import { pageSize as defaultPageSize } from "../config_variable";
+// import { pageSize as defaultPageSize } from "../config_variable";
+import { pageSize as defaultPageSize, apiPath } from "../config_variable";
 import * as bootstrap from "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import useMessage from "../component/useMessage";
 
 /* ========= API via fetch ========= */
-const API_BASE = import.meta.env?.VITE_API_URL || "http://localhost:8080";
-
 async function getJSON(url, opts = {}) {
   const res = await fetch(url, {
     credentials: "include",
@@ -30,10 +29,10 @@ async function getJSON(url, opts = {}) {
 }
 
 const API = {
-  listPackages: () => getJSON(`${API_BASE}/packages`),
-  listContractTypes: () => getJSON(`${API_BASE}/contract-types`),
+  listPackages: () => getJSON(`${apiPath}/packages`),
+  listContractTypes: () => getJSON(`${apiPath}/contract-types`),
   createPackage: (body) =>
-    getJSON(`${API_BASE}/packages`, {
+    getJSON(`${apiPath}/packages`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -43,7 +42,7 @@ const API = {
    */
   updateActive: async (id) => {
     try {
-      const res = await fetch(`${API_BASE}/packages/${id}/toggle`, {
+      const res = await fetch(`${apiPath}/packages/${id}/toggle`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -63,7 +62,7 @@ const API = {
   },
 
   deletePackage: (id) =>
-    getJSON(`${API_BASE}/packages/${id}`, { method: "DELETE" }),
+    getJSON(`${apiPath}/packages/${id}`, { method: "DELETE" }),
 };
 
 /* ===================== สีตามเดือน + ยูทิลสี ===================== */
