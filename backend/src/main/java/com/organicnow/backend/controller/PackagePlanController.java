@@ -3,6 +3,7 @@ package com.organicnow.backend.controller;
 import com.organicnow.backend.dto.PackagePlanDto;
 import com.organicnow.backend.dto.PackagePlanRequestDto;
 import com.organicnow.backend.service.PackagePlanService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,7 +30,7 @@ public class PackagePlanController {
 
     // POST /packages - สร้างแพ็คเกจใหม่ (จะ deactivate ตัวเก่าที่ชื่อ contract type ซ้ำ)
     @PostMapping
-    public ResponseEntity<Void> createPackage(@RequestBody PackagePlanRequestDto dto) {
+    public ResponseEntity<Void> createPackage(@Valid @RequestBody PackagePlanRequestDto dto) {
         packagePlanService.createPackage(dto);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }

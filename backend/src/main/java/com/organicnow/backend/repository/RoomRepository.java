@@ -50,6 +50,8 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     Optional<Room> findByRoomNumber(String roomNumber);
     
     Optional<Room> findByRoomFloorAndRoomNumber(Integer roomFloor, String roomNumber);
+
+    boolean existsByRoomSize(Integer roomSize);
     
     // ✅ หา contract ปัจจุบันของห้อง (สำหรับ Invoice display)
     @Query("""

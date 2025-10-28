@@ -15,3 +15,4 @@ EXPOSE 5173
 
 # รัน dev server (hot reload)
 CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+
