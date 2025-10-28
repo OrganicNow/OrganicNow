@@ -32,12 +32,12 @@ INSERT INTO contract_type (contract_name, duration) VALUES
 -- ========================
 -- Package Plan
 -- ========================
-INSERT INTO package_plan (contract_type_id, price, is_active) VALUES
-                                                                  (1,  8000.00, 1),
-                                                                  (2, 15000.00, 1),
-                                                                  (3, 21000.00, 1),
-                                                                  (4, 28000.00, 1)
-    ON CONFLICT (package_id) DO NOTHING;
+INSERT INTO package_plan (contract_type_id, price, is_active, room_size) VALUES
+                                                                             (1,  8000.00, 1,0),
+                                                                             (2, 15000.00, 1, 0),
+                                                                             (3, 21000.00, 1, 0),
+                                                                             (4, 28000.00, 1, 2)
+ON CONFLICT (package_id) DO NOTHING;
 
 -- ========================
 -- Contract (อัปเดตวันที่ให้เป็นปัจจุบัน)
