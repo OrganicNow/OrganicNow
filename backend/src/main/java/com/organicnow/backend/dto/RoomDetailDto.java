@@ -13,6 +13,7 @@ import java.util.List;
 public class RoomDetailDto {
     private Long roomId;
     private String roomNumber;
+    private String roomSize; // ✅ ใช้ String เพื่อให้ตอบกลับชื่อเช่น "Studio"
     private int roomFloor;
     private String status;
     private String firstName;
@@ -20,13 +21,13 @@ public class RoomDetailDto {
     private String phoneNumber;
     private String email;
     private String contractTypeName;
-    private LocalDateTime signDate;   // เปลี่ยนเป็น LocalDateTime ตาม database
-    private LocalDateTime startDate;  // เปลี่ยนเป็น LocalDateTime ตาม database
-    private LocalDateTime endDate;    // เปลี่ยนเป็น LocalDateTime ตาม database
+    private LocalDateTime signDate;
+    private LocalDateTime startDate;
+    private LocalDateTime endDate;
     private List<AssetDto> assets;
     private List<RequestDto> requests;
 
-    // Constructor สำหรับ JPQL query (ไม่รวม assets และ requests)
+    // ✅ Constructor เดิม (ไม่มี roomSize) — ใช้กับ JPQL ได้เหมือนเดิม
     public RoomDetailDto(Long roomId, String roomNumber, int roomFloor, String status,
                          String firstName, String lastName, String phoneNumber, String email,
                          String contractTypeName, LocalDateTime signDate, LocalDateTime startDate,
@@ -43,7 +44,5 @@ public class RoomDetailDto {
         this.signDate = signDate;
         this.startDate = startDate;
         this.endDate = endDate;
-        this.assets = null;
-        this.requests = null;
     }
 }

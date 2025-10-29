@@ -24,71 +24,95 @@ public class RoomService {
     private final MaintainRepository maintainRepository;
     private final RoomAssetRepository roomAssetRepository;
 
-    // ✅ ดึงข้อมูลห้องทั้งหมด (พร้อม requests) และ assets แบบยิง DB ครั้งเดียว (ไม่ N+1)
+    // ✅ Helper: แปลง int → ชื่อขนาดห้อง
+    private String mapRoomSizeName(Integer sizeCode) {
+        return switch (sizeCode) {
+            case 0 -> "Studio";
+            case 1 -> "Superior";
+            case 2 -> "Deluxe";
+            default -> "-";
+        };
+    }
+
+    // ✅ Helper: แปลงชื่อ → int
+    private Integer parseRoomSizeCode(String name) {
+        if (name == null) return 0;
+        return switch (name.trim().toLowerCase()) {
+            case "studio" -> 0;
+            case "superior" -> 1;
+            case "deluxe" -> 2;
+            default -> {
+                try {
+                    yield Integer.parseInt(name);
+                } catch (NumberFormatException e) {
+                    yield 0;
+                }
+            }
+        };
+    }
+
+    // ✅ ดึงข้อมูลห้องทั้งหมด
     public List<RoomDetailDto> getAllRooms() {
         List<RoomDetailDto> rooms = roomRepository.findAllRooms();
         if (rooms.isEmpty()) return rooms;
 
-        // roomIds สำหรับดึง assets ครั้งเดียว
         List<Long> roomIds = rooms.stream()
                 .map(RoomDetailDto::getRoomId)
                 .collect(Collectors.toList());
 
-        // ✅ ดึง assets ของทุกห้องในครั้งเดียว
         List<Object[]> rows = roomAssetRepository.findAssetsByRoomIds(roomIds);
-
-        // map: roomId -> List<AssetDto>
         Map<Long, List<AssetDto>> assetsByRoom = new HashMap<>();
         for (Object[] row : rows) {
-            Long roomId       = (Long)    row[0];
-            Long assetId      = (Long)    row[1];
-            String assetName  = (String)  row[2];
-            String groupName  = (String)  row[3];
+            Long roomId = (Long) row[0];
+            Long assetId = (Long) row[1];
+            String assetName = (String) row[2];
+            String groupName = (String) row[3];
             Integer roomFloor = (Integer) row[4];
-            String roomNumber = (String)  row[5];
-
+            String roomNumber = (String) row[5];
             AssetDto dto = new AssetDto(assetId, assetName, groupName, roomFloor, roomNumber);
             assetsByRoom.computeIfAbsent(roomId, k -> new ArrayList<>()).add(dto);
         }
 
-        // เติม requests (คงเดิม) + assets (จาก map ที่รวมมาแล้ว)
+        // ✅ เพิ่มชื่อขนาดห้อง (Studio / Superior / Deluxe)
         for (RoomDetailDto room : rooms) {
+            Room full = roomRepository.findById(room.getRoomId()).orElse(null);
+            if (full != null) {
+                room.setRoomSize(mapRoomSizeName(full.getRoomSize()));
+            }
+
             List<RequestDto> reqs = maintainRepository.findRequestsByRoomId(room.getRoomId());
             room.setRequests(reqs);
-
             room.setAssets(assetsByRoom.getOrDefault(room.getRoomId(), Collections.emptyList()));
         }
 
         return rooms;
     }
 
-    // ✅ ดึงข้อมูลห้องแบบละเอียด (เดิม) — ใช้ได้เลย
+    // ✅ ดึงข้อมูลห้องแบบละเอียด
     public RoomDetailDto getRoomDetail(Long roomId) {
         RoomDetailDto dto = roomRepository.findRoomDetail(roomId);
         if (dto == null) return null;
 
-        List<AssetDto> assets = assetRepository.findAssetsByRoomId(roomId);
-        List<RequestDto> requests = maintainRepository.findRequestsByRoomId(roomId);
+        Room full = roomRepository.findById(roomId).orElse(null);
+        if (full != null) {
+            dto.setRoomSize(mapRoomSizeName(full.getRoomSize()));
+        }
 
-        dto.setAssets(assets);
-        dto.setRequests(requests);
+        dto.setAssets(assetRepository.findAssetsByRoomId(roomId));
+        dto.setRequests(maintainRepository.findRequestsByRoomId(roomId));
         return dto;
     }
 
-    // ✅ เพิ่มของเข้าห้อง
+    // ✅ เพิ่ม / ลบ / อัปเดต assets
     @Transactional
     public void addAssetToRoom(Long roomId, Long assetId) {
         if (roomAssetRepository.existsByRoomIdAndAssetId(roomId, assetId)) {
             throw new RuntimeException("Asset already exists in this room");
         }
-
         Room room = roomRepository.findById(roomId)
                 .orElseThrow(() -> new RuntimeException("Room not found"));
-
         Asset asset = assetRepository.findAvailableById(assetId);
-        if (asset == null) {
-            throw new RuntimeException("Asset not available or not found");
-        }
+        if (asset == null) throw new RuntimeException("Asset not available or not found");
 
         RoomAsset ra = new RoomAsset();
         ra.setRoom(room);
@@ -99,7 +123,6 @@ public class RoomService {
         assetRepository.save(asset);
     }
 
-    // ✅ เอาของออกจากห้อง
     @Transactional
     public void removeAssetFromRoom(Long roomId, Long assetId) {
         RoomAsset ra = roomAssetRepository.findByRoomIdAndAssetId(roomId, assetId)
@@ -112,7 +135,6 @@ public class RoomService {
         assetRepository.save(asset);
     }
 
-    // ✅ อัปเดตของในห้องแบบฉลาด (diff update — ไม่ลบหมด)
     @Transactional
     public void updateRoomAssets(Long roomId, List<Long> newAssetIds) {
         Room room = roomRepository.findById(roomId)
@@ -124,7 +146,6 @@ public class RoomService {
                 .collect(Collectors.toSet());
         Set<Long> newAssetIdSet = new HashSet<>(newAssetIds != null ? newAssetIds : Collections.emptyList());
 
-        // 1️⃣ ลบออก
         Set<Long> toRemove = oldAssetIds.stream()
                 .filter(id -> !newAssetIdSet.contains(id))
                 .collect(Collectors.toSet());
@@ -138,7 +159,6 @@ public class RoomService {
             }
         }
 
-        // 2️⃣ เพิ่มใหม่
         Set<Long> toAdd = newAssetIdSet.stream()
                 .filter(id -> !oldAssetIds.contains(id))
                 .collect(Collectors.toSet());
@@ -165,7 +185,22 @@ public class RoomService {
 
         if (dto.getRoomFloor() != null) room.setRoomFloor(dto.getRoomFloor());
         if (dto.getRoomNumber() != null) room.setRoomNumber(dto.getRoomNumber());
+        if (dto.getRoomSize() != null) room.setRoomSize(parseRoomSizeCode(dto.getRoomSize()));
 
         roomRepository.save(room);
+    }
+
+    // ✅ เพิ่มห้องใหม่
+    @Transactional
+    public Room createRoom(RoomUpdateDto dto) {
+        if (dto.getRoomNumber() == null || dto.getRoomFloor() == null)
+            throw new RuntimeException("Missing required fields: roomNumber or roomFloor");
+
+        Room room = new Room();
+        room.setRoomNumber(dto.getRoomNumber());
+        room.setRoomFloor(dto.getRoomFloor());
+        room.setRoomSize(parseRoomSizeCode(dto.getRoomSize()));
+
+        return roomRepository.save(room);
     }
 }
