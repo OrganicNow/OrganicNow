@@ -33,7 +33,6 @@ public class PackagePlan {
     @Column(name = "is_active", nullable = false)
     private Integer isActive;   // 0 = ไม่ใช้งาน, 1 = ใช้งาน
 
-    @NotNull
-    @Column(name = "package_size", nullable = false, columnDefinition = "INT DEFAULT 0")
-    private Integer packageSize = 0;   // 0 = Small, 1 = Medium, 2 = Large
+    @Column(name = "room_size", nullable = false)
+    private Integer roomSize;
 }

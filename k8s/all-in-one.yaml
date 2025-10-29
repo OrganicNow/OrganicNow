@@ -1,0 +1,234 @@
+# =========================================
+# Namespace
+# =========================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: organicnow
+
+---
+# =========================================
+# PostgreSQL Database (StatefulSet + Secret + Service)
+# =========================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: organicnow
+type: Opaque
+stringData:
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres123
+  POSTGRES_DB: organicnow
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: organicnow
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+#  clusterIP: None  # สำหรับ StatefulSet
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: organicnow
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: postgres-secret
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          args: ["-c", "max_connections=200"]
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+
+---
+# =========================================
+# Backend Deployment + Service
+# =========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: organicnow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: organicnow-backend:local   # ← ใช้ image ที่คุณ build ในเครื่อง
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres:5432/organicnow
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
+              value: update
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 40
+            periodSeconds: 15
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: organicnow
+spec:
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+
+---
+# =========================================
+# Frontend Deployment + Service
+# =========================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: organicnow
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: nginx                      # เปลี่ยนชื่อให้สื่อว่าเป็น nginx runtime
+          image: organicnow-frontend:local # ต้อง build จาก Dockerfile.prod
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80            # ✅ ตัวคอนเทนเนอร์ฟังที่ 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80                     # ✅ เช็กสุขภาพที่ 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80                     # ✅ ล้างคอนเทนเนอร์ถ้าตาย
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            failureThreshold: 6
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "300m", memory: "256Mi" }
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: organicnow
+spec:
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+  type: ClusterIP
+
+---
+# =========================================
+# Ingress (Frontend + Backend)
+# =========================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-web
+  namespace: organicnow
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: app.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
