@@ -1,0 +1,116 @@
+@import url("https://cdn.jsdelivr.net/npm/@fullcalendar/core@6.1.19/index.min.css");
+@import url("https://cdn.jsdelivr.net/npm/@fullcalendar/daygrid@6.1.19/index.min.css");
+@import url("https://cdn.jsdelivr.net/npm/@fullcalendar/timegrid@6.1.19/index.min.css");
+@import url("https://cdn.jsdelivr.net/npm/@fullcalendar/list@6.1.19/index.min.css");
+
+.fc {
+    font-family: "Inter", sans-serif;
+    --fc-border-color: #e5e7eb;
+    --fc-page-bg-color: #f9fafb;
+    --fc-event-bg-color: #02BEA3;
+    --fc-event-border-color: #02BEA3;
+    --fc-today-bg-color: #e8fdf8;
+}
+
+.fc-event-card {
+    background: var(--fc-event-bg-color);
+    border-radius: 8px;
+    padding: 3px 6px;
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    transition: all 0.2s ease;
+}
+.fc-event-card:hover {
+    background: #00d4b5;
+    transform: translateY(-2px);
+}
+
+/* เพิ่มระยะห่างรอบ header ของ FullCalendar */
+.fc-header-toolbar {
+    padding: 1rem 2rem;   /* บน-ล่าง 1rem, ซ้าย-ขวา 1.25rem */
+}
+
+/* ให้ toolbar และปุ่มมีการจัดแนวสวยงาม */
+.fc-toolbar-chunk {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem; /* ระยะห่างระหว่างปุ่ม */
+}
+
+/* ถ้าอยากให้ toolbar แยกจากปฏิทินชัดเจน */
+.fc-toolbar {
+    margin-bottom: 1rem;
+}
+
+/* ====== HEADER TOOLBAR ====== */
+.custom-calendar .fc-toolbar {
+    background: #f9f9f9;
+    border-radius: 10px 10px 0 0;
+    padding: 10px 15px;
+}
+
+/* ปุ่ม prev / next / today / month / list */
+.custom-calendar .fc .fc-button {
+    background-color: #02BEA3 !important; /* สีมิ้นท์ */
+    border: none !important;
+    color: white !important;
+    border-radius: 8px !important;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.custom-calendar .fc .fc-button:hover {
+    background-color: #00a98f !important; /* สีเข้มขึ้นตอน hover */
+}
+
+.custom-calendar .fc .fc-button.fc-button-active {
+    background-color: #008c76 !important; /* สีปุ่มที่ active */
+}
+
+/* ปุ่มลูกศรซ้ายขวา */
+.custom-calendar .fc .fc-prev-button,
+.custom-calendar .fc .fc-next-button {
+    font-size: 1rem;
+    padding: 6px 12px !important;
+}
+
+/* ====== ปรับ title ให้ดูสะอาดขึ้น ====== */
+.custom-calendar .fc-toolbar-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #111827; /* ดำเข้ม */
+}
+
+/* ====== สีตัวอักษรในปฏิทิน ====== */
+.custom-calendar .fc {
+    color: #111 !important;
+}
+
+.custom-calendar .fc-daygrid-day-number {
+    color: #111 !important;
+    font-weight: 500;
+}
+
+/* ====== เอาเส้นตารางออก ====== */
+.custom-calendar .fc-theme-standard td,
+.custom-calendar .fc-theme-standard th {
+    border: none !important;
+    background: transparent !important;
+}
+
+.custom-calendar .fc-scrollgrid {
+    border: none !important;
+}
+
+/* เอา background สีเทาออกจากหัววัน */
+.custom-calendar .fc-col-header-cell {
+    background: transparent !important;
+}
+
+/* ====== วันที่ปัจจุบัน ====== */
+.custom-calendar .fc-day-today {
+    background: rgba(2, 190, 163, 0.1) !important;
+    border-radius: 8px;
+}

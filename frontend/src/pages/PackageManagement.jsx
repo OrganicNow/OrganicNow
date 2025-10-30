@@ -504,23 +504,15 @@ function PackageManagement() {
                         {loading && <div className="alert alert-info mt-3">Loading packages...</div>}
 
                         {/* Table */}
-                        <div className="table-wrapper mt-3" style={{ overflowX: "auto" }}>
-                            <table className="table text-nowrap w-100">
-                                <colgroup>
-                                    <col style={{ width: 80 }} />   {/* Order */}
-                                    <col style={{ width: 160 }} />  {/* Package */}
-                                    <col style={{ width: 120 }} />  {/* Room Size */}
-                                    <col style={{ width: 180 }} />  {/* Rent */}
-                                    <col style={{ width: 100 }} />  {/* Action */}
-                                </colgroup>
-
+                        <div className="table-wrapper">
+                            <table className="table text-nowrap align-middle">
                                 <thead>
-                                <tr>
-                                    <th className="text-start align-middle header-color">Order</th>
-                                    <th className="text-start align-middle header-color">Package</th>
-                                    <th className="text-start align-middle header-color">Room Size</th>
-                                    <th className="text-start align-middle header-color">Rent</th>
-                                    <th className="text-end align-middle header-color pe-3">Action</th>
+                                <tr className="header-color">
+                                    <th>Order</th>
+                                    <th>Package</th>
+                                    <th>Room size</th>
+                                    <th>Rent</th>
+                                    <th>Action</th>
                                 </tr>
                                 </thead>
                                 <tbody>

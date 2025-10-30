@@ -9,6 +9,13 @@ import { useToast } from "../contexts/ToastContext";
 import * as bootstrap from "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
+import "../assets/css/fullcalendar.css";
+
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import timeGridPlugin from "@fullcalendar/timegrid";
+import interactionPlugin from "@fullcalendar/interaction";
+import listPlugin from "@fullcalendar/list";
 
 // ===== API base =====
 const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
@@ -173,6 +180,28 @@ function MaintenanceSchedule() {
         description: "",    // scheduleDescription
     });
 
+    // ====== VIEW MODAL (รายละเอียดอีเวนต์) ======
+    const [viewEvent, setViewEvent] = useState(null);
+
+    const openViewModal = (data) => {
+        setViewEvent(data);
+        const el = document.getElementById("viewScheduleModal");
+        if (el) (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el)).show();
+    };
+
+    const closeViewModal = () => {
+        const el = document.getElementById("viewScheduleModal");
+        if (el) (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el)).hide();
+        cleanupBackdrops();
+    };
+
+    const handleDeleteFromView = async () => {
+        if (!viewEvent?.id) return;
+        await deleteRow(viewEvent.id);
+        closeViewModal();
+        setViewEvent(null);
+    };
+
     useEffect(() => {
         // ทุกครั้งที่ scope เปลี่ยน รีค่า assetGroupId
         setNewSch((prev) => ({
@@ -271,6 +300,30 @@ function MaintenanceSchedule() {
         return rows;
     }, [schedules, filters, search, sortAsc]);
 
+    const calendarEvents = useMemo(() => {
+        return filtered
+            .filter(r => r.nextDate || r.lastDate)
+            .map(r => {
+                const date = r.nextDate || r.lastDate;
+                const isAsset = r.scope === "Asset";
+                return {
+                    id: String(r.id),
+                    title: `${r.title}${r.assetGroupName ? " · " + r.assetGroupName : ""}`,
+                    start: date,
+                    allDay: true,
+                    extendedProps: {
+                        scope: r.scope,
+                        lastDate: r.lastDate,
+                        nextDate: r.nextDate,
+                        description: r.description,
+                        assetGroupName: r.assetGroupName,
+                    },
+                    backgroundColor: isAsset ? "#02BEA3" : undefined,
+                    borderColor: isAsset ? "#02BEA3" : undefined,
+                };
+            });
+    }, [filtered]);
+
     // --------- PAGINATION ----------
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(defaultPageSize || 10);
@@ -301,8 +354,6 @@ function MaintenanceSchedule() {
             alert("ลบไม่สำเร็จ");
         }
     };
-
-
 
     const hasAnyFilter =
         filters.scope !== "ALL" ||
@@ -396,67 +447,120 @@ function MaintenanceSchedule() {
                             </div>
                         </div>
 
-                        {/* Table */}
+                        {/* Calendar */}
                         <div className="table-wrapper mt-3">
                             {error && <div className="alert alert-danger">{error}</div>}
-                            <table className="table text-nowrap">
-                                <thead>
-                                <tr>
-                                    <th className="text-start align-middle header-color">Order</th>
-                                    <th className="text-start align-middle header-color">Scope</th>
-                                    <th className="text-start align-middle header-color">Title</th>
-                                    <th className="text-start align-middle header-color">Last date</th>
-                                    <th className="text-start align-middle header-color">Next date</th>
-                                    <th className="text-start align-middle header-color">Description</th>
-                                    <th className="text-center align-middle header-color">Action</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {loading ? (
-                                    <tr>
-                                        <td colSpan="8" className="text-center">Loading...</td>
-                                    </tr>
-                                ) : pageRows.length ? (
-                                    pageRows.map((item, idx) => (
-                                        <tr key={item.id}>
-                                            <td className="align-middle">
-                                                {(currentPage - 1) * pageSize + idx + 1}
-                                            </td>
-                                            <td className="align-middle">{item.scope}</td>
-                                            <td className="align-middle">{item.title}</td>
-                                            <td className="align-middle">{item.lastDate}</td>
-                                            <td className="align-middle">{item.nextDate}</td>
-                                            <td className="align-middle">{item.description}</td>
-                                            <td className="align-middle text-center">
-                                                <button
-                                                    className="btn btn-link text-dark p-0"
-                                                    onClick={() => deleteRow(item.id)}
-                                                    title="Delete"
-                                                >
-                                                    <i className="bi bi-trash-fill"></i>
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan="8" className="text-center">No schedules found</td>
-                                    </tr>
-                                )}
-                                </tbody>
-                            </table>
+                            <div className="mt-3">
+                                {error && <div className="alert alert-danger">{error}</div>}
+                                <FullCalendar
+                                    className="custom-calendar"
+                                    plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
+                                    initialView="dayGridMonth"
+                                    headerToolbar={{
+                                        left: "prev,next today",
+                                        center: "title",
+                                        right: "dayGridMonth,listWeek",
+                                    }}
+                                    titleFormat={{ year: "numeric", month: "long" }}
+                                    locale={"en"}           // ✅ ต้องใส่ใน { }
+                                    firstDay={1}
+                                    height="auto"
+                                    dayMaxEventRows={3}
+                                    eventOrder="start,-duration,allDay,title"
+                                    events={calendarEvents}
+                                    eventContent={(arg) => {
+                                        // ✅ ปรับ style ของ event ตาม design ใหม่
+                                        const { title } = arg.event;
+                                        return {
+                                            html: `
+        <div class="fc-event-card">
+          <div class="fc-event-title">${title}</div>
+        </div>
+      `,
+                                        };
+                                    }}
+                                    dateClick={(arg) => {
+                                        setNewSch((p) => ({ ...p, lastDate: arg.dateStr }));
+                                        const modalEl = document.getElementById("createScheduleModal");
+                                        if (modalEl) {
+                                            (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).show();
+                                        }
+                                    }}
+                                    eventClick={(info) => {
+                                        const ev = info.event;
+                                        const xp = ev.extendedProps || {};
+                                        openViewModal({
+                                            id: ev.id,
+                                            title: ev.title,
+                                            scope: xp.scope || "-",
+                                            lastDate: xp.lastDate || "-",
+                                            nextDate: xp.nextDate || "-",
+                                            assetGroupName: xp.assetGroupName || "-",
+                                            description: xp.description || "",
+                                        });
+                                    }}
+                                    eventMouseEnter={(info) => {
+                                        const xp = info.event.extendedProps || {};
+                                        const tip =
+                                            (xp.description ? xp.description + "\n" : "") +
+                                            (xp.nextDate ? "Next: " + xp.nextDate : "");
+                                        if (tip) info.el.setAttribute("title", tip);
+                                    }}
+                                />
+                            </div>
                         </div>
-
-                        <Pagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            onPageChange={setCurrentPage}
-                            totalRecords={totalRecords}
-                            onPageSizeChange={setPageSize}
-                        />
                     </div>
                 </div>
             </div>
+
+            {/* View Schedule Modal */}
+            <Modal id="viewScheduleModal" title="Schedule Detail" icon="bi bi-calendar-event" size="modal-md">
+                {viewEvent ? (
+                    <div className="row g-3">
+                        <div className="col-12">
+                            <div className="d-flex align-items-center justify-content-between">
+                                <h5 className="mb-0">{viewEvent.title}</h5>
+                                <span
+                                    className={`badge ${viewEvent.scope === "Asset" ? "bg-success" : "bg-primary"}`}
+                                    title="Scope"
+                                >
+            {viewEvent.scope}
+          </span>
+                            </div>
+                            {viewEvent.assetGroupName && viewEvent.assetGroupName !== "-" && (
+                                <div className="text-muted mt-1">Group: {viewEvent.assetGroupName}</div>
+                            )}
+                        </div>
+
+                        <div className="col-md-6">
+                            <label className="form-label text-muted mb-0">Last date</label>
+                            <div className="fw-semibold">{viewEvent.lastDate}</div>
+                        </div>
+                        <div className="col-md-6">
+                            <label className="form-label text-muted mb-0">Next date</label>
+                            <div className="fw-semibold">{viewEvent.nextDate}</div>
+                        </div>
+
+                        <div className="col-12">
+                            <label className="form-label text-muted mb-0">Description</label>
+                            <div className="border rounded p-2 bg-light" style={{ minHeight: 60 }}>
+                                {viewEvent.description || <span className="text-muted">-</span>}
+                            </div>
+                        </div>
+
+                        <div className="col-12 d-flex justify-content-between pt-2">
+                            <button type="button" className="btn btn-outline-secondary" onClick={closeViewModal}>
+                                Close
+                            </button>
+                            <button type="button" className="btn btn-danger" onClick={handleDeleteFromView}>
+                                <i className="bi bi-trash me-1" /> Delete
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="text-center text-muted py-4">Loading...</div>
+                )}
+            </Modal>
 
             {/* Create Schedule Modal */}
             <Modal id="createScheduleModal" title="Create Schedule" icon="bi bi-alarm" size="modal-lg">
