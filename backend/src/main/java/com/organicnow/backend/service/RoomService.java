@@ -203,4 +203,35 @@ public class RoomService {
 
         return roomRepository.save(room);
     }
+    @Transactional
+    public void deleteRoom(Long id) {
+        Room room = roomRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Room not found with ID: " + id));
+
+        // ✅ ดึงสินค้าที่อยู่ในห้องนี้
+        List<RoomAsset> roomAssets = roomAssetRepository.findByRoomId(id);
+
+        if (!roomAssets.isEmpty()) {
+            System.out.println("🟡 Found " + roomAssets.size() + " assets in this room. Returning them...");
+
+            // ✅ เปลี่ยนสถานะ asset กลับเป็น available
+            for (RoomAsset ra : roomAssets) {
+                Asset asset = ra.getAsset();
+                if (asset != null) {
+                    asset.setStatus("available");
+                    assetRepository.save(asset);
+                    System.out.println("✅ Returned asset: " + asset.getAssetName());
+                }
+            }
+
+            // ✅ ลบความสัมพันธ์ใน RoomAsset
+            roomAssetRepository.deleteAll(roomAssets);
+        }
+
+        // ✅ ลบห้อง (hard delete)
+        roomRepository.delete(room);
+
+        System.out.println("🏁 Room deleted successfully with assets returned to available.");
+    }
+
 }

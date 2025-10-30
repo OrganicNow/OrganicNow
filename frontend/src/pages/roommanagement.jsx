@@ -11,7 +11,6 @@ import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 
-
 function RoomManagement() {
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
@@ -22,7 +21,6 @@ function RoomManagement() {
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [data, setData] = useState([]);
   const [error, setError] = useState("");
-
   const [filters, setFilters] = useState({
     floor: "ALL",
     roomSize: "ALL",
@@ -31,8 +29,15 @@ function RoomManagement() {
     search: "",
   });
 
+  const [modalAssets, setModalAssets] = useState([]);
+  const [selectedAsset, setSelectedAsset] = useState([]);
   const [sortAsc, setSortAsc] = useState(true);
 
+  const [roomNumber, setRoomNumber] = useState("");
+  const [roomSize, setRoomSize] = useState("");
+  const [selectedFloor, setSelectedFloor] = useState("");
+
+  // ✅ ดึงข้อมูลห้อง
   const fetchRooms = async () => {
     try {
       const res = await axios.get(`${apiPath}/room/list`, { withCredentials: true });
@@ -50,8 +55,26 @@ function RoomManagement() {
     }
   };
 
+  // ✅ ดึงข้อมูล asset ที่ available
+  const fetchAvailableAssets = async () => {
+    try {
+      const res = await axios.get(`${apiPath}/assets/available`, { withCredentials: true });
+      if (res.data && Array.isArray(res.data.result)) {
+        setModalAssets(res.data.result);
+        setSelectedAsset([]); // 🧹 ล้าง checkbox ทุกครั้งหลังโหลด assets ใหม่
+      } else {
+        setModalAssets([]);
+        setError("Failed to fetch available assets");
+      }
+    } catch (err) {
+      console.error("Error fetching assets:", err);
+      setError("Failed to fetch asset data");
+    }
+  };
+
   useEffect(() => {
     fetchRooms();
+    fetchAvailableAssets();
   }, []);
 
   useEffect(() => {
@@ -71,6 +94,11 @@ function RoomManagement() {
   const handlePageSizeChange = (size) => {
     setPageSize(size);
     setCurrentPage(1);
+  };
+
+  const getPendingRequestsCount = (room) => {
+    if (!room.requests) return 0;
+    return room.requests.filter((req) => req.finishDate === null).length;
   };
 
   const filteredData = useMemo(() => {
@@ -124,46 +152,75 @@ function RoomManagement() {
           : "bg-success"
       }`}
     >
-      {status === "repair"
-        ? "Repair"
-        : status === "occupied"
-        ? "Unavailable"
-        : "Available"}
+      {status === "repair" ? "Repair" : status === "occupied" ? "Unavailable" : "Available"}
     </span>
   );
 
-  // ✅ States สำหรับ modal “Add Room”
-  const [roomNumber, setRoomNumber] = useState("");
-  const [roomSize, setRoomSize] = useState("");
-  const [selectedFloor, setSelectedFloor] = useState("");
+  // ✅ ลบห้อง
+  const handleDeleteRoom = async (roomId) => {
+    if (!window.confirm("Are you sure you want to delete this room?")) return;
 
-  // ✅ บันทึกห้องใหม่ (เรียก backend)
+    try {
+      await axios.delete(`${apiPath}/room/${roomId}`, { withCredentials: true });
+      showSuccess("Room deleted successfully!");
+      await fetchRooms(); // refresh data
+    } catch (err) {
+      console.error("Error deleting room:", err);
+      showError("Failed to delete room.");
+    }
+  };
+
+  // ✅ เลือก asset
+  const handleAssetSelect = (e, assetId) => {
+    setSelectedAsset((prev) => {
+      if (e.target.checked) {
+        return prev.includes(assetId) ? prev : [...prev, assetId];
+      } else {
+        return prev.filter((id) => id !== assetId);
+      }
+    });
+  };
+
+  // ✅ บันทึกห้อง
   const handleSaveRoom = async (e) => {
     e.preventDefault();
+
     if (!roomNumber || !selectedFloor || !roomSize) {
       showError("Please fill all required fields!");
       return;
     }
 
+    console.log("🟢 Selected assets before save:", selectedAsset);
+
     try {
       const payload = {
-        roomNumber: roomNumber,
+        roomNumber,
         roomFloor: parseInt(selectedFloor, 10),
-        roomSize: roomSize,
+        roomSize,
       };
 
-      await axios.post(`${apiPath}/room`, payload, { withCredentials: true });
+      const res = await axios.post(`${apiPath}/room`, payload, {
+        withCredentials: true,
+      });
+      const newRoom = res.data;
 
-      showSuccess("Room added successfully!");
+      const newRoomId = newRoom.roomId || newRoom.id;
+
+      if (selectedAsset.length > 0 && newRoomId) {
+        console.log("📦 Sending asset IDs:", selectedAsset, "➡ room:", newRoomId);
+        await axios.put(`${apiPath}/room/${newRoomId}/assets`, selectedAsset, {
+          withCredentials: true,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      showSuccess("Room and assets added successfully!");
       await fetchRooms();
-
-      // ปิด modal
       document.getElementById("addRoomModal_btnClose").click();
-
-      // รีเซ็ตฟอร์ม
       setRoomNumber("");
       setRoomSize("");
       setSelectedFloor("");
+      setSelectedAsset([]);
     } catch (err) {
       console.error("Error adding room:", err);
       showError("Failed to add room.");
@@ -175,7 +232,7 @@ function RoomManagement() {
       <div className="container-fluid">
         <div className="row min-vh-100">
           <div className="col-lg-11 p-4">
-            {/* ✅ Toolbar */}
+            {/* Toolbar */}
             <div className="toolbar-wrapper card border-0 bg-white">
               <div className="card-header bg-white border-0 rounded-3">
                 <div className="tm-toolbar d-flex justify-content-between align-items-center">
@@ -187,12 +244,11 @@ function RoomManagement() {
                     >
                       <i className="bi bi-filter me-1"></i> Filter
                     </button>
-                    <button
-                      className="btn btn-link tm-link p-0"
-                      onClick={handleSort}
-                    >
+
+                    <button className="btn btn-link tm-link p-0" onClick={handleSort}>
                       <i className="bi bi-arrow-down-up me-1"></i> Sort
                     </button>
+
                     <div className="input-group tm-search">
                       <span className="input-group-text bg-white border-end-0">
                         <i className="bi bi-search text-secondary"></i>
@@ -202,9 +258,7 @@ function RoomManagement() {
                         className="form-control border-start-0"
                         placeholder="Search"
                         value={filters.search}
-                        onChange={(e) =>
-                          setFilters({ ...filters, search: e.target.value })
-                        }
+                        onChange={(e) => setFilters({ ...filters, search: e.target.value })}
                       />
                     </div>
                   </div>
@@ -215,6 +269,10 @@ function RoomManagement() {
                       className="btn btn-primary"
                       data-bs-toggle="modal"
                       data-bs-target="#addRoomModal"
+                      onClick={() => {
+                        setSelectedAsset([]);
+                        console.log("🧹 Cleared selectedAsset when opening modal");
+                      }}
                     >
                       <i className="bi bi-plus-lg me-1"></i> Add Room
                     </button>
@@ -223,7 +281,7 @@ function RoomManagement() {
               </div>
             </div>
 
-            {/* ✅ Table */}
+            {/* Table */}
             {error && <p className="text-danger">{error}</p>}
             <div className="table-wrapper">
               <table className="table text-nowrap align-middle">
@@ -240,32 +298,36 @@ function RoomManagement() {
                 </thead>
                 <tbody>
                   {filteredData.length > 0 ? (
-                    filteredData
-                      .slice(startIdx, startIdx + pageSize)
-                      .map((item, idx) => (
-                        <tr key={item.roomId}>
-                          <td>{startIdx + idx + 1}</td>
-                          <td>{item.roomNumber}</td>
-                          <td>{item.roomFloor}</td>
-                          <td>{item.roomSize || "-"}</td>
-                          <td>
-                            <StatusPill status={item.status} />
-                          </td>
-                          <td className="text-center">
-                            {item.requests?.some((req) => req.finishDate === null)
-                              ? "●"
-                              : "-"}
-                          </td>
-                          <td>
+                    filteredData.slice(startIdx, startIdx + pageSize).map((item, idx) => (
+                      <tr key={item.roomId || item.id}>
+                        <td>{startIdx + idx + 1}</td>
+                        <td>{item.roomNumber}</td>
+                        <td>{item.roomFloor}</td>
+                        <td>{item.roomSize || "-"}</td>
+                        <td><StatusPill status={item.status} /></td>
+                        <td className="text-center">{getPendingRequestsCount(item)}</td>
+                        <td>
+                          <div className="d-flex gap-2">
                             <button
                               className="btn btn-sm form-Button-Edit"
-                              onClick={() => navigate(`/roomdetail/${item.roomId}`)}
+                              onClick={() => navigate(`/roomdetail/${item.roomId || item.id}`)}
                             >
                               <i className="bi bi-eye-fill" />
                             </button>
-                          </td>
-                        </tr>
-                      ))
+
+                            {/* 🗑️ ปุ่มลบ */}
+                            <button
+                              className="btn btn-sm form-Button-Del"
+                              onClick={async () => await handleDeleteRoom(item.roomId, item.roomNumber)}
+                              aria-label="Delete"
+                            >
+                              <i className="bi bi-trash-fill"></i>
+                            </button>
+
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   ) : (
                     <tr>
                       <td colSpan="7" className="text-center py-3 text-muted">
@@ -327,6 +389,35 @@ function RoomManagement() {
             </select>
           </div>
 
+          {/* ✅ Asset Selection */}
+          <div className="mb-3">
+            <label className="form-label">Select Assets for this Room</label>
+            <div className="d-flex flex-wrap gap-3">
+              {modalAssets.length > 0 ? (
+                modalAssets.map((asset) => {
+                  const id = asset.assetId ?? asset.id;
+                  return (
+                    <div key={id} className="form-check">
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        id={`asset-${id}`}
+                        value={id}
+                        checked={selectedAsset.includes(id)}
+                        onChange={(e) => handleAssetSelect(e, id)}
+                      />
+                      <label className="form-check-label" htmlFor={`asset-${id}`}>
+                        {asset.assetName}
+                      </label>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-muted">No available assets</p>
+              )}
+            </div>
+          </div>
+
           <div className="d-flex justify-content-center gap-3 pt-3">
             <button
               type="button"
@@ -342,115 +433,6 @@ function RoomManagement() {
           </div>
         </form>
       </Modal>
-
-      {/* ✅ Offcanvas Filter */}
-      <div
-        className="offcanvas offcanvas-end"
-        tabIndex="-1"
-        id="roomFilterCanvas"
-        data-bs-backdrop="static"
-      >
-        <div className="offcanvas-header">
-          <h5 className="mb-0">
-            <i className="bi bi-filter me-2"></i> Filters
-          </h5>
-          <button type="button" className="btn-close" data-bs-dismiss="offcanvas"></button>
-        </div>
-
-        <div className="offcanvas-body">
-          {/* 🟦 Floor */}
-          <div className="mb-3">
-            <label className="form-label">Floor</label>
-            <select
-              className="form-select"
-              value={filters.floor}
-              onChange={(e) =>
-                setFilters({ ...filters, floor: e.target.value })
-              }
-            >
-              <option value="ALL">All</option>
-              {[...new Set(data.map((r) => r.roomFloor))].map((floor) => (
-                <option key={floor} value={floor}>
-                  {floor}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 🟦 Room Size */}
-          <div className="mb-3">
-            <label className="form-label">Room Size</label>
-            <select
-              className="form-select"
-              value={filters.roomSize}
-              onChange={(e) =>
-                setFilters({ ...filters, roomSize: e.target.value })
-              }
-            >
-              <option value="ALL">All</option>
-              {[...new Set(data.map((r) => r.roomSize || "-"))].map((size) => (
-                <option key={size} value={size}>
-                  {size}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* 🟦 Status */}
-          <div className="mb-3">
-            <label className="form-label">Status</label>
-            <select
-              className="form-select"
-              value={filters.status}
-              onChange={(e) =>
-                setFilters({ ...filters, status: e.target.value })
-              }
-            >
-              <option value="ALL">All</option>
-              <option value="available">Available</option>
-              <option value="occupied">Occupied</option>
-              <option value="repair">Repair</option>
-            </select>
-          </div>
-
-          {/* 🟦 Pending Requests */}
-          <div className="mb-3">
-            <label className="form-label">Pending Requests</label>
-            <select
-              className="form-select"
-              value={filters.pendingRequests}
-              onChange={(e) =>
-                setFilters({ ...filters, pendingRequests: e.target.value })
-              }
-            >
-              <option value="ALL">All</option>
-              <option value="pending">Pending Only</option>
-              <option value="none">No Pending</option>
-            </select>
-          </div>
-
-          {/* 🟦 Buttons */}
-          <div className="d-flex justify-content-between mt-4">
-            <button
-              className="btn btn-outline-secondary"
-              onClick={() =>
-                setFilters({
-                  floor: "ALL",
-                  roomSize: "ALL",
-                  status: "ALL",
-                  pendingRequests: "ALL",
-                  search: "",
-                })
-              }
-            >
-              Clear
-            </button>
-            <button className="btn btn-primary" data-bs-dismiss="offcanvas">
-              Apply
-            </button>
-          </div>
-        </div>
-      </div>
     </Layout>
   );
 }

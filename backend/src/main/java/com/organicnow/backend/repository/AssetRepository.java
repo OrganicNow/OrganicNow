@@ -49,13 +49,20 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
 
     // ✅ ดึงเฉพาะ asset ที่ยังไม่ถูกใช้ และสถานะยัง available
     @Query("""
-        SELECT new com.organicnow.backend.dto.AssetDto(
-            a.id, a.assetName, ag.assetGroupName, null, null
-        )
-        FROM Asset a
-        JOIN a.assetGroup ag
-        WHERE a.status = 'available'
-          AND a.id NOT IN (SELECT ra.asset.id FROM RoomAsset ra)
-        """)
+    SELECT DISTINCT new com.organicnow.backend.dto.AssetDto(
+        a.id,
+        a.assetName,
+        ag.assetGroupName,
+        null,
+        null
+    )
+    FROM Asset a
+    JOIN a.assetGroup ag
+    LEFT JOIN RoomAsset ra ON ra.asset.id = a.id
+    WHERE LOWER(a.status) = 'available'
+      AND ra.id IS NULL
+    ORDER BY a.assetName ASC
+""")
     List<AssetDto> findAvailableAssets();
+
 }

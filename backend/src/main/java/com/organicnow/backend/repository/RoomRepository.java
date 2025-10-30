@@ -67,4 +67,13 @@ public interface RoomRepository extends JpaRepository<Room, Long> {
     """)
     Contract findCurrentContractByRoomFloorAndNumber(@Param("roomFloor") Integer roomFloor, 
                                                     @Param("roomNumber") String roomNumber);
+
+    @Query("""
+    SELECT r
+    FROM Room r
+    ORDER BY r.roomFloor, r.roomNumber
+""")
+    List<Room> findAllActiveRooms();
+
+
 }
