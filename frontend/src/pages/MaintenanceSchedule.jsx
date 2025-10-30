@@ -1,21 +1,21 @@
 // src/pages/MaintenanceSchedule.jsx
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
-import Pagination from "../component/pagination";
 import { pageSize as defaultPageSize } from "../config_variable";
 import { useNotifications } from "../contexts/NotificationContext";
 import { useToast } from "../contexts/ToastContext";
 import * as bootstrap from "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import "../assets/css/fullcalendar.css";
 
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import listPlugin from "@fullcalendar/list";
+
+import "../assets/css/fullcalendar.css";
 
 // ===== API base =====
 const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
@@ -301,28 +301,54 @@ function MaintenanceSchedule() {
     }, [schedules, filters, search, sortAsc]);
 
     const calendarEvents = useMemo(() => {
-        return filtered
-            .filter(r => r.nextDate || r.lastDate)
-            .map(r => {
-                const date = r.nextDate || r.lastDate;
-                const isAsset = r.scope === "Asset";
-                return {
-                    id: String(r.id),
-                    title: `${r.title}${r.assetGroupName ? " · " + r.assetGroupName : ""}`,
-                    start: date,
+        const evs = [];
+        for (const r of filtered) {
+            // 1) แสดง LAST (ถ้ามี)
+            if (r.lastDate) {
+                evs.push({
+                    id: `${r.id}-last`,
+                    title: r.title + (r.assetGroupName ? ` · ${r.assetGroupName}` : ""),
+                    start: r.lastDate,
                     allDay: true,
                     extendedProps: {
+                        kind: "last",                // << สำคัญ: ชนิดอีเวนต์
                         scope: r.scope,
                         lastDate: r.lastDate,
                         nextDate: r.nextDate,
                         description: r.description,
                         assetGroupName: r.assetGroupName,
                     },
+                    // โทนเทาอ่อนสำหรับ LAST
+                    backgroundColor: "#adb5bd",
+                    borderColor: "#adb5bd",
+                });
+            }
+
+            // 2) แสดง NEXT (ถ้ามี)
+            if (r.nextDate) {
+                const isAsset = r.scope === "Asset";
+                evs.push({
+                    id: `${r.id}-next`,
+                    title: r.title + (r.assetGroupName ? ` · ${r.assetGroupName}` : ""),
+                    start: r.nextDate,
+                    allDay: true,
+                    extendedProps: {
+                        kind: "next",
+                        scope: r.scope,
+                        lastDate: r.lastDate,
+                        nextDate: r.nextDate,
+                        description: r.description,
+                        assetGroupName: r.assetGroupName,
+                    },
+                    // สีเดิมของ Asset / Building
                     backgroundColor: isAsset ? "#02BEA3" : undefined,
                     borderColor: isAsset ? "#02BEA3" : undefined,
-                };
-            });
+                });
+            }
+        }
+        return evs;
     }, [filtered]);
+
 
     // --------- PAGINATION ----------
     const [currentPage, setCurrentPage] = useState(1);
@@ -355,128 +381,74 @@ function MaintenanceSchedule() {
         }
     };
 
-    const hasAnyFilter =
-        filters.scope !== "ALL" ||
-        filters.cycleMin !== "" ||
-        filters.cycleMax !== "" ||
-        filters.notifyMin !== "" ||
-        filters.notifyMax !== "" ||
-        !!filters.dateFrom ||
-        !!filters.dateTo ||
-        !!filters.nextFrom ||
-        !!filters.nextTo ||
-        !!filters.assetGroupId;
+    const calendarRef = useRef(null); // ✅ เก็บ ref ของ FullCalendar
 
-    const filterSummary = [];
-    if (filters.scope !== "ALL") filterSummary.push(`Scope: ${filters.scope}`);
-    if (filters.assetGroupId) {
-        const found = assetOptions.find((a) => String(a.id) === String(filters.assetGroupId));
-        filterSummary.push(`Group: ${found?.name || filters.assetGroupId}`);
-    }
-    if (filters.cycleMin !== "") filterSummary.push(`Cycle ≥ ${filters.cycleMin}`);
-    if (filters.cycleMax !== "") filterSummary.push(`Cycle ≤ ${filters.cycleMax}`);
-    if (filters.notifyMin !== "") filterSummary.push(`Notify ≥ ${filters.notifyMin}`);
-    if (filters.notifyMax !== "") filterSummary.push(`Notify ≤ ${filters.notifyMax}`);
-    if (filters.dateFrom) filterSummary.push(`Last ≥ ${filters.dateFrom}`);
-    if (filters.dateTo) filterSummary.push(`Last ≤ ${filters.dateTo}`);
-    if (filters.nextFrom) filterSummary.push(`Next ≥ ${filters.nextFrom}`);
-    if (filters.nextTo) filterSummary.push(`Next ≤ ${filters.nextTo}`);
 
     return (
         <Layout title="Maintenance Schedule" icon="bi bi-alarm" notifications={0}>
             <div className="container-fluid">
                 <div className="row min-vh-100">
-                    <div className="col-lg-11 p-4">
+                    <div className="col-lg-11">
                         {/* Toolbar */}
-                        <div className="toolbar-wrapper card border-0 bg-white">
+                        <div className="toolbar-wrapper card border-0 bg-white mb-3">
                             <div className="card-header bg-white border-0 rounded-3">
-                                <div className="tm-toolbar d-flex justify-content-between align-items-center">
-                                    <div className="d-flex align-items-center gap-3">
-                                        <button
-                                            className="btn btn-link tm-link p-0"
-                                            data-bs-toggle="offcanvas"
-                                            data-bs-target="#scheduleFilterCanvas"
-                                        >
-                                            <i className="bi bi-filter me-1"></i> Filter
-                                            {hasAnyFilter && <span className="badge bg-primary ms-2">●</span>}
-                                        </button>
-
-                                        <button
-                                            className="btn btn-link tm-link p-0"
-                                            onClick={() => setSortAsc((s) => !s)}
-                                        >
-                                            <i className="bi bi-arrow-down-up me-1"></i>
-                                            Sort
-                                        </button>
-
-                                        <div className="input-group tm-search">
-                      <span className="input-group-text bg-white border-end-0">
-                        <i className="bi bi-search"></i>
-                      </span>
-                                            <input
-                                                type="text"
-                                                className="form-control border-start-0"
-                                                placeholder="Search schedule"
-                                                value={search}
-                                                onChange={(e) => setSearch(e.target.value)}
-                                            />
-                                        </div>
-                                    </div>
-
+                                <div className="d-flex justify-content-between align-items-center p-3 flex-wrap gap-2">
+                                    {/* ปุ่มควบคุมเดือน */}
                                     <div className="d-flex align-items-center gap-2">
-                                        <button
-                                            type="button"
-                                            className="btn btn-primary"
-                                            data-bs-toggle="modal"
-                                            data-bs-target="#createScheduleModal"
-                                        >
-                                            <i className="bi bi-plus-lg me-1"></i> Create Schedule
-                                        </button>
+                                        <input
+                                            type="month"
+                                            className="form-control form-control-sm"
+                                            onChange={(e) => {
+                                                const date = new Date(e.target.value + "-01");
+                                                if (!isNaN(date)) calendarRef.current?.getApi().gotoDate(date);
+                                            }}
+                                        />
                                     </div>
-                                </div>
 
-                                <div className={`collapse ${hasAnyFilter ? "show" : ""}`}>
-                                    <div className="pt-2 d-flex flex-wrap gap-2">
-                                        {filterSummary.map((txt, idx) => (
-                                            <span key={idx} className="badge bg-light text-dark border">
-                        {txt}
-                      </span>
-                                        ))}
-                                    </div>
+                                    {/* ปุ่มสร้าง */}
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#createScheduleModal"
+                                    >
+                                        <i className="bi bi-plus-lg me-1"></i> Create Schedule
+                                    </button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Calendar */}
-                        <div className="table-wrapper mt-3">
+                        <div className="table-wrapper mt-3 p-4">
                             {error && <div className="alert alert-danger">{error}</div>}
-                            <div className="mt-3">
-                                {error && <div className="alert alert-danger">{error}</div>}
+                            {/* Calendar */}
+                            <div className="custom-calendar mt-3">
                                 <FullCalendar
-                                    className="custom-calendar"
+                                    ref={calendarRef}
                                     plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
                                     initialView="dayGridMonth"
                                     headerToolbar={{
                                         left: "prev,next today",
                                         center: "title",
-                                        right: "dayGridMonth,listWeek",
+                                        right: "dayGridMonth,listYear",
                                     }}
                                     titleFormat={{ year: "numeric", month: "long" }}
-                                    locale={"en"}           // ✅ ต้องใส่ใน { }
+                                    locale={"en"}
                                     firstDay={1}
                                     height="auto"
                                     dayMaxEventRows={3}
                                     eventOrder="start,-duration,allDay,title"
                                     events={calendarEvents}
                                     eventContent={(arg) => {
-                                        // ✅ ปรับ style ของ event ตาม design ใหม่
-                                        const { title } = arg.event;
+                                        const { title, start } = arg.event;
+                                        const dayIndex = start ? new Date(start).getDay() : 0; // 0=Sun..6=Sat
+                                        const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+                                        const dayClass = `fc-event-card fc-event-${dayNames[dayIndex]}`;
                                         return {
                                             html: `
-        <div class="fc-event-card">
-          <div class="fc-event-title">${title}</div>
-        </div>
-      `,
+                      <div class="${dayClass}">
+                        <div class="fc-event-title">${title}</div>
+                      </div>
+                    `,
                                         };
                                     }}
                                     dateClick={(arg) => {
@@ -514,53 +486,104 @@ function MaintenanceSchedule() {
             </div>
 
             {/* View Schedule Modal */}
-            <Modal id="viewScheduleModal" title="Schedule Detail" icon="bi bi-calendar-event" size="modal-md">
+            <Modal id="viewScheduleModal" title="Schedule Detail" icon="bi bi-calendar-event" size="modal-lg">
                 {viewEvent ? (
-                    <div className="row g-3">
-                        <div className="col-12">
-                            <div className="d-flex align-items-center justify-content-between">
-                                <h5 className="mb-0">{viewEvent.title}</h5>
-                                <span
-                                    className={`badge ${viewEvent.scope === "Asset" ? "bg-success" : "bg-primary"}`}
-                                    title="Scope"
+                    <form>
+                        <div className="row g-3">
+                            {/* Scope */}
+                            <div className="col-md-6">
+                                <label className="form-label">Scope</label>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    value={viewEvent.scope || "-"}
+                                    disabled
+                                />
+                            </div>
+
+                            {/* Asset Group */}
+                            <div className="col-md-6">
+                                <label className="form-label">Asset Group</label>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    value={
+                                        viewEvent.assetGroupName && viewEvent.assetGroupName !== "-"
+                                            ? viewEvent.assetGroupName
+                                            : "-"
+                                    }
+                                    disabled
+                                />
+                            </div>
+
+                            {/* Last date */}
+                            <div className="col-md-6">
+                                <label className="form-label">Last date</label>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    value={viewEvent.lastDate || "-"}
+                                    disabled
+                                />
+                            </div>
+
+                            {/* Next date */}
+                            <div className="col-md-6">
+                                <label className="form-label">Next date</label>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    value={viewEvent.nextDate || "-"}
+                                    disabled
+                                />
+                            </div>
+
+                            {/* Title */}
+                            <div className="col-md-12">
+                                <label className="form-label">Title</label>
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    value={viewEvent.title || "-"}
+                                    disabled
+                                />
+                            </div>
+
+                            {/* Description */}
+                            <div className="col-md-12">
+                                <label className="form-label">Description</label>
+                                <textarea
+                                    className="form-control"
+                                    rows={3}
+                                    value={viewEvent.description || "-"}
+                                    disabled
+                                />
+                            </div>
+
+                            {/* Footer Buttons */}
+                            <div className="col-12 d-flex justify-content-between pt-3">
+                                <button
+                                    type="button"
+                                    className="btn btn-outline-secondary"
+                                    onClick={closeViewModal}
                                 >
-            {viewEvent.scope}
-          </span>
-                            </div>
-                            {viewEvent.assetGroupName && viewEvent.assetGroupName !== "-" && (
-                                <div className="text-muted mt-1">Group: {viewEvent.assetGroupName}</div>
-                            )}
-                        </div>
-
-                        <div className="col-md-6">
-                            <label className="form-label text-muted mb-0">Last date</label>
-                            <div className="fw-semibold">{viewEvent.lastDate}</div>
-                        </div>
-                        <div className="col-md-6">
-                            <label className="form-label text-muted mb-0">Next date</label>
-                            <div className="fw-semibold">{viewEvent.nextDate}</div>
-                        </div>
-
-                        <div className="col-12">
-                            <label className="form-label text-muted mb-0">Description</label>
-                            <div className="border rounded p-2 bg-light" style={{ minHeight: 60 }}>
-                                {viewEvent.description || <span className="text-muted">-</span>}
+                                    Close
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn btn-danger"
+                                    onClick={handleDeleteFromView}
+                                >
+                                    <i className="bi bi-trash me-1" /> Delete
+                                </button>
                             </div>
                         </div>
-
-                        <div className="col-12 d-flex justify-content-between pt-2">
-                            <button type="button" className="btn btn-outline-secondary" onClick={closeViewModal}>
-                                Close
-                            </button>
-                            <button type="button" className="btn btn-danger" onClick={handleDeleteFromView}>
-                                <i className="bi bi-trash me-1" /> Delete
-                            </button>
-                        </div>
-                    </div>
+                    </form>
                 ) : (
                     <div className="text-center text-muted py-4">Loading...</div>
                 )}
             </Modal>
+
 
             {/* Create Schedule Modal */}
             <Modal id="createScheduleModal" title="Create Schedule" icon="bi bi-alarm" size="modal-lg">
@@ -750,141 +773,6 @@ function MaintenanceSchedule() {
                     </div>
                 </form>
             </Modal>
-
-            {/* Filters Offcanvas */}
-            <div
-                className="offcanvas offcanvas-end"
-                tabIndex="-1"
-                id="scheduleFilterCanvas"
-                aria-labelledby="scheduleFilterCanvasLabel"
-            >
-                <div className="offcanvas-header">
-                    <h5 id="scheduleFilterCanvasLabel" className="mb-0">
-                        <i className="bi bi-filter me-2"></i>Filters
-                    </h5>
-                    <button type="button" className="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-                </div>
-
-                <div className="offcanvas-body">
-                    <div className="row g-3">
-                        <div className="col-12">
-                            <label className="form-label">Scope</label>
-                            <select
-                                className="form-select"
-                                value={filters.scope}
-                                onChange={(e) => setFilters((f) => ({ ...f, scope: e.target.value }))}
-                            >
-                                <option value="ALL">All</option>
-                                <option value="Asset">Asset</option>
-                                <option value="Building">Building</option>
-                            </select>
-                        </div>
-
-                        <div className="col-md-6">
-                            <label className="form-label">Asset Group</label>
-                            <select
-                                className="form-select"
-                                value={filters.assetGroupId}
-                                onChange={(e) => setFilters((f) => ({ ...f, assetGroupId: e.target.value }))}
-                            >
-                                <option value="">All</option>
-                                {assetOptions.map((a) => (
-                                    <option key={a.id} value={a.id}>{a.name}</option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="col-md-6">
-                            <label className="form-label">Cycle min</label>
-                            <input
-                                type="number"
-                                className="form-control"
-                                value={filters.cycleMin}
-                                onChange={(e) => setFilters((f) => ({ ...f, cycleMin: e.target.value }))}
-                                placeholder="e.g. 3"
-                            />
-                        </div>
-                        <div className="col-md-6">
-                            <label className="form-label">Cycle max</label>
-                            <input
-                                type="number"
-                                className="form-control"
-                                value={filters.cycleMax}
-                                onChange={(e) => setFilters((f) => ({ ...f, cycleMax: e.target.value }))}
-                                placeholder="e.g. 12"
-                            />
-                        </div>
-
-                        <div className="col-md-6">
-                            <label className="form-label">Notify min</label>
-                            <input
-                                type="number"
-                                className="form-control"
-                                value={filters.notifyMin}
-                                onChange={(e) => setFilters((f) => ({ ...f, notifyMin: e.target.value }))}
-                                placeholder="e.g. 3"
-                            />
-                        </div>
-                        <div className="col-md-6">
-                            <label className="form-label">Notify max</label>
-                            <input
-                                type="number"
-                                className="form-control"
-                                value={filters.notifyMax}
-                                onChange={(e) => setFilters((f) => ({ ...f, notifyMax: e.target.value }))}
-                                placeholder="e.g. 14"
-                            />
-                        </div>
-
-                        <div className="col-md-6">
-                            <label className="form-label">Last date from</label>
-                            <input
-                                type="date"
-                                className="form-control"
-                                value={filters.dateFrom}
-                                onChange={(e) => setFilters((f) => ({ ...f, dateFrom: e.target.value }))}
-                            />
-                        </div>
-                        <div className="col-md-6">
-                            <label className="form-label">Last date to</label>
-                            <input
-                                type="date"
-                                className="form-control"
-                                value={filters.dateTo}
-                                onChange={(e) => setFilters((f) => ({ ...f, dateTo: e.target.value }))}
-                            />
-                        </div>
-
-                        <div className="col-md-6">
-                            <label className="form-label">Next date from</label>
-                            <input
-                                type="date"
-                                className="form-control"
-                                value={filters.nextFrom}
-                                onChange={(e) => setFilters((f) => ({ ...f, nextFrom: e.target.value }))}
-                            />
-                        </div>
-                        <div className="col-md-6">
-                            <label className="form-label">Next date to</label>
-                            <input
-                                type="date"
-                                className="form-control"
-                                value={filters.nextTo}
-                                onChange={(e) => setFilters((f) => ({ ...f, nextTo: e.target.value }))}
-                            />
-                        </div>
-
-                        <div className="col-12 d-flex justify-content-between mt-2">
-                            <button className="btn btn-outline-secondary" onClick={clearFilters}>
-                                Clear
-                            </button>
-                            <button className="btn btn-primary" data-bs-dismiss="offcanvas">
-                                Apply
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </Layout>
     );
 }

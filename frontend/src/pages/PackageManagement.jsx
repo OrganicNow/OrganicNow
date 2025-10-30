@@ -448,7 +448,7 @@ function PackageManagement() {
         <Layout title="Package Management" icon="bi bi-sticky" notifications={0}>
             <div className="container-fluid">
                 <div className="row min-vh-100">
-                    <div className="col-lg-11 p-4">
+                    <div className="col-lg-11">
                         {/* Toolbar */}
                         <div className="toolbar-wrapper card border-0 bg-white">
                             <div className="card-header bg-white border-0 rounded-3">
