@@ -433,6 +433,114 @@ function RoomManagement() {
           </div>
         </form>
       </Modal>
+       {/* ✅ Offcanvas Filter */}
+            <div
+              className="offcanvas offcanvas-end"
+              tabIndex="-1"
+              id="roomFilterCanvas"
+              data-bs-backdrop="static"
+            >
+              <div className="offcanvas-header">
+                <h5 className="mb-0">
+                  <i className="bi bi-filter me-2"></i> Filters
+                </h5>
+                <button type="button" className="btn-close" data-bs-dismiss="offcanvas"></button>
+              </div>
+
+              <div className="offcanvas-body">
+                {/* 🟦 Floor */}
+                <div className="mb-3">
+                  <label className="form-label">Floor</label>
+                  <select
+                    className="form-select"
+                    value={filters.floor}
+                    onChange={(e) =>
+                      setFilters({ ...filters, floor: e.target.value })
+                    }
+                  >
+                    <option value="ALL">All</option>
+                    {[...new Set(data.map((r) => r.roomFloor))].map((floor) => (
+                      <option key={floor} value={floor}>
+                        {floor}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 🟦 Room Size */}
+                <div className="mb-3">
+                  <label className="form-label">Room Size</label>
+                  <select
+                    className="form-select"
+                    value={filters.roomSize}
+                    onChange={(e) =>
+                      setFilters({ ...filters, roomSize: e.target.value })
+                    }
+                  >
+                    <option value="ALL">All</option>
+                    {[...new Set(data.map((r) => r.roomSize || "-"))].map((size) => (
+                      <option key={size} value={size}>
+                        {size}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 🟦 Status */}
+                <div className="mb-3">
+                  <label className="form-label">Status</label>
+                  <select
+                    className="form-select"
+                    value={filters.status}
+                    onChange={(e) =>
+                      setFilters({ ...filters, status: e.target.value })
+                    }
+                  >
+                    <option value="ALL">All</option>
+                    <option value="available">Available</option>
+                    <option value="occupied">Occupied</option>
+                    <option value="repair">Repair</option>
+                  </select>
+                </div>
+
+                {/* 🟦 Pending Requests */}
+                <div className="mb-3">
+                  <label className="form-label">Pending Requests</label>
+                  <select
+                    className="form-select"
+                    value={filters.pendingRequests}
+                    onChange={(e) =>
+                      setFilters({ ...filters, pendingRequests: e.target.value })
+                    }
+                  >
+                    <option value="ALL">All</option>
+                    <option value="pending">Pending Only</option>
+                    <option value="none">No Pending</option>
+                  </select>
+                </div>
+
+                {/* 🟦 Buttons */}
+                <div className="d-flex justify-content-between mt-4">
+                  <button
+                    className="btn btn-outline-secondary"
+                    onClick={() =>
+                      setFilters({
+                        floor: "ALL",
+                        roomSize: "ALL",
+                        status: "ALL",
+                        pendingRequests: "ALL",
+                        search: "",
+                      })
+                    }
+                  >
+                    Clear
+                  </button>
+                  <button className="btn btn-primary" data-bs-dismiss="offcanvas">
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </div>
     </Layout>
   );
 }
