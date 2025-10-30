@@ -350,7 +350,7 @@ function MaintenanceRequest() {
           <div className="col-lg-11 p-4">
             {/* Toolbar */}
             <div className="toolbar-wrapper card border-0 bg-white">
-              <div className="card-header bg-white border-0">
+              <div className="card-header bg-white border-0 rounded-3">
                 <div className="tm-toolbar d-flex justify-content-between align-items-center">
                   <div className="d-flex align-items-center gap-3">
                     <button className="btn btn-link tm-link p-0" onClick={fetchData} disabled={loading}>
