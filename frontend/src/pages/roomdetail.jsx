@@ -5,9 +5,10 @@ import Modal from "../component/modal";
 import axios from "axios";
 import "../assets/css/roomdetail.css";
 import useMessage from "../component/useMessage";
+import { apiPath } from "../config_variable";
 
 function RoomDetail() {
-  const { roomId: id } = useParams(); // เอา roomId มา rename เป็น id  const navigate = useNavigate();
+  const { roomId: id } = useParams();
   const [roomData, setRoomData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,68 +16,53 @@ function RoomDetail() {
   const { showMessageSave, showMessageError } = useMessage();
   const [assetGroups, setAssetGroups] = useState([]);
   const [assetsToShow, setAssetsToShow] = useState(10);
-  const [selectedGroup, setSelectedGroup] = useState("all"); // for asset group filter
+  const [selectedGroup, setSelectedGroup] = useState("all");
 
+  // ✅ โหลดข้อมูลห้อง + asset groups
   useEffect(() => {
     const fetchRoomDetail = async () => {
       try {
         const [roomRes, assetRes, groupRes] = await Promise.all([
-          axios.get(`http://localhost:8080/room/${id}/detail`, {
-            withCredentials: true,
-          }),
-          axios.get("http://localhost:8080/assets/all", {
-            withCredentials: true,
-          }),
-          axios.get("http://localhost:8080/asset-group/list", {
-            withCredentials: true,
-          }),
+          axios.get(`${apiPath}/room/${id}/detail`, { withCredentials: true }),
+          axios.get(`${apiPath}/assets/all`, { withCredentials: true }),
+          axios.get(`${apiPath}/asset-group/list`, { withCredentials: true }),
         ]);
-
-        // Error handling if data is missing or invalid
-        if (!roomRes.data || !assetRes.data || !groupRes.data) {
-          throw new Error("Missing data from response.");
-        }
 
         const roomData = roomRes.data;
         const allAssets = assetRes.data.result;
         const assetGroups = groupRes.data;
 
-        // Get all assets already used in other rooms
-        const allUsedAssetIds = new Set(); // to store assets used in any room
-        const roomsRes = await axios.get("http://localhost:8080/room", {
+        // ✅ หา assets ที่ถูกใช้แล้ว
+        const allUsedAssetIds = new Set();
+        const roomsRes = await axios.get(`${apiPath}/room`, {
           withCredentials: true,
         });
         roomsRes.data.forEach((room) => {
           if (room.assets) {
             room.assets.forEach((asset) => {
-              allUsedAssetIds.add(asset.assetId); // Add asset to set if it's used in any room
+              allUsedAssetIds.add(asset.assetId);
             });
           }
         });
 
-        // Filter out assets that are already used in other rooms
+        // ✅ แยก assets ที่ว่าง
         const availableAssets = allAssets.filter(
           (asset) => !allUsedAssetIds.has(asset.assetId)
         );
 
-        // Mark assets as checked if they are used in the current room
-        const usedAssetIds = new Set(
-          roomData.assets.map((asset) => asset.assetId)
-        );
+        // ✅ รวม assets ที่ห้องนี้ใช้อยู่
+        const usedAssetIds = new Set(roomData.assets.map((a) => a.assetId));
         let updatedAssets = availableAssets.map((asset) => ({
           ...asset,
-          checked: usedAssetIds.has(asset.assetId), // Mark as checked if used in the current room
+          checked: usedAssetIds.has(asset.assetId),
         }));
 
-        // Add assets already in the room (always checked)
         const roomAssets = roomData.assets.map((asset) => ({
           ...asset,
-          checked: true, // assets already in the room are checked
+          checked: true,
         }));
 
         updatedAssets = updatedAssets.concat(roomAssets);
-
-        // Sort the assets by assetId or assetName (ascending)
         updatedAssets = updatedAssets.sort((a, b) => a.assetId - b.assetId);
 
         setRoomData(roomData);
@@ -84,12 +70,16 @@ function RoomDetail() {
         setForm((prevState) => ({
           ...prevState,
           allAssets: updatedAssets,
+          roomFloor: roomData.roomFloor || "",
+          roomNumber: roomData.roomNumber || "",
+          roomSize: roomData.roomSize || "",
+          status: roomData.status || "available",
         }));
       } catch (err) {
         console.error("Error:", err);
         setError("Failed to fetch room or asset data");
       } finally {
-        setLoading(false); // End loading
+        setLoading(false);
       }
     };
 
@@ -97,29 +87,11 @@ function RoomDetail() {
   }, [id]);
 
   const filterAssetsByGroup = (group) => {
-    console.log("Filtering by group:", group); // Log selected group for debugging
-    if (group === "all") {
-      return form.allAssets; // Show all assets if "all" is selected
-    }
-
-    // Filter by assetType that matches the selected group
+    if (group === "all") return form.allAssets;
     return form.allAssets.filter((asset) => asset.assetType === group);
   };
 
-  // Sync assets when modal opens
-  useEffect(() => {
-    const modalEl = document.getElementById("editRoomModal");
-    modalEl?.addEventListener("show.bs.modal", () => {
-      if (roomData) {
-        setForm((s) => ({
-          ...s,
-          allAssets: s.allAssets, // Keep all assets as they are without filtering
-        }));
-      }
-    });
-  }, [roomData]);
-
-  // Helper: Package color badge
+  // ✅ แปะ class สีตาม package
   const getPackageBadgeClass = (contractName) => {
     if (!contractName) return "bg-secondary";
     if (contractName.includes("3")) return "bg-warning text-dark";
@@ -138,7 +110,7 @@ function RoomDetail() {
       <div className="container-fluid">
         <div className="row min-vh-100">
           <div className="col-lg-11 p-4 mx-auto">
-            {/* ===== Top Toolbar ===== */}
+            {/* ===== Toolbar ===== */}
             <div className="card border-0 shadow-sm bg-white rounded-3 mb-4">
               <div className="card-body d-flex justify-content-between align-items-center">
                 <div className="d-flex align-items-center gap-2">
@@ -149,9 +121,7 @@ function RoomDetail() {
                     Room Management
                   </Link>
                   <span className="text-muted">›</span>
-                  <span className="breadcrumb-current">
-                    {roomData.roomNumber}
-                  </span>
+                  <span className="breadcrumb-current">{roomData.roomNumber}</span>
                 </div>
 
                 <div className="d-flex align-items-center gap-2">
@@ -169,7 +139,7 @@ function RoomDetail() {
 
             {/* ===== Content ===== */}
             <div className="row g-4">
-              {/* Left Column: Room Info */}
+              {/* Left: Room Info */}
               <div className="col-lg-4 d-flex">
                 <div className="card border-0 shadow-sm rounded-3 flex-fill">
                   <div className="card-body">
@@ -179,6 +149,9 @@ function RoomDetail() {
                     </p>
                     <p>
                       <strong>Room:</strong> {roomData.roomNumber}
+                    </p>
+                    <p>
+                      <strong>Room Size:</strong> {roomData.roomSize || "-"}
                     </p>
                     <p>
                       <strong>Status:</strong>{" "}
@@ -210,7 +183,7 @@ function RoomDetail() {
                       <strong>Email:</strong> {roomData.email}
                     </p>
                     <p>
-                      <strong>Package:</strong>
+                      <strong>Package:</strong>{" "}
                       <span className="value">
                         <span
                           className={`package-badge badge ${getPackageBadgeClass(
@@ -247,7 +220,7 @@ function RoomDetail() {
                 </div>
               </div>
 
-              {/* Right Column: Assets + Requests */}
+              {/* Right: Tabs */}
               <div className="col-lg-8 d-flex">
                 <div className="card border-0 shadow-sm rounded-3 flex-fill">
                   <div className="card-body">
@@ -279,7 +252,6 @@ function RoomDetail() {
                     </ul>
 
                     <div className="tab-content mt-3">
-                      {/* Assets Tab */}
                       <div
                         className="tab-pane fade show active"
                         id="assets"
@@ -300,7 +272,6 @@ function RoomDetail() {
                         )}
                       </div>
 
-                      {/* Requests Tab */}
                       <div
                         className="tab-pane fade"
                         id="requests"
@@ -344,7 +315,7 @@ function RoomDetail() {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* ===== Edit Modal ===== */}
       <Modal id="editRoomModal" title="Edit Room" icon="bi bi-pencil-square">
         <form
           onSubmit={async (e) => {
@@ -354,35 +325,31 @@ function RoomDetail() {
                 .filter((a) => a.checked && !a.isMock)
                 .map((a) => a.assetId);
 
-              // Send the selected asset IDs to the server
-              await axios.put(
-                `http://localhost:8080/room/${id}/assets`,
-                selectedIds,
-                { withCredentials: true }
-              );
+              // ✅ อัปเดต assets
+              await axios.put(`${apiPath}/room/${id}/assets`, selectedIds, {
+                withCredentials: true,
+              });
 
-              // Update room information
+              // ✅ อัปเดตข้อมูลห้อง
               await axios.put(
-                `http://localhost:8080/room/${id}`,
+                `${apiPath}/room/${id}`,
                 {
                   roomFloor: form.roomFloor,
                   roomNumber: form.roomNumber,
+                  roomSize: form.roomSize,
                   status: form.status,
                 },
                 { withCredentials: true }
               );
 
-              // Refresh room data
+              // ✅ โหลดใหม่หลังบันทึก
               const refreshed = await axios.get(
-                `http://localhost:8080/room/${id}/detail`,
+                `${apiPath}/room/${id}/detail`,
                 { withCredentials: true }
               );
               setRoomData(refreshed.data);
 
-              // Show success message
               showMessageSave("Room updated successfully!");
-
-              // Close the modal programmatically
               document.querySelector('[data-bs-dismiss="modal"]').click();
             } catch (err) {
               console.error("Error while updating room data", err);
@@ -390,36 +357,51 @@ function RoomDetail() {
             }
           }}
         >
-          {/* Floor, Room, and Status Inputs */}
+          {/* Floor / Room / Size / Status */}
           <div className="mb-3">
             <div className="row g-3">
-              <div className="col-md-4">
+              <div className="col-md-3">
                 <label className="form-label">Floor</label>
                 <input
-                  type="text"
+                  type="number"
                   className="form-control"
-                  defaultValue={roomData.roomFloor}
+                  value={form.roomFloor || ""}
                   onChange={(e) =>
                     setForm((s) => ({ ...s, roomFloor: e.target.value }))
                   }
                 />
               </div>
-              <div className="col-md-4">
+              <div className="col-md-3">
                 <label className="form-label">Room</label>
                 <input
                   type="text"
                   className="form-control"
-                  defaultValue={roomData.roomNumber}
+                  value={form.roomNumber || ""}
                   onChange={(e) =>
                     setForm((s) => ({ ...s, roomNumber: e.target.value }))
                   }
                 />
               </div>
-              <div className="col-md-4">
+              <div className="col-md-3">
+                <label className="form-label">Room Size</label>
+                <select
+                  className="form-select"
+                  value={form.roomSize || ""}
+                  onChange={(e) =>
+                    setForm((s) => ({ ...s, roomSize: e.target.value }))
+                  }
+                >
+                  <option value="">Select Size</option>
+                  <option value="Studio">Studio</option>
+                  <option value="Superior">Superior</option>
+                  <option value="Deluxe">Deluxe</option>
+                </select>
+              </div>
+              <div className="col-md-3">
                 <label className="form-label">Status</label>
                 <select
                   className="form-select"
-                  defaultValue={roomData.status}
+                  value={form.status || "available"}
                   onChange={(e) =>
                     setForm((s) => ({ ...s, status: e.target.value }))
                   }
@@ -431,12 +413,12 @@ function RoomDetail() {
             </div>
           </div>
 
-          {/* Asset Group Dropdown */}
+          {/* Assets section */}
           <div className="mb-3">
             <label className="form-label">Select Asset Group</label>
             <select
               className="form-select"
-              onChange={(e) => setSelectedGroup(e.target.value)} // update state with selected group
+              onChange={(e) => setSelectedGroup(e.target.value)}
             >
               <option value="all">All Groups</option>
               {assetGroups.map((group) => (
@@ -447,13 +429,12 @@ function RoomDetail() {
             </select>
           </div>
 
-          {/* Asset Section */}
           <div className="mb-3">
             <label className="form-label">Select Assets for this Room</label>
             <div className="d-flex flex-wrap gap-3">
               {filterAssetsByGroup(selectedGroup)?.length > 0 ? (
-                filterAssetsByGroup(selectedGroup) // Filter assets based on selected group
-                  .slice(0, assetsToShow) // Show assets according to pagination (10 at a time)
+                filterAssetsByGroup(selectedGroup)
+                  .slice(0, assetsToShow)
                   .map((a) => (
                     <div key={a.assetId} className="form-check">
                       <input
@@ -483,7 +464,6 @@ function RoomDetail() {
               )}
             </div>
 
-            {/* Show More Button */}
             {form.allAssets?.length > assetsToShow && (
               <div className="text-center mt-3">
                 <button

@@ -2,10 +2,13 @@ package com.organicnow.backend.controller;
 
 import com.organicnow.backend.dto.RoomDetailDto;
 import com.organicnow.backend.dto.RoomUpdateDto;
+import com.organicnow.backend.model.Room;
 import com.organicnow.backend.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+
 
 import java.util.List;
 
@@ -28,7 +31,6 @@ public class RoomController {
 
     private final RoomService roomService;
 
-    // ✅ ดึงข้อมูลห้องแบบละเอียด
     @GetMapping("/{id}/detail")
     public ResponseEntity<RoomDetailDto> getRoomDetail(@PathVariable Long id) {
         RoomDetailDto dto = roomService.getRoomDetail(id);
@@ -36,7 +38,6 @@ public class RoomController {
         return ResponseEntity.ok(dto);
     }
 
-    // ✅ ดึงข้อมูลห้องทั้งหมด
     @GetMapping
     public ResponseEntity<List<RoomDetailDto>> getAllRooms() {
         List<RoomDetailDto> rooms = roomService.getAllRooms();
@@ -44,13 +45,22 @@ public class RoomController {
         return ResponseEntity.ok(rooms);
     }
 
-    // ✅ ดึงข้อมูลห้องทั้งหมด (สำหรับ /rooms endpoint)
     @GetMapping("/list")
     public ResponseEntity<List<RoomDetailDto>> getAllRoomsList() {
         return getAllRooms();
     }
 
-    // ✅ เพิ่ม Asset เข้า Room
+    // ✅ เพิ่มห้องใหม่
+    @PostMapping
+    public ResponseEntity<?> createRoom(@RequestBody RoomUpdateDto dto) {
+        try {
+            Room newRoom = roomService.createRoom(dto);
+            return ResponseEntity.ok(newRoom);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @PostMapping("/{roomId}/assets/{assetId}")
     public ResponseEntity<?> addAssetToRoom(
             @PathVariable Long roomId,
@@ -64,7 +74,6 @@ public class RoomController {
         }
     }
 
-    // ✅ ลบ Asset ออกจาก Room
     @DeleteMapping("/{roomId}/assets/{assetId}")
     public ResponseEntity<?> removeAssetFromRoom(
             @PathVariable Long roomId,
@@ -78,7 +87,6 @@ public class RoomController {
         }
     }
 
-    // ✅ อัปเดตรายการ Asset ทั้งหมดใน Room
     @PutMapping("/{roomId}/assets")
     public ResponseEntity<?> updateRoomAssets(
             @PathVariable Long roomId,
@@ -92,7 +100,6 @@ public class RoomController {
         }
     }
 
-    // ✅ อัปเดตข้อมูลพื้นฐานของห้อง (floor, number)
     @PutMapping("/{id}")
     public ResponseEntity<?> updateRoomInfo(
             @PathVariable Long id,
@@ -105,4 +112,17 @@ public class RoomController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteRoom(@PathVariable Long id) {
+        try {
+            roomService.deleteRoom(id);
+            return ResponseEntity.ok("Room deleted successfully");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body("Failed to delete room: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Unexpected error: " + e.getMessage());
+        }
+    }
 }
+
+

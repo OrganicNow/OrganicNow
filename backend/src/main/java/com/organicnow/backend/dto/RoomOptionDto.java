@@ -11,5 +11,6 @@ public class RoomOptionDto {
     private Long id;
     private String roomNumber;
     private Integer roomFloor;
-    private String status;   // occupied / available
+    private String status;
+    private String roomSize;// occupied / available
 }
