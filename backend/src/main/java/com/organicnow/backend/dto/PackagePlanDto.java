@@ -1,14 +1,13 @@
 package com.organicnow.backend.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
 @Data
-@AllArgsConstructor
+//@AllArgsConstructor
 @NoArgsConstructor
 public class PackagePlanDto {
 
@@ -31,12 +30,18 @@ public class PackagePlanDto {
     @JsonProperty("contract_type_name")
     private String contractTypeName;
 
-    // ✅ Constructor เดิมยังใช้ได้อยู่ (เพื่อความเข้ากันได้ย้อนหลัง)
-    public PackagePlanDto(Long id, BigDecimal price, Integer isActive, String name, Integer duration) {
+    @JsonProperty("room_size")
+    private Integer roomSize;
+
+    public PackagePlanDto(Long id, BigDecimal price, Integer isActive, String name, Integer duration,
+                          Long contractTypeId, String contractTypeName, Integer roomSize) {
         this.id = id;
         this.price = price;
         this.isActive = isActive;
         this.name = name;
         this.duration = duration;
+        this.contractTypeId = contractTypeId;
+        this.contractTypeName = contractTypeName;
+        this.roomSize = roomSize;
     }
 }

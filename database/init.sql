@@ -1,65 +1,65 @@
 CREATE TABLE IF NOT EXISTS room (
                                     room_id SERIAL PRIMARY KEY,
                                     room_number VARCHAR(30) NOT NULL UNIQUE,
-    room_floor INT NOT NULL,
-    status VARCHAR(20) DEFAULT 'available'
-    );
+                                    room_floor INT NOT NULL,
+                                    status VARCHAR(20) DEFAULT 'available'
+);
 
 -- Create asset_group table (required for maintenance_schedule)
 CREATE TABLE IF NOT EXISTS asset_group (
-    asset_group_id SERIAL PRIMARY KEY,
-    asset_group_name VARCHAR(100) NOT NULL UNIQUE
+                                           asset_group_id SERIAL PRIMARY KEY,
+                                           asset_group_name VARCHAR(100) NOT NULL UNIQUE
 );
 
 -- Create maintenance_schedule table
 CREATE TABLE IF NOT EXISTS maintenance_schedule (
-    schedule_id SERIAL PRIMARY KEY,
-    schedule_scope INTEGER NOT NULL CHECK (schedule_scope IN (0, 1)),
-    asset_group_id BIGINT,
-    cycle_month INTEGER NOT NULL CHECK (cycle_month >= 1),
-    last_done_date TIMESTAMP,
-    next_due_date TIMESTAMP,
-    notify_before_date INTEGER,
-    schedule_title VARCHAR(200) NOT NULL,
-    schedule_description TEXT,
-    FOREIGN KEY (asset_group_id) REFERENCES asset_group(asset_group_id) ON DELETE SET NULL
+                                                    schedule_id SERIAL PRIMARY KEY,
+                                                    schedule_scope INTEGER NOT NULL CHECK (schedule_scope IN (0, 1)),
+                                                    asset_group_id BIGINT,
+                                                    cycle_month INTEGER NOT NULL CHECK (cycle_month >= 1),
+                                                    last_done_date TIMESTAMP,
+                                                    next_due_date TIMESTAMP,
+                                                    notify_before_date INTEGER,
+                                                    schedule_title VARCHAR(200) NOT NULL,
+                                                    schedule_description TEXT,
+                                                    FOREIGN KEY (asset_group_id) REFERENCES asset_group(asset_group_id) ON DELETE SET NULL
 );
 
 -- Create notifications table
 CREATE TABLE IF NOT EXISTS notifications (
-    notification_id SERIAL PRIMARY KEY,
-    title VARCHAR(200) NOT NULL,
-    message TEXT,
-    type VARCHAR(50),
-    is_read BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    read_at TIMESTAMP,
-    maintenance_schedule_id BIGINT,
-    FOREIGN KEY (maintenance_schedule_id) REFERENCES maintenance_schedule(schedule_id) ON DELETE SET NULL
+                                             notification_id SERIAL PRIMARY KEY,
+                                             title VARCHAR(200) NOT NULL,
+                                             message TEXT,
+                                             type VARCHAR(50),
+                                             is_read BOOLEAN NOT NULL DEFAULT FALSE,
+                                             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                                             read_at TIMESTAMP,
+                                             maintenance_schedule_id BIGINT,
+                                             FOREIGN KEY (maintenance_schedule_id) REFERENCES maintenance_schedule(schedule_id) ON DELETE SET NULL
 );
 
 TRUNCATE TABLE room RESTART IDENTITY;
 
 -- Insert sample asset groups
-INSERT INTO asset_group (asset_group_name) VALUES 
-    ('Asset'),
-    ('Building'),
-    ('Electrical'),
-    ('Plumbing'),
-    ('HVAC');
+INSERT INTO asset_group (asset_group_name) VALUES
+                                               ('Asset'),
+                                               ('Building'),
+                                               ('Electrical'),
+                                               ('Plumbing'),
+                                               ('HVAC');
 
 DO $$
-DECLARE
-f INT;
-    r INT;
-BEGIN
-FOR f IN 1..2 LOOP
-        FOR r IN 1..12 LOOP
-            INSERT INTO room (room_floor, room_number, status)
-            VALUES (f, CONCAT(f, LPAD(r::text, 2, '0')), 'available');
-END LOOP;
-END LOOP;
-END$$;
+    DECLARE
+        f INT;
+        r INT;
+    BEGIN
+        FOR f IN 1..2 LOOP
+                FOR r IN 1..12 LOOP
+                        INSERT INTO room (room_floor, room_number, status)
+                        VALUES (f, CONCAT(f, LPAD(r::text, 2, '0')), 'available');
+                    END LOOP;
+            END LOOP;
+    END$$;
 
 
 INSERT INTO tenant (first_name, last_name, phone_number, email, national_id)
@@ -77,12 +77,12 @@ VALUES
     ('สัญญา 1 ปี', 12);
 
 
-INSERT INTO package_plan (contact_type_id, price, is_active)
+INSERT INTO package_plan (contract_type_id, price, is_active, room_size)
 VALUES
-    (1, 8000.00, 1),   -- 3 เดือน
-    (2, 15000.00, 1),  -- 6 เดือน
-    (3, 21000.00, 1),  -- 9 เดือน
-    (4, 28000.00, 1);  -- 1 ปี
+    (1, 8000.00, 1, 1),   -- 3 เดือน
+    (2, 15000.00, 1, 1),  -- 6 เดือน
+    (3, 21000.00, 1, 1),  -- 9 เดือน
+    (4, 28000.00, 1, 1);  -- 1 ปี
 
 
 INSERT INTO contract
@@ -141,3 +141,4 @@ INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 8, 21000);
 INSERT INTO invoice (contact_id, create_date, due_date, invoice_status, sub_total, penalty_total, net_amount)
 VALUES (3, '2025-04-01', '2025-04-05', 0, 21000, 0, 21000);
 INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 9, 21000);
+

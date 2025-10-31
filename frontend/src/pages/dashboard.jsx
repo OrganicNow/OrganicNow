@@ -105,7 +105,7 @@ function Dashboard() {
         <Layout title="Dashboard" icon="pi pi-home" notifications={3}>
             <div className="container-fluid">
                 <div className="row min-vh-100">
-                    <div className="col-lg-11 p-4">
+                    <div className="col-lg-11">
                         <div className="table-wrapper-detail rounded-0">
                             <div className="row g-4">
                                 {/* Room Overview */}

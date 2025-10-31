@@ -1,71 +1,31 @@
 /* ================================
-   Table Layout & Alignment
+   ✅ Layout & Toolbar Alignment
 ================================ */
-.table th,
-.table td {
-  padding: 12px;
-  text-align: center !important; /* Center text */
-  border-bottom: 1px solid #ddd;
-  word-wrap: break-word;
-  min-width: 120px; /* Ensure consistent width */
-  vertical-align: middle;
-}
-
-/* ✅ Left alignment for tm-left class */
-.table.tm-left th,
-.table.tm-left td {
-  text-align: left !important;
-  vertical-align: middle;
-}
-
-/* Checkbox column */
-.table.tm-left th.checkbox-cell,
-.table.tm-left td.checkbox-cell {
-  text-align: center !important;
-}
-
-.checkbox-cell {
-  padding: 18px !important;
-  width: 1px !important;
-  min-width: 40px !important;
-  max-width: 100px !important;
-  text-align: center !important;
-  white-space: nowrap;
-  border: none;
-}
-
-.checkbox-cell input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  padding: 0;
-  display: block;
-}
-
-/* ================================
-   Table Header Styling
-================================ */
-.table thead.header-color th {
-  background-color: #0084f7;
-  color: #fff;
-  font-weight: 700;
-}
-
-.table thead.header-color th:first-child {
-  border-top-left-radius: 10px;
-}
-
-.table thead.header-color th:last-child {
-  border-top-right-radius: 10px;
-}
-
-/* ================================
-   Card & Toolbar
-================================ */
-.card {
+.table-wrapper {
+  width: calc(100% + 80px);
+  margin-right: -32px;
+  overflow-x: auto;
   border-radius: 12px;
+  margin: 20px;
+  -webkit-overflow-scrolling: touch;
+  background-color: #fff;
+  box-sizing: border-box;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
+.toolbar-wrapper {
+  width: calc(100% + 80px);
+  margin-right: -32px;
+  border-radius: 12px;
+  margin: 20px;
+  background-color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  box-sizing: border-box;
+}
+
+/* ================================
+   ✅ Toolbar
+================================ */
 .tm-toolbar {
   display: flex;
   justify-content: space-between;
@@ -74,191 +34,106 @@
   gap: 16px;
 }
 
-.tm-search {
-  max-width: 280px;
+.tm-toolbar button {
+  white-space: nowrap;
 }
 
-.tm-toolbar button,
-.tm-toolbar .form-control {
-  white-space: nowrap;
+.tm-search {
+  max-width: 280px;
 }
 
 .input-group .form-control {
   box-shadow: none;
 }
 
-/* Button link cleanup */
 .btn-link {
   text-decoration: none;
   font-weight: 500;
+  color: #007bff;
+  transition: color 0.2s ease;
 }
 
-.tm-content-container {
-  margin-left: 80px;
-  margin-right: 0;
-  padding-left: 0;
-  padding-right: 32px;
-  max-width: none;
-}
-
-/* ================================
-   Status Card Styling
-================================ */
-.status-card {
-  border-radius: 12px;
-  padding: 16px;
-  color: #333;
-  font-size: 0.95rem;
-  background-color: #f8f9fa;
-  box-shadow: 0 0 3px rgba(0, 0, 0, 0.05);
-}
-
-.status-complete {
-  background-color: #d4f4dd;
-}
-
-.status-warning {
-  background-color: #fff8d4;
-}
-
-.status-danger {
-  background-color: #f8d4d4;
-}
-
-.status-default {
-  background-color: #f1f1f1;
-}
-
-.label {
-  color: #888;
-  font-weight: normal;
-}
-
-.value {
-  color: #000;
-  font-weight: bold;
+.btn-link:hover {
+  color: #0056b3;
 }
 
 /* ================================
-   Card Body Layout
+   ✅ Table Header & Content Center
 ================================ */
-.card-body p {
-  display: grid;
-  grid-template-columns: 140px auto;
-  column-gap: 8px;
-  margin-bottom: 8px;
-}
-
-.package-row {
-  display: flex !important;
-  justify-content: space-between;
-  align-items: center;
-}
-
-/* Badge for Package */
-.package-badge {
-  display: inline-block;
-  font-size: 0.75rem;
-  padding: 4px 10px;
-  border-radius: 8px;
+.table thead th {
+  background-color: #57b1ff !important;
+  color: #fff !important;
+  font-weight: 600 !important;
+  border: none !important;
+  vertical-align: middle;
   text-align: center;
 }
 
-/* Remove outline from buttons inside tables */
-.table.tm-left td .btn.btn-link {
-  line-height: 1;
-  box-shadow: none;
+.table thead th:first-child {
+  border-top-left-radius: 10px !important;
+}
+.table thead th:last-child {
+  border-top-right-radius: 10px !important;
 }
 
-.table.tm-left td .btn.btn-link:focus {
-  box-shadow: none;
-  outline: none;
+/* 🟦 เนื้อหาในตารางให้อยู่ตรงกลางทั้งหมด */
+.table tbody td {
+  text-align: center !important;
+  vertical-align: middle !important;
+  border-top: 1px solid #f0f0f0;
 }
 
 /* ================================
-   Status Badges (Room)
+   ✅ Table Hover
 ================================ */
-.bg-warning {
-  background-color: #f0ad4e !important; /* Repair */
+.table tbody tr:hover {
+  background-color: #f8fbff;
+}
+
+/* ================================
+   ✅ Badge Status
+================================ */
+.badge {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
 }
 
 .badge.bg-danger {
-  background-color: #dc3545 !important; /* Unavailable */
-  font-weight: 600;
+  background-color: #dc3545 !important;
 }
 
 .badge.bg-success {
-  background-color: #198754 !important; /* Available */
-  font-weight: 600;
+  background-color: #28a745 !important;
+}
+
+.badge.bg-warning {
+  background-color: #ffc107 !important;
+  color: #000 !important;
 }
 
 /* ================================
-   Pending Request Indicators
-================================ */
-.pending-request-indicator {
-  color: #dc3545 !important; /* Red - Active */
-  font-size: 20px;
-  font-weight: bold;
-  vertical-align: middle;
-}
-
-.no-pending-request-indicator {
-  color: #6c757d !important; /* Gray - Inactive */
-  font-size: 20px;
-  vertical-align: middle;
-}
-
-/* Legacy fallback for Bootstrap text colors */
-.text-danger {
-  color: red;
-  font-size: 20px;
-  font-weight: bold;
-}
-
-.text-muted {
-  color: gray;
-  font-size: 20px;
-  font-weight: bold;
-}
-
-/* ================================
-   Request Dots (Optional Circle)
-================================ */
-.request-dot {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.request-active {
-  background-color: #dc3545; /* Red */
-}
-
-.request-inactive {
-  background-color: #ccc; /* Gray */
-}
-
-/* ================================
-   Responsive Layout
+   ✅ Responsive
 ================================ */
 @media (max-width: 768px) {
-  .table th,
-  .table td {
-    padding: 8px;
-    font-size: 14px;
+  .table-wrapper,
+  .toolbar-wrapper {
+    width: 100%;
+    margin: 0;
   }
 
   .tm-toolbar {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.8rem;
   }
 
   .tm-search {
     width: 100%;
   }
 
-  .tm-toolbar > div {
+  .btn.btn-primary {
     width: 100%;
   }
 }

@@ -3,6 +3,7 @@ package com.organicnow.backend.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.*;
 
 @Entity
@@ -25,4 +26,8 @@ public class Room {
     @Min(0)
     @Column(name = "room_floor", nullable = false)
     private Integer roomFloor;   // Room_Floor
+
+    @NotNull
+    @Column(name = "room_size", nullable = false, columnDefinition = "INT DEFAULT 0")
+    private Integer roomSize = 0;   // Room_Size (0 = Small, 1 = Medium, 2 = Large)
 }

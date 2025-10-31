@@ -44,4 +44,7 @@ public interface RoomAssetRepository extends JpaRepository<RoomAsset, Long> {
            WHERE r.id IN :roomIds
            """)
     List<Object[]> findAssetsByRoomIds(@Param("roomIds") List<Long> roomIds);
+
+    boolean existsByRoomId(Long roomId);
+
 }

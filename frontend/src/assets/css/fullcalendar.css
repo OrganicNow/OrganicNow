@@ -1,0 +1,71 @@
+/* ===== Header toolbar buttons (สีปุ่ม) ===== */
+.custom-calendar .fc .fc-toolbar .fc-button {
+    background-color: #0084f7 !important;  /* ปุ่มมิ้นท์ */
+    border: none !important;
+    font-weight: 600;
+    border-radius: 6px !important;
+    padding: 6px 14px !important;
+    transition: all 0.2s ease;
+    margin: 0px 6px;
+}
+.custom-calendar .fc .fc-toolbar .fc-button:hover {
+    filter: brightness(0.7);
+}
+
+/* ===== ลบเส้นใต้วันที่ (วันใน Month เป็น <a>) ===== */
+.custom-calendar .fc a {
+    text-decoration: none !important; /* กัน Bootstrap/เบราเซอร์ใส่ underline */
+    color: #111827;
+}
+
+/* ===== ไฮไลต์วันที่วันนี้เป็นวงกลมสีแดง ===== */
+.custom-calendar .fc .fc-day-today {
+    background: transparent !important; /* ลบพื้นหลังเทาเดิม */
+    position: relative;
+}
+
+.custom-calendar .fc .fc-day-today .fc-daygrid-day-number {
+    position: relative;
+    z-index: 2; /* ให้อยู่เหนือวงกลม */
+    color: white !important; /* สีตัวเลข */
+    font-weight: 700;
+}
+
+/* วงกลมสีแดงข้างหลังวันที่วันนี้ */
+.custom-calendar .fc .fc-day-today .fc-daygrid-day-number::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 1.5em;
+    height: 1.5em;
+    background-color: #ef4444;
+    border-radius: 50%;
+    z-index: -1;
+    transition: all 0.2s ease;
+}
+
+/* ===== สีกำหนดตามวันในสัปดาห์ ===== */
+.fc-event-mon { background-color: #fff18b !important; color: #111827; }
+.fc-event-tue { background-color: #ff53b4 !important; }
+.fc-event-wed { background-color: #00d195 !important; }
+.fc-event-thu { background-color: #ffab65 !important; }
+.fc-event-fri { background-color: #5ca4f6 !important; }
+.fc-event-sat { background-color: #a646ff !important; }
+.fc-event-sun { background-color: #f16363 !important; }
+
+/* ===== Hover effect ===== */
+.fc-event-card:hover {
+    filter: brightness(0.9);
+    transition: all 0.2s ease;
+}
+/* ===== Hover แต่ละช่องวันในปฏิทิน ===== */
+.custom-calendar .fc-daygrid-day {
+    transition: background-color 0.2s ease;
+    cursor: pointer;
+}
+
+.custom-calendar .fc-daygrid-day:hover {
+    background-color: rgba(225, 225, 225, 0.42);
+}
