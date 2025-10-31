@@ -1,0 +1,733 @@
+/* ✅ ทำให้ตารางสามารถ scroll ซ้าย–ขวาได้ */
+.table-wrapper {
+  width: calc(100% + 80px);
+  margin-right: -32px;
+  border-radius: 10px;
+  margin: 20px;
+  -webkit-overflow-scrolling: touch;
+  background-color: white;
+  box-sizing: border-box;
+  scrollbar-color: #57b1ff #f0f0f0;
+  scrollbar-width: thin;
+}
+
+/* ✅ ปิด scroll ของตารางรายละเอียด (ไม่จำเป็นต้อง scroll แนวนอน) */
+.table-wrapper-detail {
+  width: 100%; /* ทำให้ตารางพอดีกับคอนเทนเนอร์ */
+  margin-right: -32px;
+  border-radius: 10px;
+  margin: 20px;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box;
+  overflow-x: hidden; /* ปิด scroll แนวนอน */
+}
+
+/* ✅ Toolbar (filter bar ด้านบนตาราง) */
+.toolbar-wrapper {
+  width: calc(100% + 80px);
+  margin-right: -32px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  margin: 20px;
+}
+
+/* ✅ Table จริง */
+.table {
+  width: 100%;
+  max-width: 100%;
+  table-layout: auto;
+  border-collapse: collapse;
+  border-radius: 10px;
+  margin: 0;
+}
+
+/* ✅ เพิ่มความกว้างขั้นต่ำเพื่อให้ scroll ได้จริง */
+.table-wrapper table {
+  min-width: 1200px; /* ปรับได้ตามจำนวนคอลัมน์ */
+}
+
+/* ✅ ให้ header ของ table คงที่เวลา scroll แนวนอน */
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: #57b1ff;
+  color: #fff;
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+/* Card styling (Filter bar) */
+.card {
+  border-radius: 12px;
+}
+
+/* Toolbar (Filter/Sort/Search) */
+.tm-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  gap: 16px;
+}
+
+.tm-search {
+  max-width: 280px;
+}
+
+.tm-toolbar button,
+.tm-toolbar .form-control {
+  white-space: nowrap;
+}
+
+/* Search input */
+.input-group .form-control {
+  box-shadow: none;
+}
+
+/* Button link style */
+.btn-link {
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.tm-content-container {
+  margin-left: 80px;     /* เท่ากับ sidebar width */
+  margin-right: 0;
+  padding-left: 0;
+  padding-right: 32px;
+  max-width: none;
+}
+
+/* ✅ สถานะการจ่ายเงิน */
+.status-card {
+  border-radius: 12px;
+  padding: 16px;
+  color: #333;
+  font-size: 0.95rem;
+  background-color: #f8f9fa;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+/* เขียว: Complete */
+.status-complete {
+  background-color: #d4f4dd;
+}
+
+/* เหลือง: In process */
+.status-warning {
+  background-color: #fff8d4;
+}
+
+/* แดง: Failed / Overdue */
+.status-danger {
+  background-color: #f8d4d4;
+}
+
+/* เทา: Default */
+.status-default {
+  background-color: #f1f1f1;
+}
+
+.label {
+  color: #888;
+  font-weight: normal;
+}
+
+.value {
+  color: #000;
+  font-weight: bold;
+}
+
+.card-body p {
+  display: grid;
+  grid-template-columns: 140px auto;
+  column-gap: 8px;
+  margin-bottom: 8px;
+}
+
+.package-row {
+  display: flex !important;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* ✅ แก้ badge ไม่ให้ยืด และจัดกลางแนวตั้ง */
+.package-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.status-unpaid {
+  background-color: #fff3cd;
+  border-left: 5px solid #ffc107;
+}
+
+.status-paid {
+  background-color: #d4edda;
+  border-left: 5px solid #28a745;
+}
+
+.status-overdue {
+  background-color: #f8d7da;
+  border-left: 5px solid #dc3545;
+}
+
+.status-default {
+  background-color: #f1f1f1;
+  border-left: 5px solid #ccc;
+}
+
+.table-empty {
+  height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-weight: 500;
+  color: #666;
+  font-size: 1rem;
+}
+
+.form-Button-Swal {
+  background-color: #57b1ff;
+  color: white;
+  border-radius: 6px;
+  padding: 6px 18px;
+}
+
+.form-Button-Swal-Delete {
+  background-color: #57b1ff;
+  color: white;
+  border-radius: 6px;
+  padding: 6px 18px;
+}
+
+.form-Button-Swal-Delete:hover,
+.form-Button-Swal:hover {
+  opacity: 0.9;
+}
+
+/* ✅ ปิด scroll แนวนอนเฉพาะภายนอก ไม่แตะ table-wrapper */
+.container-fluid,
+.row {
+  overflow-x: hidden;
+}
+
+/* ✅ Scrollbar สวย ๆ */
+.table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: #57b1ff;
+  border-radius: 4px;
+}
+.table-wrapper::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+/* ===== Card Grid View ===== */
+.asset-card {
+  background-color: #ffffff;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+.asset-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(87, 177, 255, 0.25);
+}
+.asset-card h6 {
+  color: #333;
+}
+.asset-card p {
+  font-size: 0.85rem;
+  color: #666;
+}
+/* ===== Uiverse Tabs (ปรับเข้าธีม) ===== */
+.tabs {
+  display: flex;
+  position: relative;
+  background-color: #fff;
+  box-shadow: 0 0 1px rgba(87, 177, 255, 0.15), 0 6px 12px rgba(87, 177, 255, 0.15);
+  padding: 0.5rem;
+  border-radius: 99px;
+  height: 42px;
+}
+
+.tabs * {
+  z-index: 2;
+}
+
+.tabs input[type="radio"] {
+  display: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  width: 80px;
+  font-size: 0.9rem;
+  color: #333;
+  font-weight: 500;
+  border-radius: 99px;
+  cursor: pointer;
+  transition: color 0.15s ease-in;
+}
+
+.tabs input[type="radio"]:checked + label {
+  color: #57b1ff;
+  font-weight: 600;
+}
+
+.tabs input[id="radio-1"]:checked ~ .glider {
+  transform: translateX(0);
+}
+
+.tabs input[id="radio-2"]:checked ~ .glider {
+  transform: translateX(100%);
+}
+
+.tabs input[id="radio-3"]:checked ~ .glider {
+  transform: translateX(200%);
+}
+
+.glider {
+  position: absolute;
+  display: flex;
+  height: 30px;
+  width: 80px;
+  background-color: #e6f3ff;
+  z-index: 1;
+  border-radius: 99px;
+  transition: 0.25s ease-out;
+}
+
+@media (max-width: 700px) {
+  .tabs {
+    transform: scale(0.85);
+  }
+}
+/* ===== Modern Table Style ===== */
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background-color: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.table thead {
+  background-color: #57b1ff;
+  color: white;
+  font-weight: 600;
+}
+
+.table thead th {
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  border-bottom: none;
+  vertical-align: middle;
+}
+
+.table tbody tr {
+  transition: all 0.15s ease-in-out;
+}
+
+.table tbody tr:nth-child(even) {
+  background-color: #f8fbff; /* สีน้ำเงินอ่อนๆ */
+}
+
+.table tbody tr:hover {
+  background-color: #e8f3ff;
+  transform: scale(1.002);
+}
+
+.table td {
+  padding: 12px 16px;
+  vertical-align: middle;
+  font-size: 0.9rem;
+  color: #333;
+}
+
+.table th.text-center,
+.table td.text-center {
+  text-align: center;
+}
+
+/* ===== Badge (Status) ===== */
+.badge {
+  font-size: 0.75rem;
+  padding: 6px 10px;
+  border-radius: 10px;
+}
+
+.badge.bg-success {
+  background-color: #d4edda !important;
+  color: #1e7e34 !important;
+}
+
+.badge.bg-secondary {
+  background-color: #e2e3e5 !important;
+  color: #495057 !important;
+}
+
+/* ===== Compact Table Style (Admin Look) ===== */
+.table.compact-table {
+  border-collapse: collapse;
+  width: 100%;
+  background: #fff;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.table.compact-table thead {
+  background-color: #57b1ff;
+  color: #fff;
+  font-weight: 600;
+}
+
+.table.compact-table thead th {
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  border: none;
+}
+
+.table.compact-table tbody td {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  color: #333;
+  border-top: 1px solid #eee;
+}
+
+.table.compact-table tbody tr:hover {
+  background-color: #eef6ff;
+  transition: background 0.15s ease-in-out;
+}
+
+/* จัดปุ่มในคอลัมน์สุดท้าย */
+.action-buttons i {
+  cursor: pointer;
+  font-size: 1rem;
+  transition: color 0.15s ease-in-out;
+}
+
+.action-buttons i:hover {
+  color: #57b1ff;
+}
+
+/* Badge ปรับให้ดูเรียบขึ้น */
+.badge.rounded-pill {
+  font-size: 0.7rem;
+  padding: 5px 9px;
+  border-radius: 20px;
+}
+/* ===== Masonry / Gallery Style ===== */
+.asset-tile {
+  border-radius: 14px;
+  background-color: #ffffff;
+  transition: all 0.25s ease;
+  border: 1px solid #e5e9f0;
+  display: flex;
+  flex-direction: column;
+}
+
+.asset-tile:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(87, 177, 255, 0.25);
+  border-color: #57b1ff;
+}
+
+.asset-tile h6 {
+  color: #222;
+  font-size: 1rem;
+}
+
+.asset-tile p {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.asset-tile .badge {
+  font-size: 0.7rem;
+  padding: 5px 10px;
+  border-radius: 8px;
+}
+
+/* Responsive card grid */
+@media (max-width: 576px) {
+  .asset-tile {
+    font-size: 0.9rem;
+  }
+}
+
+.asset-tile i.bi {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.asset-tile i.bi:hover {
+  color: #57b1ff;
+}
+
+/* ===== Sidebar Modern ===== */
+.sidebar-modern {
+  background-color: #fff;
+  transition: all 0.25s ease;
+}
+.sidebar-modern:hover {
+  box-shadow: 0 4px 12px rgba(87, 177, 255, 0.25);
+}
+.modern-list .list-group-item {
+  border: none;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  transition: all 0.2s ease;
+}
+.modern-list .list-group-item:hover {
+  background-color: #f2f8ff;
+}
+.modern-list .list-group-item.active {
+  background-color: #57b1ff;
+  color: white;
+  font-weight: 600;
+}
+.modern-list .btn i {
+  font-size: 1rem;
+}
+.modern-list .btn:hover i {
+  opacity: 0.8;
+}
+
+/* ===== Asset Card ===== */
+.asset-card-modern {
+  border-radius: 14px;
+  transition: all 0.25s ease;
+}
+.asset-card-modern:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 18px rgba(87, 177, 255, 0.25);
+}
+.asset-thumb img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+.badge.bg-success-subtle {
+  background-color: #eafaea !important;
+}
+.badge.bg-secondary-subtle {
+  background-color: #f0f0f0 !important;
+}
+/* ===== Admin-friendly Asset Card ===== */
+.asset-card-admin {
+  border-radius: 14px;
+  background-color: #ffffff;
+  transition: all 0.25s ease;
+}
+
+.asset-card-admin:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(87, 177, 255, 0.25);
+  border-color: #57b1ff;
+}
+
+/* ปุ่ม action (edit / delete) */
+.asset-card-admin button {
+  border-radius: 8px;
+  transition: 0.2s;
+}
+
+.asset-card-admin button:hover {
+  background-color: #f0f7ff;
+  border-color: #57b1ff;
+}
+
+/* Badge สถานะ */
+.badge.bg-success-subtle {
+  background-color: #eafaea !important;
+  font-weight: 500;
+}
+.badge.bg-secondary-subtle {
+  background-color: #f0f0f0 !important;
+  font-weight: 500;
+}
+/* ===== Minimal Asset List ===== */
+.asset-minimal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.asset-minimal-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e5e9f0;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  transition: all 0.2s ease;
+}
+
+.asset-minimal-item:hover {
+  border-color: #57b1ff;
+  background: #f9fbff;
+  transform: translateY(-1px);
+}
+
+.asset-minimal-item i {
+  font-size: 1rem;
+  vertical-align: middle;
+}
+
+.asset-minimal-item .action-icons i {
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.asset-minimal-item .action-icons i:hover {
+  transform: scale(1.15);
+}
+
+.badge.bg-success-subtle {
+  background-color: #eafaea !important;
+}
+
+.badge.bg-secondary-subtle {
+  background-color: #f0f0f0 !important;
+}
+
+/* Responsive - stack on small screens */
+@media (max-width: 768px) {
+  .asset-minimal-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+  .asset-minimal-item .action-icons {
+    margin-top: 0.3rem;
+  }
+}
+.asset-timeline {
+  position: relative;
+  margin-left: 20px;
+  padding-left: 20px;
+  border-left: 2px solid #e6eef9;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.timeline-item {
+  position: relative;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -30px;
+  top: 10px;
+  width: 12px;
+  height: 12px;
+  background-color: #57b1ff;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 2px #57b1ff33;
+}
+
+.timeline-content {
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px 16px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+}
+
+.timeline-content:hover {
+  background: #f9fbff;
+  transform: translateY(-2px);
+}
+/* ===== Minimal Pro List Style ===== */
+.asset-clean-list {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+/* Header row */
+.asset-list-header {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 0.8fr 0.8fr 1fr 0.6fr;
+  font-weight: 600;
+  color: #555;
+  border-bottom: 1px solid #e5e9f0;
+  padding: 0.75rem 1rem;
+  background-color: #fafbfc;
+}
+
+/* Each data row */
+.asset-list-row {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 0.8fr 0.8fr 1fr 0.6fr;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background 0.15s ease;
+}
+
+.asset-list-row:hover {
+  background: #f9fbff;
+}
+
+/* Text colors */
+.asset-list-row span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.asset-list-row i {
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.asset-list-row i:hover {
+  transform: scale(1.2);
+}
+
+/* Badges */
+.badge.bg-success-subtle {
+  background-color: #eafaea !important;
+}
+.badge.bg-secondary-subtle {
+  background-color: #f2f2f2 !important;
+}
+
+/* Responsive (stacked on small screens) */
+@media (max-width: 768px) {
+  .asset-list-header {
+    display: none;
+  }
+  .asset-list-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 1rem;
+    border: 1px solid #eee;
+    border-radius: 8px;
+  }
+  .asset-list-row > * {
+    width: 100%;
+  }
+}
+

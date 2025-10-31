@@ -4,7 +4,7 @@ import axios from "axios";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
 import { apiPath } from "../config_variable";
-import "../assets/css/tenantmanagement.css";
+import "../assets/css/tenantdetail.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
@@ -260,6 +260,12 @@ function TenantDetail() {
                         </span>
                       </p>
                       <p>
+                        <strong>Rent:</strong>{" "}
+                        {tenant?.rentAmountSnapshot
+                          ? `${tenant.rentAmountSnapshot}`
+                          : "-"}
+                      </p>
+                      <p>
                         <strong>Sign Date:</strong>{" "}
                         {tenant?.signDate
                           ? new Date(tenant.signDate).toLocaleDateString(
@@ -322,7 +328,6 @@ function TenantDetail() {
                       </ul>
 
                       <div className="tab-content mt-3 flex-grow-1">
-
                         <div
                           className="tab-pane fade show active"
                           id="payment"

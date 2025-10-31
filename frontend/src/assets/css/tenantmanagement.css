@@ -1,26 +1,31 @@
+/* ✅ ทำให้ตารางสามารถ scroll ซ้าย–ขวาได้ */
 .table-wrapper {
-  width: calc(100% + 80px);  
-  margin-right: -32px;       
-  overflow-x: auto;
+  width: calc(100% + 80px);
+  margin-right: -32px;
   border-radius: 10px;
   margin: 20px;
   -webkit-overflow-scrolling: touch;
   background-color: white;
   box-sizing: border-box;
+  scrollbar-color: #57b1ff #f0f0f0;
+  scrollbar-width: thin;
 }
+
+/* ✅ ปิด scroll ของตารางรายละเอียด (ไม่จำเป็นต้อง scroll แนวนอน) */
 .table-wrapper-detail {
-  width: calc(100% + 80px);  
-  margin-right: -32px;       
-  overflow-x:hidden;
+  width: 100%; /* ทำให้ตารางพอดีกับคอนเทนเนอร์ */
+  margin-right: -32px;
   border-radius: 10px;
   margin: 20px;
   -webkit-overflow-scrolling: touch;
   box-sizing: border-box;
+  overflow-x: hidden; /* ปิด scroll แนวนอน */
 }
-/* ทำให้ card ด้านบนตาราง ยืดขวาเหมือนกัน */
+
+/* ✅ Toolbar (filter bar ด้านบนตาราง) */
 .toolbar-wrapper {
-  width: calc(100% + 80px);  /* ยืดออกขวา */
-  margin-right: -32px;       /* ดึงให้ชนขอบขวาเหมือนตาราง */
+  width: calc(100% + 80px);
+  margin-right: -32px;
   box-sizing: border-box;
   border-radius: 10px;
   margin: 20px;
@@ -36,13 +41,20 @@
   margin: 0;
 }
 
+/* ✅ เพิ่มความกว้างขั้นต่ำเพื่อให้ scroll ได้จริง */
+.table-wrapper table {
+  min-width: 1200px; /* ปรับได้ตามจำนวนคอลัมน์ */
+}
 
-
-/* Header styling */
-.table th.header-color {
+/* ✅ ให้ header ของ table คงที่เวลา scroll แนวนอน */
+.table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   background-color: #57b1ff;
   color: #fff;
   font-weight: bold;
+  white-space: nowrap;
 }
 
 /* Card styling (Filter bar) */
@@ -78,14 +90,16 @@
   text-decoration: none;
   font-weight: 500;
 }
+
 .tm-content-container {
   margin-left: 80px;     /* เท่ากับ sidebar width */
   margin-right: 0;
   padding-left: 0;
-  padding-right: 32px;   /* ขอบขวาเท่า box แดง */
-  max-width: none;       /* ยืดได้สุดจอ */
+  padding-right: 32px;
+  max-width: none;
 }
-/* ✅ สถานะการจ่ายเงิน: พาสเทลตาม Figma */
+
+/* ✅ สถานะการจ่ายเงิน */
 .status-card {
   border-radius: 12px;
   padding: 16px;
@@ -114,6 +128,7 @@
 .status-default {
   background-color: #f1f1f1;
 }
+
 .label {
   color: #888;
   font-weight: normal;
@@ -130,6 +145,7 @@
   column-gap: 8px;
   margin-bottom: 8px;
 }
+
 .package-row {
   display: flex !important;
   justify-content: space-between;
@@ -146,26 +162,27 @@
 }
 
 .status-unpaid {
-  background-color: #fff3cd;   /* เหลืองอ่อน */
-  border-left: 5px solid #ffc107; /* เหลืองเข้ม */
+  background-color: #fff3cd;
+  border-left: 5px solid #ffc107;
 }
 
 .status-paid {
-  background-color: #d4edda;   /* เขียวอ่อน */
-  border-left: 5px solid #28a745; /* เขียวเข้ม */
+  background-color: #d4edda;
+  border-left: 5px solid #28a745;
 }
 
 .status-overdue {
-  background-color: #f8d7da;   /* แดงอ่อน */
-  border-left: 5px solid #dc3545; /* แดงเข้ม */
+  background-color: #f8d7da;
+  border-left: 5px solid #dc3545;
 }
 
 .status-default {
   background-color: #f1f1f1;
   border-left: 5px solid #ccc;
 }
+
 .table-empty {
-  height: 200px; /* ปรับได้ตามที่อยากให้ cell สูง */
+  height: 200px;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -173,6 +190,7 @@
   color: #666;
   font-size: 1rem;
 }
+
 .form-Button-Swal {
   background-color: #57b1ff;
   color: white;
@@ -192,16 +210,21 @@
   opacity: 0.9;
 }
 
-/* ✅ ปิด scroll แนวนอน โดยไม่แตะ layout เดิม */
-html, body {
-  overflow-x: hidden !important;
-}
-
-/* ปิดเฉพาะส่วนที่อาจทำให้เกิด scroll */
-.table-wrapper,
-.table-wrapper-detail,
-.toolbar-wrapper,
+/* ✅ ปิด scroll แนวนอนเฉพาะภายนอก ไม่แตะ table-wrapper */
 .container-fluid,
 .row {
-  overflow-x: hidden !important;
+  overflow-x: hidden;
 }
+
+/* ✅ Scrollbar สวย ๆ */
+.table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: #57b1ff;
+  border-radius: 4px;
+}
+.table-wrapper::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+

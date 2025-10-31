@@ -3,55 +3,106 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
-import useMessage from "../component/useMessage"; 
+import useMessage from "../component/useMessage";
 import { useToast } from "../component/Toast.jsx";
 import Pagination from "../component/pagination";
 import { pageSize as defaultPageSize, apiPath } from "../config_variable";
 import "../assets/css/tenantmanagement.css";
-import "../assets/css/alert.css"; 
+import "../assets/css/alert.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 
 function TenantManagement() {
   const { showSuccess, showError, showWarning } = useToast();
-  
+  const navigate = useNavigate();
+
+  // 📦 Pagination & Data
+  const [data, setData] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(defaultPageSize);
   const [totalPages, setTotalPages] = useState(0);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [pageSize, setPageSize] = useState(defaultPageSize);
 
-  const [data, setData] = useState([]);
+  // 👤 Tenant form fields
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [nationalId, setNationalId] = useState("");
-  const [signDate, setSignDate] = useState(() => { return new Date().toISOString().split("T")[0];});
+  const [signDate, setSignDate] = useState(
+    () => new Date().toISOString().split("T")[0]
+  );
+  const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [deposit, setDeposit] = useState(0);
   const [rentAmountSnapshot, setRentAmountSnapshot] = useState(0);
   const [packageId, setPackageId] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [rooms, setRooms] = useState([]);
   const [selectedFloor, setSelectedFloor] = useState("");
   const [selectedRoomId, setSelectedRoomId] = useState("");
 
+  // 🏢 Reference data
+  const [rooms, setRooms] = useState([]);
   const [packages, setPackages] = useState([]);
   const [allPackages, setAllPackages] = useState([]);
-
-  const navigate = useNavigate();
   const [occupiedRoomIds, setOccupiedRoomIds] = useState([]);
+
+  // 🔍 Filter + Sort + Search
+  const [filters, setFilters] = useState({
+    contractName: "ALL",
+    floor: "ALL",
+    room: "ALL",
+  });
+  const [sortAsc, setSortAsc] = useState(false);
+  const [search, setSearch] = useState("");
+
+  // 🔍 Search tenants (fuzzy via backend)
+  useEffect(() => {
+    const fetchSearchResults = async () => {
+      const keyword = search.trim();
+      if (keyword === "") {
+        // ถ้าไม่มี keyword → โหลด list ปกติ
+        fetchData(1);
+        return;
+      }
+
+      try {
+        const res = await axios.get(`${apiPath}/tenant/search`, {
+          params: { keyword },
+          withCredentials: true,
+        });
+
+        if (res.data && Array.isArray(res.data.results)) {
+          setData(res.data.results);
+          setTotalRecords(res.data.totalRecords ?? res.data.results.length);
+          setTotalPages(1);
+          setCurrentPage(1);
+        } else {
+          setData([]);
+          setTotalRecords(0);
+        }
+      } catch (err) {
+        console.error("Error searching tenants:", err);
+        setData([]);
+        setTotalRecords(0);
+      }
+    };
+
+    // ⏳ debounce เพื่อไม่ยิง API ทุก keypress (รอ 400ms)
+    const timeoutId = setTimeout(fetchSearchResults, 400);
+    return () => clearTimeout(timeoutId);
+  }, [search]);
+
   const {
     showMessagePermission,
     showMessageError,
     showMessageSave,
     showMessageConfirmDelete,
-    showMessageAdjust,
   } = useMessage();
 
+  // 📅 Utility function: format date
   const formatDate = (v) => {
-    if (!v) return "-"; 
+    if (!v) return "-";
     try {
       const d = new Date(v);
       const yyyy = d.getFullYear();
@@ -63,6 +114,7 @@ function TenantManagement() {
     }
   };
 
+  // 🧾 โหลด package ทั้งหมด
   useEffect(() => {
     const fetchPackages = async () => {
       try {
@@ -71,16 +123,12 @@ function TenantManagement() {
         });
 
         if (Array.isArray(res.data)) {
-          // เก็บทั้งหมด
           setAllPackages(res.data);
-
-          // เก็บเฉพาะ active + เรียง
           const activeSorted = res.data
             .filter((p) => p.is_active === 1)
             .sort((a, b) => a.duration - b.duration);
           setPackages(activeSorted);
         } else {
-          console.warn("Unexpected packages API format:", res.data);
           setAllPackages([]);
           setPackages([]);
         }
@@ -90,10 +138,10 @@ function TenantManagement() {
         setPackages([]);
       }
     };
-
     fetchPackages();
   }, []);
 
+  // 💰 ตั้งค่า deposit / rent จาก package ที่เลือก
   useEffect(() => {
     if (packageId) {
       const pkg = packages.find((p) => p.id === parseInt(packageId));
@@ -110,30 +158,6 @@ function TenantManagement() {
     return pkg ? pkg.contract_name : "-";
   };
 
-  useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        const res = await axios.get(`${apiPath}/room/list`, {
-          withCredentials: true,
-        });
-        if (Array.isArray(res.data)) {
-          setRooms(res.data);
-        } else if (Array.isArray(res.data.result)) {
-          setRooms(res.data.result);
-        } else {
-          console.warn("Unexpected rooms API format:", res.data);
-          setRooms([]);
-        }
-      } catch (err) {
-        console.error("Error fetching rooms:", err);
-        setRooms([]);
-      }
-    };
-
-    fetchRooms();
-  }, []);
-
-
   const packageColor = (contractName) => {
     const map = {
       "3 เดือน": "#FFC73B",
@@ -144,6 +168,25 @@ function TenantManagement() {
     return map[contractName] || "#D3D3D3";
   };
 
+  // 🏠 โหลดข้อมูลห้อง
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const res = await axios.get(`${apiPath}/room/list`, {
+          withCredentials: true,
+        });
+        if (Array.isArray(res.data)) setRooms(res.data);
+        else if (Array.isArray(res.data.result)) setRooms(res.data.result);
+        else setRooms([]);
+      } catch (err) {
+        console.error("Error fetching rooms:", err);
+        setRooms([]);
+      }
+    };
+    fetchRooms();
+  }, []);
+
+  // 📋 โหลด tenant ทั้งหมด
   const fetchData = async (page = 1) => {
     try {
       const res = await axios.get(`${apiPath}/tenant/list`, {
@@ -152,39 +195,29 @@ function TenantManagement() {
       });
 
       if (Array.isArray(res.data)) {
-        // ✅ กรณี backend ส่งเป็น array ตรง ๆ
         const rows = res.data;
         setData(rows);
-
         setTotalRecords(rows.length);
         setTotalPages(Math.max(1, Math.ceil(rows.length / pageSize)));
       } else if (res.data && Array.isArray(res.data.results)) {
-        // ✅ กรณี backend ส่งเป็น object { totalRecords, results }
         const rows = res.data.results;
         setData(rows);
-
         const total = Number(res.data.totalRecords ?? rows.length);
         setTotalRecords(total);
         setTotalPages(Math.max(1, Math.ceil(total / pageSize)));
       } else {
-        // ✅ กรณีไม่ใช่ format ที่คาดไว้
         setData([]);
         setTotalRecords(0);
         setTotalPages(1);
       }
 
       setCurrentPage(page);
-
-      // ✅ refresh ห้องที่ไม่ว่างจาก backend โดยตรง
       await fetchOccupiedRooms();
-
     } catch (err) {
       console.error("Error fetching tenants:", err);
       setData([]);
       setTotalRecords(0);
       setTotalPages(1);
-
-      // ✅ เคลียร์ occupied rooms ด้วย
       setOccupiedRoomIds([]);
     }
   };
@@ -193,9 +226,27 @@ function TenantManagement() {
     fetchData(1);
   }, [pageSize]);
 
+  // 🏢 ห้องที่ถูกจองแล้ว
+  const fetchOccupiedRooms = async () => {
+    try {
+      const res = await axios.get(`${apiPath}/contracts/occupied-rooms`, {
+        withCredentials: true,
+      });
+      if (Array.isArray(res.data)) setOccupiedRoomIds(res.data);
+      else setOccupiedRoomIds([]);
+    } catch (err) {
+      console.error("Error fetching occupied rooms:", err);
+      setOccupiedRoomIds([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchOccupiedRooms();
+  }, [data]);
+
+  // 📄 Pagination control
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, data.length);
-
   const handlePageChange = (page) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -208,6 +259,7 @@ function TenantManagement() {
     setCurrentPage(1);
   };
 
+  // 🧾 Create Tenant
   const handleSaveCreate = async () => {
     try {
       const payload = {
@@ -225,7 +277,7 @@ function TenantManagement() {
         signDate: signDate ? `${signDate}T00:00:00` : null,
       };
 
-      if (checkValidation(payload) === false) return false;
+      if (!checkValidation(payload)) return;
 
       const res = await axios.post(`${apiPath}/tenant/create`, payload, {
         withCredentials: true,
@@ -242,98 +294,54 @@ function TenantManagement() {
       }
     } catch (e) {
       if (e.response) {
-        console.error("🔴 Backend error response:", e.response);
-
-        if (e.response.status === 409) {
-          const msg = e.response.data?.message || "";
-
-          switch (true) {
-            case msg === "duplicate_national_id":
-            case msg.includes("duplicate_national_id"):
-              showMessageError("NationalID Already Exists");
-              showWarning("⚠️ บัตรประชาชนนี้มีอยู่ในระบบแล้ว");
-              return;
-
-            default:
-              showMessageError(msg || "Conflict error");
-              showError(`❌ เพิ่มผู้เช่าล้มเหลว: ${msg || "ข้อมูลซ้ำ"}`);
-              return;
-          }
+        const msg = e.response.data?.message || "";
+        if (
+          e.response.status === 409 &&
+          msg.includes("duplicate_national_id")
+        ) {
+          showMessageError("NationalID Already Exists");
+          showWarning("⚠️ บัตรประชาชนนี้มีอยู่ในระบบแล้ว");
+          return;
         }
-
         if (e.response.status === 401) {
           showMessagePermission?.();
           showWarning("⚠️ ไม่มีสิทธิ์ในการเพิ่มผู้เช่า");
           return;
         }
-
-        showMessageError(
-          e.response.data?.message || `Server error (${e.response.status})`
-        );
-        showError(`❌ เพิ่มผู้เช่าล้มเหลว: ${e.response.data?.message || "เกิดข้อผิดพลาด"}`);
+        showMessageError(msg || "Server error");
+        showError(`❌ เพิ่มผู้เช่าล้มเหลว: ${msg}`);
       } else {
         showMessageError(e.message || "Unexpected error");
-        showError(`❌ เพิ่มผู้เช่าล้มเหลว: ${e.message || "ไม่ทราบสาเหตุ"}`);
+        showError(`❌ เพิ่มผู้เช่าล้มเหลว: ${e.message}`);
       }
     }
   };
 
+  // ✅ Validation
   const checkValidation = (payload) => {
-    if (!payload.firstName) {
-      showMessageError("กรุณากรอก First Name");
-      return false;
-    }
-    if (!payload.lastName) {
-      showMessageError("กรุณากรอก Last Name");
-      return false;
-    }
-    if (!payload.nationalId) {
-      showMessageError("กรุณากรอก National ID");
-      return false;
-    }
-    if (!/^\d{13}$/.test(payload.nationalId)) {
-      showMessageError("National ID ต้องเป็นตัวเลข 13 หลัก");
-      return false;
-    }
-    if (!payload.phoneNumber) {
-      showMessageError("กรุณากรอก Phone Number");
-      return false;
-    }
-    if (!/^\d{10}$/.test(payload.phoneNumber)) {
-      showMessageError("Phone Number ต้องเป็นตัวเลข 10 หลัก");
-      return false;
-    }
-    if (!payload.email) {
-      showMessageError("กรุณากรอก Email");
-      return false;
-    }
-    if (!payload.roomId) {
-      showMessageError("กรุณาเลือกห้อง");
-      return false;
-    }
-    if (!payload.packageId) {
-      showMessageError("กรุณาเลือก Package");
-      return false;
-    }
-    if (!payload.startDate) {
-      showMessageError("กรุณาเลือก Start Date");
-      return false;
-    }
-    if (!payload.signDate) {
-      showMessageError("กรุณาเลือก Sign Date");
-      return false;
-    }
+    if (!payload.firstName) return showMessageError("กรุณากรอก First Name");
+    if (!payload.lastName) return showMessageError("กรุณากรอก Last Name");
+    if (!payload.nationalId) return showMessageError("กรุณากรอก National ID");
+    if (!/^\d{13}$/.test(payload.nationalId))
+      return showMessageError("National ID ต้องเป็นตัวเลข 13 หลัก");
+    if (!payload.phoneNumber) return showMessageError("กรุณากรอก Phone Number");
+    if (!/^\d{10}$/.test(payload.phoneNumber))
+      return showMessageError("Phone Number ต้องเป็นตัวเลข 10 หลัก");
+    if (!payload.email) return showMessageError("กรุณากรอก Email");
+    if (!payload.roomId) return showMessageError("กรุณาเลือกห้อง");
+    if (!payload.packageId) return showMessageError("กรุณาเลือก Package");
+    if (!payload.startDate) return showMessageError("กรุณาเลือก Start Date");
+    if (!payload.signDate) return showMessageError("กรุณาเลือก Sign Date");
 
     const sign = new Date(payload.signDate);
     const start = new Date(payload.startDate);
-    if (start < sign) {
-      showMessageError("Start Date ต้องมากกว่าหรือเท่ากับ Sign Date");
-      return false;
-    }
+    if (start < sign)
+      return showMessageError("Start Date ต้องมากกว่าหรือเท่ากับ Sign Date");
 
     return true;
   };
 
+  // ❌ Delete Tenant
   const handleDelete = async (contractId) => {
     if (!contractId) {
       showMessageError("❌ contractId is missing");
@@ -351,7 +359,6 @@ function TenantManagement() {
         fetchData(currentPage);
       } else {
         showMessageError("Unexpected response: " + res.status);
-        showError(`❌ ลบผู้เช่าล้มเหลว: HTTP ${res.status}`);
       }
     } catch (e) {
       if (e.response && e.response.status === 401) {
@@ -364,6 +371,7 @@ function TenantManagement() {
     }
   };
 
+  // 🔁 Clear form
   const clearForm = () => {
     const today = new Date().toISOString().split("T")[0];
     setSignDate(today);
@@ -382,51 +390,28 @@ function TenantManagement() {
     fetchOccupiedRooms();
   };
 
+  // ⏳ Auto calculate endDate from package duration
   useEffect(() => {
     if (startDate && packageId) {
       const pkg = packages.find((p) => p.id === parseInt(packageId));
       if (pkg && pkg.duration) {
-        if (pkg.duration === 12) {
-          
-          setEndDate(null);
-        } else {
-          
-          const start = new Date(startDate);
-          const end = new Date(start);
-          end.setMonth(end.getMonth() + pkg.duration);
-          const yyyy = end.getFullYear();
-          const mm = String(end.getMonth() + 1).padStart(2, "0");
-          const dd = String(end.getDate()).padStart(2, "0");
-          setEndDate(`${yyyy}-${mm}-${dd}`);
-        }
+        const start = new Date(startDate);
+        const end = new Date(start);
+        end.setMonth(end.getMonth() + pkg.duration);
+        const yyyy = end.getFullYear();
+        const mm = String(end.getMonth() + 1).padStart(2, "0");
+        const dd = String(end.getDate()).padStart(2, "0");
+        setEndDate(`${yyyy}-${mm}-${dd}`);
       }
     }
   }, [startDate, packageId, packages]);
 
-  const fetchOccupiedRooms = async () => {
-    try {
-      const res = await axios.get(`${apiPath}/contracts/occupied-rooms`, {
-        withCredentials: true,
-      });
-      if (Array.isArray(res.data)) {
-        setOccupiedRoomIds(res.data);
-      } else {
-        setOccupiedRoomIds([]);
-      }
-    } catch (err) {
-      console.error("Error fetching occupied rooms:", err);
-      setOccupiedRoomIds([]);
-    }
-  };
-
-  useEffect(() => {
-    fetchOccupiedRooms();   // ✅ refresh ตอน tenant list เปลี่ยน
-  }, [data]);
-
+  // 👁️ View Tenant Detail
   const handleViewTenant = (item) => {
     navigate(`/tenantdetail/${item.contractId}`);
   };
 
+  // 📥 Download Contract PDF
   const handleDownloadPdf = async (contractId) => {
     const res = await axios.get(`${apiPath}/tenant/${contractId}/pdf`, {
       responseType: "blob",
@@ -441,54 +426,37 @@ function TenantManagement() {
     link.remove();
   };
 
-  const [filters, setFilters] = useState({
-    contractName: "ALL",
-    floor: "ALL",
-    room: "ALL",
-  });
-  
-  const [sortAsc, setSortAsc] = useState(false);  
-  const [search, setSearch] = useState("");
-
+  // 🔍 Filter + Sort (หลังจาก search จาก backend แล้ว)
   const filteredData = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    // search ถูกจัดการโดย backend แล้ว ไม่ต้อง filter local อีก
     let rows = [...data];
 
-    if (filters.contractName !== "ALL") {
+    // ✅ Filter ตาม contract, floor, room
+    if (filters.contractName !== "ALL")
       rows = rows.filter((r) => r.contractName === filters.contractName);
-    }
-    if (filters.floor !== "ALL") {
+
+    if (filters.floor !== "ALL")
       rows = rows.filter((r) => String(r.floor) === String(filters.floor));
-    }
-    if (filters.room !== "ALL") {
+
+    if (filters.room !== "ALL")
       rows = rows.filter((r) => r.room === filters.room);
-    }
 
-    if (q) {
-      rows = rows.filter(
-        (r) =>
-          r.firstName?.toLowerCase().includes(q) ||
-          r.lastName?.toLowerCase().includes(q) ||
-          r.room?.toLowerCase().includes(q) ||
-          r.email?.toLowerCase().includes(q)
-      );
-    }
-
+    // ✅ Sort ข้อมูล
     rows.sort((a, b) => {
-    // 1) เรียงให้ active (status != 0) อยู่ก่อน expired (status == 0)
-    if (a.status === 0 && b.status !== 0) return 1;
-    if (a.status !== 0 && b.status === 0) return -1;
+      // ถ้า status = 0 (หมดสัญญา) ให้ไปอยู่ล่างสุด
+      if (a.status === 0 && b.status !== 0) return 1;
+      if (a.status !== 0 && b.status === 0) return -1;
 
-    // 2) ถ้า status เท่ากัน → เรียงตาม startDate ตาม sortAsc
-    const dateA = new Date(a.startDate || 0);
-    const dateB = new Date(b.startDate || 0);
-
-    return sortAsc ? dateA - dateB : dateB - dateA;
-  });
+      // เรียงตามวันที่เริ่มสัญญา
+      const dateA = new Date(a.startDate || 0);
+      const dateB = new Date(b.startDate || 0);
+      return sortAsc ? dateA - dateB : dateB - dateA;
+    });
 
     return rows;
-  }, [data, filters, sortAsc, search]);
-  
+  }, [data, filters, sortAsc]);
+
+  // 🧩 Contract type dropdown for filter
   const contractTypeOptions = useMemo(() => {
     if (!Array.isArray(allPackages)) return [];
     const map = new Map();
@@ -496,7 +464,7 @@ function TenantManagement() {
     for (const p of allPackages) {
       if (p.contract_name && !map.has(p.contract_name)) {
         map.set(p.contract_name, {
-          id: p.contract_name,   // ใช้ชื่อเป็น id เลย
+          id: p.contract_name,
           name: p.contract_name,
           duration: p.duration,
         });
@@ -505,7 +473,7 @@ function TenantManagement() {
 
     return Array.from(map.values()).sort((a, b) => a.duration - b.duration);
   }, [allPackages]);
-    
+
   return (
     <Layout title="Tenant Management" icon="pi pi-user" notifications={3}>
       <div className="container-fluid">
@@ -530,7 +498,7 @@ function TenantManagement() {
                       onClick={() => setSortAsc((s) => !s)}
                     >
                       <i className="bi bi-arrow-down-up me-1"></i>
-                      Sort 
+                      Sort
                     </button>
                     <div className="input-group tm-search">
                       <span className="input-group-text bg-white border-end-0">
@@ -581,9 +549,7 @@ function TenantManagement() {
                     <th className="text-start align-top header-color">
                       Package
                     </th>
-                    <th className="text-start align-top header-color">
-                      Start date
-                    </th>
+                    <th className="text-start align-top header-color">Rent</th>
                     <th className="text-start align-top header-color">
                       End date
                     </th>
@@ -598,103 +564,119 @@ function TenantManagement() {
 
                 <tbody>
                   {filteredData.length > 0 ? (
-                    filteredData.slice(startIndex, endIndex).map((item, idxInPage) => {
-                      const globalIndex = startIndex + idxInPage;
-                      const order = globalIndex + 1;
-                      const rowKey =
-                        item.tenantId ??
-                        item.id ??
-                        `${item.firstName}-${item.room}-${globalIndex}`;
+                    filteredData
+                      .slice(startIndex, endIndex)
+                      .map((item, idxInPage) => {
+                        const globalIndex = startIndex + idxInPage;
+                        const order = globalIndex + 1;
+                        const rowKey =
+                          item.tenantId ??
+                          item.id ??
+                          `${item.firstName}-${item.room}-${globalIndex}`;
 
-                      return (
-                        <tr key={rowKey}
-                          className={item.status === 0 ? "table-secondary" : ""} // 👈 ถ้า status=0 แสดงสีเทาอ่อน
-                        >
-                          {/* Order */}
-                          <td className="align-top text-center">{order}</td>
-                          <td className="align-top text-center">
-                            {item.firstName}
-                          </td>
-                          <td className="align-top text-start">
-                            {item.lastName}
-                          </td>
-                          <td className="align-top text-center">
-                            {item.floor ?? "-"}
-                          </td>
-                          <td className="align-top text-center">
-                            {item.room ?? "-"}
-                          </td>
+                        return (
+                          <tr
+                            key={rowKey}
+                            className={
+                              item.status === 0 ? "table-secondary" : ""
+                            } // 👈 ถ้า status=0 แสดงสีเทาอ่อน
+                          >
+                            {/* Order */}
+                            <td className="align-top text-center">{order}</td>
+                            <td className="align-top text-center">
+                              {item.firstName}
+                            </td>
+                            <td className="align-top text-start">
+                              {item.lastName}
+                            </td>
+                            <td className="align-top text-center">
+                              {item.floor ?? "-"}
+                            </td>
+                            <td className="align-top text-center">
+                              {item.room ?? "-"}
+                            </td>
 
-                          <td className="align-top text-start">
-                            <span
-                              className="badge rounded-pill px-3"
-                              style={{
-                                backgroundColor: packageColor(
-                                  packageLabel(item.packageId)
-                                ),
-                                color: "#fff",
-                              }}
-                            >
-                              {packageLabel(item.packageId)}
-                            </span>
-                          </td>
+                            <td className="align-top text-start">
+                              <span
+                                className="badge rounded-pill px-3"
+                                style={{
+                                  backgroundColor: packageColor(
+                                    packageLabel(item.packageId)
+                                  ),
+                                  color: "#fff",
+                                }}
+                              >
+                                {packageLabel(item.packageId)}
+                              </span>
+                            </td>
 
-                          <td className="align-top text-start">
-                            {formatDate(item.startDate)}
-                          </td>
-                          <td className="align-top text-start">
-                            {formatDate(item.endDate)}
-                          </td>
-                          <td className="align-top text-start">
-                            {item.phoneNumber || "-"}
-                          </td>
+                            <td className="align-top text-start">
+                              {item.rentAmountSnapshot
+                                ? `${Number(
+                                    item.rentAmountSnapshot
+                                  ).toLocaleString()}`
+                                : "-"}
+                            </td>
+                            <td className="align-top text-start">
+                              {formatDate(item.endDate)}
+                            </td>
+                            <td className="align-top text-start">
+                              {item.phoneNumber || "-"}
+                            </td>
 
-                          <td className="align-top text-center">
-                            <button
-                              className="btn btn-sm form-Button-Edit"
-                              onClick={() => handleViewTenant(item)}
-                              aria-label="View"
-                            >
-                              <i className="bi bi-eye-fill"></i>
-                            </button>
-                           <button
-                              className="btn btn-sm form-Button-Edit"
-                              onClick={() => handleDownloadPdf(item.contractId)}
-                            >
-                              <i className="bi bi-file-earmark-pdf-fill"></i>
-                            </button>
-                            <button
-                              className="btn btn-sm form-Button-Del"
-                              onClick={async () => {
-                                const result = await showMessageConfirmDelete(item.firstName);
-                                if (result.isConfirmed) {
-                                  handleDelete(item.contractId);
+                            <td className="align-top text-center">
+                              <button
+                                className="btn btn-sm form-Button-Edit"
+                                onClick={() => handleViewTenant(item)}
+                                aria-label="View"
+                              >
+                                <i className="bi bi-eye-fill"></i>
+                              </button>
+                              <button
+                                className="btn btn-sm form-Button-Edit"
+                                onClick={() =>
+                                  handleDownloadPdf(item.contractId)
                                 }
-                              }}
-                              aria-label="Delete"
-                            >
-                            <i className="bi bi-trash-fill"></i>
-                          </button>
-                          </td>
-                        </tr>
-                      );
-                    })
+                              >
+                                <i className="bi bi-file-earmark-pdf-fill"></i>
+                              </button>
+                              <button
+                                className="btn btn-sm form-Button-Del"
+                                onClick={async () => {
+                                  const result = await showMessageConfirmDelete(
+                                    item.firstName
+                                  );
+                                  if (result.isConfirmed) {
+                                    handleDelete(item.contractId);
+                                  }
+                                }}
+                                aria-label="Delete"
+                              >
+                                <i className="bi bi-trash-fill"></i>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
                   ) : (
                     <tr>
                       <td colSpan="12" className="text-center align-middle">
-                        <div className="d-flex justify-content-center align-items-center" >
+                        <div className="d-flex justify-content-center align-items-center">
                           Data Not Found
                         </div>
                       </td>
                     </tr>
-                  )}  
+                  )}
                 </tbody>
               </table>
             </div>
 
             <Pagination
               currentPage={currentPage}
-              totalPages={Math.max(1, Math.ceil(filteredData.length / pageSize))}
+              totalPages={Math.max(
+                1,
+                Math.ceil(filteredData.length / pageSize)
+              )}
               onPageChange={handlePageChange}
               totalRecords={filteredData.length}
               onPageSizeChange={handlePageSizeChange}
@@ -750,7 +732,7 @@ function TenantManagement() {
                   placeholder="Tenant National ID"
                   value={nationalId}
                   onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, ""); 
+                    const val = e.target.value.replace(/\D/g, "");
                     if (val.length <= 13) setNationalId(val);
                   }}
                   maxLength={13}
@@ -764,8 +746,8 @@ function TenantManagement() {
                   placeholder="Tenant Phone Number"
                   value={phoneNumber}
                   onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, ""); 
-                    if (val.length <= 10) setPhoneNumber(val);     
+                    const val = e.target.value.replace(/\D/g, "");
+                    if (val.length <= 10) setPhoneNumber(val);
                   }}
                   maxLength={10}
                 />
@@ -824,7 +806,9 @@ function TenantManagement() {
                       {selectedFloor ? "Select Room" : "Choose floor first"}
                     </option>
                     {rooms
-                      .filter((r) => String(r.roomFloor) === String(selectedFloor))
+                      .filter(
+                        (r) => String(r.roomFloor) === String(selectedFloor)
+                      )
                       .filter((r) => !occupiedRoomIds.includes(r.roomId)) // ✅ ห้องหมดสัญญาจะกลับมาเลือกได้
                       .map((r) => (
                         <option key={r.roomId} value={r.roomId}>
@@ -934,8 +918,14 @@ function TenantManagement() {
         data-bs-backdrop="static"
       >
         <div className="offcanvas-header">
-          <h5 className="mb-0"><i className="bi bi-filter me-2"></i>Filters</h5>
-          <button type="button" className="btn-close" data-bs-dismiss="offcanvas"></button>
+          <h5 className="mb-0">
+            <i className="bi bi-filter me-2"></i>Filters
+          </h5>
+          <button
+            type="button"
+            className="btn-close"
+            data-bs-dismiss="offcanvas"
+          ></button>
         </div>
         <div className="offcanvas-body">
           <div className="mb-3">
@@ -961,11 +951,15 @@ function TenantManagement() {
             <select
               className="form-select"
               value={filters.floor}
-              onChange={(e) => setFilters((f) => ({ ...f, floor: e.target.value }))}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, floor: e.target.value }))
+              }
             >
               <option value="ALL">All</option>
               {[...new Set(rooms.map((r) => r.roomFloor))].map((floor) => (
-                <option key={floor} value={floor}>{floor}</option>
+                <option key={floor} value={floor}>
+                  {floor}
+                </option>
               ))}
             </select>
           </div>
@@ -975,18 +969,31 @@ function TenantManagement() {
             <select
               className="form-select"
               value={filters.room}
-              onChange={(e) => setFilters((f) => ({ ...f, room: e.target.value }))}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, room: e.target.value }))
+              }
             >
               <option value="ALL">All</option>
               {rooms.map((r) => (
-                <option key={r.id} value={r.roomNumber}>{r.roomNumber}</option>
+                <option key={r.id} value={r.roomNumber}>
+                  {r.roomNumber}
+                </option>
               ))}
             </select>
           </div>
 
           <div className="d-flex justify-content-between">
-            <button className="btn btn-outline-secondary" onClick={() => setFilters({ contractName: "ALL", floor: "ALL", room: "ALL" })}>Clear</button>
-            <button className="btn btn-primary" data-bs-dismiss="offcanvas">Apply</button>
+            <button
+              className="btn btn-outline-secondary"
+              onClick={() =>
+                setFilters({ contractName: "ALL", floor: "ALL", room: "ALL" })
+              }
+            >
+              Clear
+            </button>
+            <button className="btn btn-primary" data-bs-dismiss="offcanvas">
+              Apply
+            </button>
           </div>
         </div>
       </div>

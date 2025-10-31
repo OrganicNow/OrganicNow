@@ -13,7 +13,7 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
     // ✅ สินค้าของห้อง (ไม่เอา deleted)
     @Query("""
            SELECT new com.organicnow.backend.dto.AssetDto(
-               a.id, a.assetName, ag.assetGroupName, r.roomFloor, r.roomNumber
+               a.id, a.assetName, ag.assetGroupName, ag.id, r.roomFloor, r.roomNumber, a.status
            )
            FROM Asset a
            JOIN a.assetGroup ag
@@ -27,7 +27,7 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
     // ✅ ดูสินค้าทั้งหมด (ไม่เอา deleted)
     @Query("""
            SELECT new com.organicnow.backend.dto.AssetDto(
-               a.id, a.assetName, ag.assetGroupName, r.roomFloor, r.roomNumber
+               a.id, a.assetName, ag.assetGroupName, ag.id, r.roomFloor, r.roomNumber, a.status
            )
            FROM Asset a
            JOIN a.assetGroup ag
@@ -47,10 +47,10 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
     // ✅ ใช้ใน AssetGroupService
     List<Asset> findByAssetGroupId(Long assetGroupId);
 
-    // ✅ ดึงเฉพาะ asset ที่ยังไม่ถูกใช้ และสถานะยัง available
+    // ✅ ดึงเฉพาะ asset ที่ยังว่าง (ยังไม่ assign เข้าห้อง)
     @Query("""
         SELECT new com.organicnow.backend.dto.AssetDto(
-            a.id, a.assetName, ag.assetGroupName, null, null
+            a.id, a.assetName, ag.assetGroupName, ag.id, null, null, a.status
         )
         FROM Asset a
         JOIN a.assetGroup ag
@@ -58,4 +58,17 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
           AND a.id NOT IN (SELECT ra.asset.id FROM RoomAsset ra)
         """)
     List<AssetDto> findAvailableAssets();
+
+    // ✅ ดึงเฉพาะ asset ที่ใช้งานอยู่ในห้อง
+    @Query("""
+        SELECT new com.organicnow.backend.dto.AssetDto(
+            a.id, a.assetName, ag.assetGroupName, ag.id, r.roomFloor, r.roomNumber, a.status
+        )
+        FROM Asset a
+        JOIN a.assetGroup ag
+        JOIN RoomAsset ra ON a.id = ra.asset.id
+        JOIN ra.room r
+        WHERE a.status = 'in_use'
+        """)
+    List<AssetDto> findInUseAssets();
 }

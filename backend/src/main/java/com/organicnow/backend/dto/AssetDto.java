@@ -3,28 +3,52 @@ package com.organicnow.backend.dto;
 public class AssetDto {
     private Long assetId;
     private String assetName;
-    private String assetType;
-    private Integer floor;     // 🆕 เพิ่ม floor
-    private String room;       // 🆕 เพิ่ม room
-    private String status;     // 🆕 เพิ่ม status (เอาไว้โชว์ Active/Inactive)
+    private String assetGroupName; // ✅ เดิม assetType → เปลี่ยนเป็น assetGroupName
+    private Long assetGroupId;
+    private Integer floor;
+    private String room;
+    private String status;
 
     public AssetDto() {}
 
-    // Constructor เดิม (ใช้กับ query asset/all)
-    public AssetDto(Long assetId, String assetName, String assetType) {
+    // ใช้กับ /assets/all แบบย่อ (id, name, groupName)
+    public AssetDto(Long assetId, String assetName, String assetGroupName) {
         this.assetId = assetId;
         this.assetName = assetName;
-        this.assetType = assetType;
+        this.assetGroupName = assetGroupName;
     }
 
-    // 🆕 Constructor ใหม่ (ใช้กับ RoomAssetRepository)
-    public AssetDto(Long assetId, String assetName, String assetType, Integer floor, String room) {
+    // ใช้กับสินค้าของห้อง (roomFloor, roomNumber)
+    public AssetDto(Long assetId, String assetName, String assetGroupName, Integer floor, String room) {
         this.assetId = assetId;
         this.assetName = assetName;
-        this.assetType = assetType;
+        this.assetGroupName = assetGroupName;
         this.floor = floor;
         this.room = room;
-        this.status = "Active"; // ค่า default
+        this.status = "Active"; // default
+    }
+
+    // ใช้กับรายการทั้งหมด (มี status)
+    public AssetDto(Long assetId, String assetName, String assetGroupName,
+                    Integer floor, String room, String status) {
+        this.assetId = assetId;
+        this.assetName = assetName;
+        this.assetGroupName = assetGroupName;
+        this.floor = floor;
+        this.room = room;
+        this.status = status;
+    }
+
+    // ใช้เมื่ออยากให้มี assetGroupId ด้วย
+    public AssetDto(Long assetId, String assetName, String assetGroupName,
+                    Long assetGroupId, Integer floor, String room, String status) {
+        this.assetId = assetId;
+        this.assetName = assetName;
+        this.assetGroupName = assetGroupName;
+        this.assetGroupId = assetGroupId;
+        this.floor = floor;
+        this.room = room;
+        this.status = status;
     }
 
     // ===== Getters & Setters =====
@@ -34,8 +58,11 @@ public class AssetDto {
     public String getAssetName() { return assetName; }
     public void setAssetName(String assetName) { this.assetName = assetName; }
 
-    public String getAssetType() { return assetType; }
-    public void setAssetType(String assetType) { this.assetType = assetType; }
+    public String getAssetGroupName() { return assetGroupName; }
+    public void setAssetGroupName(String assetGroupName) { this.assetGroupName = assetGroupName; }
+
+    public Long getAssetGroupId() { return assetGroupId; }
+    public void setAssetGroupId(Long assetGroupId) { this.assetGroupId = assetGroupId; }
 
     public Integer getFloor() { return floor; }
     public void setFloor(Integer floor) { this.floor = floor; }

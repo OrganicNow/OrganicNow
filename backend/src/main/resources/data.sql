@@ -131,3 +131,27 @@ VALUES
     (1, 2, 12, '2025-01-10', '2026-01-10', 14, 'ตรวจสภาพห้อง', 'ตรวจสอบรอยร้าว พื้น เพดาน'),
     (0, 3, 3, '2025-02-01', '2025-05-01', 3, 'ตรวจหลอดไฟ', 'ตรวจสอบและเปลี่ยนหลอดไฟ')
     ON CONFLICT DO NOTHING;
+-- ========================
+-- Fix Asset Status (หลัง Assign เสร็จ)
+-- ========================
+
+-- อัปเดตสินค้าที่อยู่ในห้องให้เป็น in_use
+UPDATE asset
+SET status = 'in_use'
+WHERE asset_id IN (SELECT asset_id FROM room_asset)
+  AND status <> 'deleted';
+
+-- อัปเดตสินค้าที่ไม่ได้อยู่ในห้องให้เป็น available
+UPDATE asset
+SET status = 'available'
+WHERE asset_id NOT IN (SELECT asset_id FROM room_asset)
+  AND status <> 'deleted';
+
+-- ========================
+-- Enable fuzzy search extension (pg_trgm)
+-- ========================
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+-- สร้าง index สำหรับค้นหาชื่อผู้เช่าแบบพิมพ์ผิดได้
+CREATE INDEX IF NOT EXISTS idx_tenant_name_trgm
+    ON tenant USING gin ((first_name || ' ' || last_name) gin_trgm_ops);

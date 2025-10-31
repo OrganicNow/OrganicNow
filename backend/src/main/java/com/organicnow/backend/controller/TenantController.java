@@ -4,15 +4,16 @@ import com.organicnow.backend.dto.CreateTenantContractRequest;
 import com.organicnow.backend.dto.TenantDto;
 import com.organicnow.backend.dto.TenantDetailDto;
 import com.organicnow.backend.dto.UpdateTenantContractRequest;
-import com.organicnow.backend.model.TenantDocument;
+import com.organicnow.backend.model.Tenant;
 import com.organicnow.backend.service.TenantService;
 import com.organicnow.backend.service.TenantContractService;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/tenant")
@@ -22,8 +23,7 @@ public class TenantController {
     private final TenantService tenantService;
     private final TenantContractService tenantContractService;
 
-    public TenantController(TenantService tenantService,
-                            TenantContractService tenantContractService) {
+    public TenantController(TenantService tenantService, TenantContractService tenantContractService) {
         this.tenantService = tenantService;
         this.tenantContractService = tenantContractService;
     }
@@ -67,31 +67,11 @@ public class TenantController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .body(pdfBytes);
     }
-    // ✅ ค้นหาผู้เช่าด้วย keyword
+
+    // 🔍 search แบบพิมพ์ผิดได้ (format เหมือน /list)
     @GetMapping("/search")
-    public ResponseEntity<List<TenantDocument>> searchTenant(@RequestParam String keyword) {
-        List<TenantDocument> results = tenantSearchService.searchByName(keyword);
-        return ResponseEntity.ok(results);
+    public ResponseEntity<?> searchTenant(@RequestParam String keyword) {
+        Map<String, Object> resp = tenantService.searchTenantWithFuzzy(keyword);
+        return ResponseEntity.ok(resp);
     }
-
-    // ✅ Reindex tenant ทั้งหมด (กรณี import จาก PostgreSQL)
-    @GetMapping("/reindex")
-    public ResponseEntity<String> reindexAll() {
-        List<Tenant> tenants = tenantService.getAllTenants();
-
-        List<TenantDocument> docs = tenants.stream()
-                .map(t -> TenantDocument.builder()
-                        .id(t.getId())
-                        .firstName(t.getFirstName())
-                        .lastName(t.getLastName())
-                        .email(t.getEmail())
-                        .phoneNumber(t.getPhoneNumber())
-                        .nationalId(t.getNationalId())
-                        .build())
-                .toList();
-
-        tenantSearchService.indexAll(docs);
-        return ResponseEntity.ok("✅ Reindexed " + docs.size() + " tenants.");
-    }
-
 }

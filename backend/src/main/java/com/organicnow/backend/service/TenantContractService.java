@@ -13,10 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.text.NumberFormat;
-import java.util.Locale;
 
 @Service
 public class TenantContractService {
@@ -27,27 +24,23 @@ public class TenantContractService {
     private final ContractRepository contractRepository;
     private final InvoiceRepository invoiceRepository;
 
-    // ✅ เพิ่ม service สำหรับ Elasticsearch
-    private final TenantSearchService tenantSearchService;
+    // ❌ ลบ TenantSearchService ออกทั้งหมด
 
     public TenantContractService(TenantRepository tenantRepository,
                                  RoomRepository roomRepository,
                                  PackagePlanRepository packagePlanRepository,
                                  ContractRepository contractRepository,
-                                 InvoiceRepository invoiceRepository,
-                                 TenantSearchService tenantSearchService) {
+                                 InvoiceRepository invoiceRepository) {
         this.tenantRepository = tenantRepository;
         this.roomRepository = roomRepository;
         this.packagePlanRepository = packagePlanRepository;
         this.contractRepository = contractRepository;
         this.invoiceRepository = invoiceRepository;
-        this.tenantSearchService = tenantSearchService;
     }
 
     // ➕ CREATE
     @Transactional
     public TenantDto create(CreateTenantContractRequest req) {
-        // 1. หา tenant เดิม หรือสร้างใหม่
         Tenant tenant = tenantRepository.findByNationalId(req.getNationalId())
                 .orElse(null);
 
@@ -69,7 +62,6 @@ public class TenantContractService {
             tenant = tenantRepository.saveAndFlush(tenant);
         }
 
-        // 2. สร้าง contract ใหม่
         Room room = roomRepository.findById(req.getRoomId())
                 .orElseThrow(() -> new RuntimeException("Room not found: " + req.getRoomId()));
         PackagePlan plan = packagePlanRepository.findById(req.getPackageId())
@@ -82,22 +74,13 @@ public class TenantContractService {
                 .signDate(req.getSignDate() != null ? req.getSignDate() : LocalDateTime.now())
                 .startDate(req.getStartDate())
                 .endDate(req.getEndDate())
-                .status(1) // active
+                .status(1)
                 .deposit(req.getDeposit())
                 .rentAmountSnapshot(req.getRentAmountSnapshot())
                 .build();
         contractRepository.save(contract);
 
-        tenantSearchService.indexTenant(
-                TenantDocument.builder()
-                        .id(tenant.getId())
-                        .firstName(tenant.getFirstName())
-                        .lastName(tenant.getLastName())
-                        .email(tenant.getEmail())
-                        .phoneNumber(tenant.getPhoneNumber())
-                        .nationalId(tenant.getNationalId())
-                        .build()
-        );
+        // ❌ ไม่ต้อง indexTenant อีกต่อไป
 
         return TenantDto.builder()
                 .contractId(contract.getId())
@@ -161,7 +144,6 @@ public class TenantContractService {
                 .build();
     }
 
-    // ❌ DELETE
     @Transactional
     public void delete(Long contractId) {
         if (!contractRepository.existsById(contractId)) {
@@ -170,7 +152,6 @@ public class TenantContractService {
         contractRepository.deleteById(contractId);
     }
 
-    // 🔍 DETAIL
     @Transactional(readOnly = true)
     public TenantDetailDto getDetail(Long contractId) {
         Contract contract = contractRepository.findById(contractId)
@@ -217,7 +198,6 @@ public class TenantContractService {
                 .build();
     }
 
-    // 📄 GENERATE CONTRACT PDF (เหมือนเดิม)
     @Transactional(readOnly = true)
     public byte[] generateContractPdf(Long contractId) {
         System.out.println(">>> [TenantContractService] Generating PDF for contractId=" + contractId);
@@ -233,7 +213,7 @@ public class TenantContractService {
             Document document = new Document(PageSize.A4, 36, 36, 54, 36);
             PdfWriter.getInstance(document, baos);
             document.open();
-            // ... (ส่วน PDF เดิมของคุณเหมือนเดิมทั้งหมด)
+            // ... PDF code เดิม
             document.close();
             return baos.toByteArray();
         } catch (Exception e) {

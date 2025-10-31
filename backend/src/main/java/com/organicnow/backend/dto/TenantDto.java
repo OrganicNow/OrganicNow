@@ -36,7 +36,7 @@ public class TenantDto {
 
     // 🔹 เงิน
     private BigDecimal deposit;
-    private BigDecimal rentAmountSnapshot;
+    private BigDecimal rentAmountSnapshot;  // ✅ เหลืออันเดียว
 
     // 🔹 สถานะ (0=หมดอายุ, 1=ใช้งาน, 2=ยังไม่เริ่ม, 3=ยกเลิก)
     private Integer status;
@@ -57,7 +57,8 @@ public class TenantDto {
             String phoneNumber,
             String email,
             String nationalId,
-            Integer status   // 👈 เพิ่มมา
+            Integer status,
+            BigDecimal rentAmountSnapshot  // ✅ เพิ่มพารามิเตอร์นี้
     ) {
         this.contractId = contractId;
         this.firstName = firstName;
@@ -73,6 +74,7 @@ public class TenantDto {
         this.phoneNumber = phoneNumber;
         this.email = email;
         this.nationalId = nationalId;
-        this.status = status;   // 👈 set ค่า
+        this.status = status;
+        this.rentAmountSnapshot = rentAmountSnapshot; // ✅ set ค่าได้จริง
     }
 }

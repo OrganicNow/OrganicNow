@@ -64,7 +64,7 @@ public class AssetController {
     }
 
     // ✅ Soft delete (ไม่ลบจริง แต่เปลี่ยนเป็น deleted)
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/delete/{id}")
     public ResponseEntity<Void> softDelete(@PathVariable Long id) {
         assetService.softDeleteAsset(id);
         return ResponseEntity.noContent().build();
