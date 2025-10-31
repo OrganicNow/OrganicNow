@@ -4,6 +4,7 @@ import com.organicnow.backend.model.Contract;
 import com.organicnow.backend.model.Room;
 import com.organicnow.backend.dto.TenantDto;
 import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,7 +15,7 @@ import java.util.Optional;
 @Repository
 public interface ContractRepository extends JpaRepository<Contract, Long> {
 
-    // ✅ ดึงข้อมูล TenantDto พร้อม contractTypeId + contractName + status (auto check endDate)
+    // ใช้ใน /tenant/list
     @Query("""
         select new com.organicnow.backend.dto.TenantDto(
             c.id,
@@ -31,7 +32,8 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
             t.phoneNumber,
             t.email,
             t.nationalId,
-            case when c.endDate < CURRENT_TIMESTAMP then 0 else c.status end
+            case when c.endDate < CURRENT_TIMESTAMP then 0 else c.status end,
+            c.rentAmountSnapshot
         )
         from Contract c
         join c.tenant t
@@ -41,10 +43,37 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
     """)
     List<TenantDto> findTenantRows();
 
-    // ✅ ใช้เช็คว่า tenant นี้มีสัญญาที่ยัง active อยู่หรือไม่
+    // ใช้ใน /tenant/search
+    @Query("""
+        select new com.organicnow.backend.dto.TenantDto(
+            c.id,
+            t.firstName,
+            t.lastName,
+            r.roomFloor,
+            r.roomNumber,
+            r.id,
+            p.id,
+            p.contractType.id,
+            p.contractType.name,
+            c.startDate,
+            c.endDate,
+            t.phoneNumber,
+            t.email,
+            t.nationalId,
+            case when c.endDate < CURRENT_TIMESTAMP then 0 else c.status end,
+            c.rentAmountSnapshot
+        )
+        from Contract c
+        join c.tenant t
+        join c.room r
+        join c.packagePlan p
+        where t.id in :tenantIds
+        order by c.signDate desc
+    """)
+    List<TenantDto> findTenantRowsByTenantIds(@Param("tenantIds") List<Long> tenantIds);
+
     boolean existsByTenant_IdAndStatusAndEndDateAfter(Long tenantId, Integer status, LocalDateTime now);
 
-    // ✅ ใช้สำหรับ Dashboard: เช็กว่าห้องยังมีสัญญาที่ Active อยู่ไหม
     @Query("""
         select case when count(c) > 0 then true else false end
         from Contract c
@@ -54,7 +83,6 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
     """)
     boolean existsActiveContractByRoomId(Long roomId);
 
-    // ✅ ดึง roomId ที่ยังมีสัญญา active จริง ๆ (ใช้สำหรับ frontend filter ห้องว่าง)
     @Query("""
         select c.room.id
         from Contract c
@@ -63,7 +91,6 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
     """)
     List<Long> findCurrentlyOccupiedRoomIds();
 
-    // ✅ อัปเดตสถานะเป็น 0 สำหรับสัญญาที่หมดอายุแล้ว
     @Modifying
     @Transactional
     @Query("""
@@ -73,6 +100,6 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
           and c.status = 1
     """)
     int updateExpiredContracts();
-    
+
     Optional<Contract> findByRoomAndPackagePlan_IdAndStatus(Room room, Long packageId, Integer status);
 }

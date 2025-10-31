@@ -10,4 +10,5 @@ import lombok.*;
 public class AssetGroupDropdownDto {
     private Long id;
     private String name;
+    private Integer threshold = 5;
 }

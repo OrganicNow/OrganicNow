@@ -4,7 +4,7 @@ import axios from "axios";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
 import { apiPath } from "../config_variable";
-import "../assets/css/tenantmanagement.css";
+import "../assets/css/tenantdetail.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
@@ -29,7 +29,7 @@ function TenantDetail() {
   const { contractId } = useParams();
 
   const [alertMessage, setAlertMessage] = useState("");
-  const [alertType, setAlertType] = useState(""); 
+  const [alertType, setAlertType] = useState("");
   const [showAlert, setShowAlert] = useState(false);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ function TenantDetail() {
       console.error("Error fetching tenant detail:", err);
       navigate("/tenantmanagement");
     }
-  };  
+  };
 
   useEffect(() => {
     if (contractId) fetchTenantDetail();
@@ -82,7 +82,7 @@ function TenantDetail() {
 
   const getStatusColor = (status, penaltyTotal) => {
     if (penaltyTotal && penaltyTotal > 0) {
-      return "status-danger";  
+      return "status-danger";
     }
     switch (status) {
       case 0:
@@ -231,69 +231,74 @@ function TenantDetail() {
             <div className="table-wrapper-detail rounded-0">
               <div className="row g-4">
                 {/* Tenant Info */}
-                <div className="col-lg-4" ref={tenantInfoRef}>
-                  <div className="card border-0 shadow-sm rounded-2">
+                <div className="col-lg-4 d-flex flex-column">
+                  {/* ✅ Tenant Information */}
+                  <div className="card border-0 shadow-sm rounded-3 mb-3 flex-fill">
                     <div className="card-body">
                       <h5 className="card-title">Tenant Information</h5>
                       <p>
-                        <span className="label">First Name:</span>{" "}
-                        <span className="value">{tenant?.firstName || "-"}</span>
+                        <strong>First Name:</strong> {tenant?.firstName || "-"}
                       </p>
                       <p>
-                        <span className="label">Last Name:</span>{" "}
-                        <span className="value">{tenant?.lastName || "-"}</span>
+                        <strong>Last Name:</strong> {tenant?.lastName || "-"}
                       </p>
                       <p>
-                        <span className="label">National ID:</span>{" "}
-                        <span className="value">{tenant?.nationalId || "-"}</span>
+                        <strong>National ID:</strong>{" "}
+                        {tenant?.nationalId || "-"}
                       </p>
                       <p>
-                        <span className="label">Phone Number:</span>{" "}
-                        <span className="value">{tenant?.phoneNumber || "-"}</span>
+                        <strong>Phone Number:</strong>{" "}
+                        {tenant?.phoneNumber || "-"}
                       </p>
                       <p>
-                        <span className="label">Email:</span>{" "}
-                        <span className="value">{tenant?.email || "-"}</span>
+                        <strong>Email:</strong> {tenant?.email || "-"}
                       </p>
                       <p>
-                        <span className="label">Package:</span>
-                        <span className="value">
-                          <span className="package-badge badge bg-primary">
-                            {tenant?.packageName || "-"}
-                          </span>
+                        <strong>Package:</strong>{" "}
+                        <span className="badge bg-primary">
+                          {tenant?.packageName || "-"}
                         </span>
                       </p>
                       <p>
-                        <span className="label">Sign Date:</span>{" "}
-                        <span className="value">
-                          {tenant?.signDate?.split("T")[0] || "-"}
-                        </span>
+                        <strong>Rent:</strong>{" "}
+                        {tenant?.rentAmountSnapshot
+                          ? `${tenant.rentAmountSnapshot}`
+                          : "-"}
                       </p>
                       <p>
-                        <span className="label">Start Date:</span>{" "}
-                        <span className="value">
-                          {tenant?.startDate?.split("T")[0] || "-"}
-                        </span>
+                        <strong>Sign Date:</strong>{" "}
+                        {tenant?.signDate
+                          ? new Date(tenant.signDate).toLocaleDateString(
+                              "th-TH"
+                            )
+                          : "-"}
                       </p>
                       <p>
-                        <span className="label">End Date:</span>{" "}
-                        <span className="value">
-                          {tenant?.endDate?.split("T")[0] || "-"}
-                        </span>
+                        <strong>Start Date:</strong>{" "}
+                        {tenant?.startDate
+                          ? new Date(tenant.startDate).toLocaleDateString(
+                              "th-TH"
+                            )
+                          : "-"}
+                      </p>
+                      <p>
+                        <strong>End Date:</strong>{" "}
+                        {tenant?.endDate
+                          ? new Date(tenant.endDate).toLocaleDateString("th-TH")
+                          : "-"}
                       </p>
                     </div>
                   </div>
 
-                  <div className="card border-0 shadow-sm mt-3 rounded-2">
+                  {/* ✅ Room Information */}
+                  <div className="card border-0 shadow-sm rounded-3 flex-fill">
                     <div className="card-body">
                       <h5 className="card-title">Room Information</h5>
                       <p>
-                        <span className="label">Floor:</span>{" "}
-                        <span className="value">{tenant?.floor || "-"}</span>
+                        <strong>Floor:</strong> {tenant?.floor || "-"}
                       </p>
                       <p>
-                        <span className="label">Room:</span>{" "}
-                        <span className="value">{tenant?.room || "-"}</span>
+                        <strong>Room:</strong> {tenant?.room || "-"}
                       </p>
                     </div>
                   </div>
@@ -301,14 +306,7 @@ function TenantDetail() {
 
                 {/* Payment History */}
                 <div className="col-lg-8 d-flex flex-column">
-                  <div
-                    className="card border-0 shadow-sm flex-grow-1 rounded-2"
-                    style={{
-                      height: `${leftHeight}px`,
-                      overflowY: "auto",
-                      paddingRight: "8px",
-                    }}
-                  >
+                  <div className="card border-0 shadow-sm flex-grow-1 rounded-2">
                     <div className="card-body d-flex flex-column overflow-hidden">
                       <ul
                         className="nav nav-tabs bg-white"
@@ -329,10 +327,7 @@ function TenantDetail() {
                         </li>
                       </ul>
 
-                      <div
-                        className="tab-content mt-3 overflow-auto flex-grow-1"
-                        style={{ maxHeight: "500px" }}
-                      >
+                      <div className="tab-content mt-3 flex-grow-1">
                         <div
                           className="tab-pane fade show active"
                           id="payment"
@@ -350,19 +345,23 @@ function TenantDetail() {
                                   >
                                     <div className="row mb-1">
                                       <div className="col-4">
-                                        <span className="label">Invoice date:  </span>
+                                        <span className="label">
+                                          Invoice date:{" "}
+                                        </span>
                                         <span className="value">
                                           {inv.dueDate?.split("T")[0] || "-"}
                                         </span>
                                       </div>
                                       <div className="col-4">
-                                        <span className="label">Invoice ID: </span>
+                                        <span className="label">
+                                          Invoice ID:{" "}
+                                        </span>
                                         <span className="value">
                                           {inv.invoiceId}
                                         </span>
                                       </div>
                                       <div className="col-4">
-                                        <span className="label">NET:  </span>
+                                        <span className="label">NET: </span>
                                         <span className="value">
                                           {inv.netAmount} Baht
                                         </span>
@@ -370,13 +369,15 @@ function TenantDetail() {
                                     </div>
                                     <div className="row">
                                       <div className="col-4">
-                                        <span className="label">Status:  </span>
+                                        <span className="label">Status: </span>
                                         <span className="value">
                                           {mapStatus(inv.invoiceStatus)}
                                         </span>
                                       </div>
                                       <div className="col-4">
-                                        <span className="label">Pay date: </span>
+                                        <span className="label">
+                                          Pay date:{" "}
+                                        </span>
                                         <span className="value">
                                           {inv.payDate?.split("T")[0] || "-"}
                                         </span>
@@ -460,8 +461,8 @@ function TenantDetail() {
                   placeholder="Tenant Phone Number"
                   value={phoneNumber}
                   onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, ""); 
-                    if (val.length <= 10) setPhoneNumber(val);     
+                    const val = e.target.value.replace(/\D/g, "");
+                    if (val.length <= 10) setPhoneNumber(val);
                   }}
                   maxLength={10}
                 />
@@ -570,7 +571,7 @@ function TenantDetail() {
               type="button"
               className="btn btn-outline-secondary"
               data-bs-dismiss="modal"
-              id="modalForm_btnClose" 
+              id="modalForm_btnClose"
             >
               Cancel
             </button>

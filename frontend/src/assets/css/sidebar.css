@@ -1,4 +1,4 @@
-/* Sidebar (fixed width, sticky full height) */
+/* === Sidebar หลัก (Fixed ไม่เลื่อนอีกต่อไป) === */
 .sidebar {
   width: 80px;
   min-width: 80px;
@@ -8,23 +8,31 @@
   flex-direction: column;
   align-items: center;
   padding: 16px 0;
-  position: sticky;
+  position: fixed;       /* ✅ แก้จาก sticky เป็น fixed */
   top: 0;
+  left: 0;               /* ✅ ชิดซ้ายสุดจอ */
   height: 100vh;
   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.08);
   z-index: 1000;
+  flex-shrink: 0;
 }
 
-/* Icon stack */
+/* === จัดให้เนื้อหาขวาไม่โดนบัง === */
+.app-main {
+  margin-left: 80px;     /* ✅ เว้นช่องเท่าความกว้าง sidebar */
+}
+
+/* === Icons (อยู่กลางแนวดิ่ง) === */
 .sidebar-icons {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  margin: auto 0;
+  flex-grow: 1;
 }
 
-/* Links */
+/* === Links === */
 .sidebar-link {
   color: #fff;
   text-decoration: none;
@@ -33,23 +41,61 @@
   height: 48px;
   display: grid;
   place-items: center;
-  transition: background-color 0.2s ease;
+  transition: all 0.2s ease;
+  position: relative;
 }
 
 .sidebar-link:hover {
   background-color: rgba(255, 255, 255, 0.18);
+  transform: scale(1.1);
 }
 
 .sidebar-link.active {
   background-color: #0084f7;
   font-weight: 600;
+  position: relative;
 }
 
+/* Active highlight bar */
+.sidebar-link.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  background: #fff;
+  border-radius: 4px;
+}
+
+/* Tooltip */
+.sidebar-link::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 70px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  top: 50%;
+  transition: opacity 0.2s ease;
+  white-space: nowrap;
+}
+
+.sidebar-link:hover::after {
+  opacity: 1;
+}
+
+/* Icon Size */
 .icon-lg {
   font-size: 1.25rem;
 }
 
-/* Logout at bottom */
+/* Logout Button (ล่างสุด) */
 .sidebar-logout {
   background: transparent;
   border: 0;

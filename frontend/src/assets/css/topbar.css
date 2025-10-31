@@ -6,7 +6,6 @@
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
 
-/* content width follows page width (no hard max) */
 .topbar-inner {
   padding: 12px 16px;
   display: flex;
@@ -40,14 +39,12 @@
   gap: 8px;
 }
 
-/* PrimeReact buttons */
 .topbar-btn {
   width: 40px;
   height: 40px;
   color: #0084f7;
 }
 
-/* Profile pill */
 .topbar-profile {
   display: flex;
   align-items: center;
@@ -74,22 +71,20 @@
   font-size: 0.9rem;
 }
 
-/* App shell: Sidebar fixed width + Main flexible */
+/* App shell */
 .app-shell {
   display: flex;
   min-height: 100vh;
   background: #e3f2fd;
 }
 
-/* Right side (Topbar + Content) */
 .app-main {
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
-  min-width: 0; /* important for overflow tables */
+  min-width: 0;
 }
 
-/* Page content area */
 .app-content {
   padding: 1.5rem;
   flex: 1 1 auto;

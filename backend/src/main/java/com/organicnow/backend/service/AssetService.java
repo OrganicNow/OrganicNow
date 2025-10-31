@@ -21,14 +21,24 @@ public class AssetService {
     private final AssetGroupRepository assetGroupRepository;
     private final RoomAssetRepository roomAssetRepository;
 
-    // ✅ ดูทั้งหมด (stock + ที่ใช้อยู่) แต่ไม่รวม deleted
+    // ✅ ดูทั้งหมด (stock + ใช้อยู่)
     public List<AssetDto> getAllAssets() {
         return assetRepository.findAllAssetOptions();
     }
 
-    // ✅ ดึงของของห้อง (ไม่รวม deleted)
+    // ✅ ดึงของในห้อง
     public List<AssetDto> getAssetsByRoomId(Long roomId) {
         return assetRepository.findAssetsByRoomId(roomId);
+    }
+
+    // ✅ ดึงของใน stock (ยังว่าง)
+    public List<AssetDto> getAvailableAssets() {
+        return assetRepository.findAvailableAssets();
+    }
+
+    // 🆕 ดึงของที่อยู่ในห้อง (in_use)
+    public List<AssetDto> getInUseAssets() {
+        return assetRepository.findInUseAssets();
     }
 
     // ✅ สร้าง asset เดี่ยว
@@ -50,18 +60,16 @@ public class AssetService {
         return assetRepository.save(existing);
     }
 
-    // ✅ soft delete: เปลี่ยนสถานะเป็น deleted และตัดออกจากห้องถ้ามี
+    // ✅ soft delete
     @Transactional
     public void softDeleteAsset(Long id) {
         Asset existing = assetRepository.findById(id).orElseThrow();
-        // ตัดความสัมพันธ์กับห้องก่อน (ถ้ามี)
         roomAssetRepository.deleteByAsset_Id(id);
-        // ตั้งสถานะ deleted
         existing.setStatus("deleted");
         assetRepository.save(existing);
     }
 
-    // ✅ เปลี่ยนสถานะ (เช่น maintenance, broken, available, in_use)
+    // ✅ เปลี่ยนสถานะทั่วไป
     @Transactional
     public Asset updateStatus(Long id, String status) {
         Asset existing = assetRepository.findById(id).orElseThrow();
@@ -69,7 +77,23 @@ public class AssetService {
         return assetRepository.save(existing);
     }
 
-    // ✅ Bulk create: สร้างของจริงหลายชิ้นในคราวเดียว เช่น โต๊ะ 24 ตัว
+    // 🆕 Mark ว่า asset ถูกใช้แล้ว (in_use)
+    @Transactional
+    public void markAssetInUse(Long assetId) {
+        Asset asset = assetRepository.findById(assetId).orElseThrow();
+        asset.setStatus("in_use");
+        assetRepository.save(asset);
+    }
+
+    // 🆕 Mark ว่า asset กลับมา stock (available)
+    @Transactional
+    public void markAssetAvailable(Long assetId) {
+        Asset asset = assetRepository.findById(assetId).orElseThrow();
+        asset.setStatus("available");
+        assetRepository.save(asset);
+    }
+
+    // ✅ Bulk create
     @Transactional
     public List<Asset> createBulk(Long assetGroupId, String assetName, int qty) {
         if (qty <= 0) throw new IllegalArgumentException("qty must be > 0");
@@ -77,14 +101,12 @@ public class AssetService {
         AssetGroup group = assetGroupRepository.findById(assetGroupId)
                 .orElseThrow(() -> new IllegalArgumentException("AssetGroup not found"));
 
-        // 🔍 ดึงชื่อทั้งหมดในกลุ่มนี้ที่ขึ้นต้นด้วย assetName (เช่น "table")
         List<Asset> existingAssets = assetRepository.findByAssetGroupId(assetGroupId);
         int maxIndex = existingAssets.stream()
                 .filter(a -> a.getAssetName().startsWith(assetName + "-"))
                 .mapToInt(a -> {
                     try {
-                        return Integer.parseInt(a.getAssetName()
-                                .replace(assetName + "-", ""));
+                        return Integer.parseInt(a.getAssetName().replace(assetName + "-", ""));
                     } catch (NumberFormatException e) {
                         return 0;
                     }
@@ -94,7 +116,7 @@ public class AssetService {
 
         List<Asset> result = new ArrayList<>();
         for (int i = 1; i <= qty; i++) {
-            String numberedName = assetName + "-" + String.format("%03d", maxIndex + i); // ✅ เช่น table-001
+            String numberedName = assetName + "-" + String.format("%03d", maxIndex + i);
             Asset a = Asset.builder()
                     .assetGroup(group)
                     .assetName(numberedName)
@@ -104,10 +126,5 @@ public class AssetService {
         }
 
         return assetRepository.saveAll(result);
-    }
-
-    // ✅ ใช้สำหรับดึงเฉพาะ asset ที่ยังว่าง
-    public List<AssetDto> getAvailableAssets() {
-        return assetRepository.findAvailableAssets();
     }
 }

@@ -1,0 +1,313 @@
+/* .table-wrapper ปรับความกว้างและการเลื่อน */
+.table-wrapper {
+    width: 100%;  /* ใช้ 100% เพื่อไม่ให้ตารางเกินขอบ */
+    margin-right: 0;
+    overflow-x: hidden;/* เอาการเลื่อนแนวนอนออก */
+    border-radius: 10px;
+    margin: 20px;
+    -webkit-overflow-scrolling: touch;
+    background-color: white;
+    box-sizing: border-box;
+}
+
+/* .table-wrapper-detail ปรับการเลื่อนในแนวนอน */
+.table-wrapper-detail {
+    width: 100%;
+    margin-right: 0;
+    overflow-x: hidden !important; /* เอาการเลื่อนแนวนอนออก */
+    border-radius: 10px;
+    margin: 20px;
+    -webkit-overflow-scrolling: touch;
+    box-sizing: border-box;
+}
+
+/* .toolbar-wrapper ยืดขวาเหมือนตาราง */
+.toolbar-wrapper {
+    width: 100%;  /* ยืดออกขวา */
+    margin-right: 0;       /* ดึงให้ชนขอบขวาเหมือนตาราง */
+    box-sizing: border-box;
+    border-radius: 10px;
+    margin: 20px;
+}
+
+/* สไตล์ของตาราง */
+.table {
+    width: 100%;
+    max-width: 100%;
+    table-layout: auto;
+    border-collapse: collapse;
+    border-radius: 10px;
+    margin: 0;
+}
+
+/* กำหนดความกว้างของแต่ละเซลล์ในตาราง */
+.table th,
+.table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+    word-wrap: break-word;
+    width: auto;  /* ปรับเป็น auto เพื่อให้ยืดหยุ่น */
+    min-width: 120px;  /* เพิ่มขนาดขั้นต่ำที่มากขึ้น */
+    vertical-align: middle;
+}
+
+/* กำหนดขนาดของ checkbox */
+.checkbox-cell {
+    padding: 18px !important;
+    width: auto;  /* ใช้ auto เพื่อให้ขนาดปรับตัวตามเนื้อหา */
+    min-width: 50px;  /* ปรับความกว้างขั้นต่ำ */
+    text-align: center;
+    white-space: nowrap;
+    border: none;
+}
+
+.checkbox-cell input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    padding: 0;
+    display: block;
+}
+
+/* การปรับแต่ง header ของตาราง */
+.table th.header-color {
+    background-color: #57b1ff;
+    color: #fff;
+    font-weight: bold;
+}
+
+/* การตกแต่ง card สำหรับ filter bar */
+.card {
+    border-radius: 12px;
+}
+
+/* ปรับรูปแบบของ toolbar */
+.tm-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    gap: 16px;
+}
+
+.tm-search {
+    max-width: 280px;
+}
+
+.tm-toolbar button,
+.tm-toolbar .form-control {
+    white-space: nowrap;
+}
+
+/* ปรับสไตล์ของ input ใน search */
+.input-group .form-control {
+    box-shadow: none;
+}
+
+/* สไตล์ของปุ่ม link */
+.btn-link {
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.tm-content-container {
+    margin-left: 80px;     /* เท่ากับ sidebar width */
+    margin-right: 0;
+    padding-left: 0;
+    padding-right: 32px;   /* ขอบขวาเท่า box แดง */
+    max-width: none;       /* ยืดได้สุดจอ */
+}
+
+/* สถานะการจ่ายเงิน: พาสเทลตาม Figma */
+.status-card {
+    border-radius: 12px;
+    padding: 16px;
+    color: #333;
+    font-size: 0.95rem;
+    background-color: #f8f9fa;
+    box-shadow: 0 0 3px rgba(0, 0, 0, 0.05);
+}
+
+/* เขียว: Complete */
+.status-complete {
+    background-color: #d4f4dd;
+}
+
+/* เหลือง: In process */
+.status-warning {
+    background-color: #fff8d4;
+}
+
+/* แดง: Failed / Overdue */
+.status-danger {
+    background-color: #f8d4d4;
+}
+
+/* เทา: Default */
+.status-default {
+    background-color: #f1f1f1;
+}
+
+.label {
+    color: #888;
+    font-weight: normal;
+}
+
+.value {
+    color: #000;
+    font-weight: bold;
+}
+
+/* สำหรับ Room Information และ Current Tenant - ให้ label เท่ากัน */
+.card-body p {
+    display: grid;
+    grid-template-columns: 170px 1fr; /* เปลี่ยนเป็น 1fr แทน auto */
+    column-gap: 12px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+
+/* สำหรับ label ที่เป็น strong tag */
+.card-body p strong {
+    display: inline-block;
+    width: 100%;
+    text-align: left;
+}
+
+/* สำหรับ content ในคอลัมน์ที่สอง - ให้เริ่มจากซ้าย */
+.card-body p > *:not(strong) {
+    justify-self: start; /* จัดให้อยู่ซ้าย */
+}
+
+.package-row {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* แก้ badge ไม่ให้ยืด และจัดกลางแนวตั้ง */
+.package-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+/* การจัดการปุ่มในคอลัมน์ "Actions" */
+.table td .btn-container {
+    display: flex;
+    justify-content: center;  /* จัดปุ่มให้อยู่กลาง */
+    align-items: center;
+    gap: 8px;  /* เพิ่มช่องว่างระหว่างปุ่ม */
+}
+
+.table td .btn {
+    width: auto;  /* ปรับความกว้างให้เหมาะสมกับปุ่ม */
+    text-align: center;  /* จัดปุ่มให้อยู่กลาง */
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    border-radius: 4px;
+}
+
+/* Responsive สำหรับจอมือถือ */
+@media (max-width: 768px) {
+    .table th,
+    .table td {
+        padding: 8px;
+    }
+
+    .tm-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .tm-search {
+        width: 100%;
+    }
+
+    .tm-toolbar > div {
+        width: 100%;
+    }
+
+    .table-wrapper-detail {
+        overflow-x: auto;  /* เพิ่ม overflow-x เพื่อให้ตารางสามารถเลื่อนได้ */
+    }
+}
+
+/* ปรับ Badge ให้พอดีกับเนื้อหาและสีสวยขึ้น */
+.badge {
+    display: inline-block;
+    padding: 0.35em 0.8em !important; /* ปรับ padding ให้พอดีกับข้อความ */
+    font-size: 0.85rem !important; /* ขนาดฟอนต์ที่เหมาะสม */
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: middle;
+    border-radius: 20px !important; /* ทำให้โค้งมนขึ้น */
+    width: fit-content; /* ความกว้างพอดีกับเนื้อหา */
+    min-width: auto;
+}
+.card-body p {
+    display: flex;  /* ใช้ flexbox เพื่อให้ทั้ง label และ content อยู่ในแถวเดียวกัน */
+    justify-content: flex-start;  /* ทำให้ label และ content ชิดซ้าย */
+    align-items: center;  /* จัดตำแหน่งให้แนวตั้งอยู่ตรงกลาง */
+    margin-bottom: 8px;
+}
+
+.card-body p strong {
+    text-align: left;  /* ทำให้ label ชิดซ้าย */
+    margin-right: 12px;  /* เพิ่มช่องว่างระหว่าง label และ content */
+}
+
+.card-body p > *:not(strong) {
+    text-align: left;  /* ทำให้ content ชิดซ้าย */
+    margin-left: 0;  /* ปรับให้ไม่มี margin ด้านซ้าย */
+}
+
+
+
+/* สีสำหรับ Status Badge */
+.bg-success {
+    background-color: #28a745 !important;
+    color: #fff !important;
+    align-items: flex-start;
+}
+
+.bg-danger {
+    background-color: #dc3545 !important;
+    color: #fff !important;
+}
+
+/* สีสำหรับ Package Badge - สีพาสเทลอ่อน */
+.bg-warning {
+    background-color: #FFE5A3 !important; /* เหลืองอ่อน สำหรับ 3 เดือน */
+    color: #8B6914 !important; /* ข้อความสีเข้ม */
+    border: 1px solid #FFD700;
+}
+
+.bg-pink {
+    background-color: #FFB3D9 !important; /* ชมพูอ่อน สำหรับ 6 เดือน */
+    color: #B8226B !important; /* ข้อความสีเข้ม */
+    border: 1px solid #FF69B4;
+}
+
+.bg-info {
+    background-color: #A3D5FF !important; /* ฟ้าอ่อน สำหรับ 9 เดือน */
+    color: #1F5582 !important; /* ข้อความสีเข้ม */
+    border: 1px solid #00BFFF;
+}
+
+.bg-primary {
+    background-color: #6BB6FF !important; /* น้ำเงินอ่อน สำหรับ 1 ปี */
+    color: #1E4A66 !important; /* ข้อความสีเข้ม */
+    border: 1px solid #1E90FF;
+}
+
+.bg-secondary {
+    background-color: #E6E6E6 !important; /* เทาอ่อน สำหรับ default */
+    color: #666666 !important;
+    border: 1px solid #CCCCCC;
+}

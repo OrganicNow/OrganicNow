@@ -8,7 +8,7 @@ import { pageSize as defaultPageSize, apiPath } from "../config_variable";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import "../assets/css/tenantmanagement.css";
+import "../assets/css/asset.css";
 import "../assets/css/alert.css";
 
 function AssetManagement() {
@@ -38,9 +38,9 @@ function AssetManagement() {
   const [formName, setFormName] = useState("");
   const [formGroupId, setFormGroupId] = useState("");
   const [editingAssetId, setEditingAssetId] = useState(null);
-
   const [formQty, setFormQty] = useState(1);
 
+  // ====== Custom Alert/Message Hooks ======
   const {
     showMessagePermission,
     showMessageError,
@@ -74,7 +74,6 @@ function AssetManagement() {
       else if (Array.isArray(res.data)) rows = res.data;
 
       setAssets(rows);
-
       setTotalRecords(rows.length);
       setTotalPages(Math.max(1, Math.ceil(rows.length / pageSize)));
       setCurrentPage(page);
@@ -86,18 +85,19 @@ function AssetManagement() {
     }
   };
 
+  // ========= useEffect (โหลดข้อมูลเริ่มต้น) =========
   useEffect(() => {
     fetchGroups();
     fetchData(1);
   }, [pageSize]);
 
-  // ========= Filter Groups =========
+  // ========= Filter Groups (สำหรับ sidebar) =========
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return assetGroups;
 
     const groupMatches = assetGroups.filter((g) =>
-      g.assetGroupName?.toLowerCase().includes(q)
+      g.name?.toLowerCase().includes(q)
     );
 
     const assetMatches = assets
@@ -106,34 +106,26 @@ function AssetManagement() {
           a.assetName?.toLowerCase().includes(q) ||
           String(a.assetId).includes(q)
       )
-      .map((a) => assetGroups.find((g) => g.assetGroupName === a.assetType))
+      .map((a) => assetGroups.find((g) => g.id === a.assetGroupId))
       .filter(Boolean);
 
     const allMatches = [...groupMatches, ...assetMatches];
     return Array.from(new Map(allMatches.map((g) => [g.id, g])).values());
   }, [assetGroups, assets, search]);
 
+  const [filterStatus, setFilterStatus] = useState("ALL");
+
   // ========= Filter & Sort Assets =========
   const filteredAssets = useMemo(() => {
     const q = search.trim().toLowerCase();
     let rows = [...assets];
 
-    // ✅ กรองตาม Group ที่เลือก
     if (selectedGroupId !== "ALL") {
-      const group = assetGroups.find(
-        (g) => String(g.id) === String(selectedGroupId)
+      rows = rows.filter(
+        (r) => String(r.assetGroupId) === String(selectedGroupId)
       );
-
-      if (group) {
-        rows = rows.filter(
-          (r) =>
-            (r.assetType || "").trim().toLowerCase() ===
-            (group.assetGroupName || "").trim().toLowerCase()
-        );
-      }
     }
 
-    // ✅ กรองตามคำค้นหา (search)
     if (q) {
       rows = rows.filter(
         (r) =>
@@ -142,7 +134,10 @@ function AssetManagement() {
       );
     }
 
-    // ✅ เรียงลำดับชื่อ (A-Z / Z-A)
+    if (filterStatus && filterStatus !== "ALL") {
+      rows = rows.filter((r) => r.status === filterStatus);
+    }
+
     rows.sort((a, b) =>
       sortAsc
         ? a.assetName.localeCompare(b.assetName)
@@ -150,17 +145,15 @@ function AssetManagement() {
     );
 
     return rows;
-  }, [assets, search, sortAsc, selectedGroupId, assetGroups]);
+  }, [assets, search, sortAsc, selectedGroupId, assetGroups, filterStatus]);
 
+  // ========= Pagination =========
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, filteredAssets.length);
   const pageRows = filteredAssets.slice(startIndex, endIndex);
 
-  // ========= Pagination Handlers =========
   const handlePageChange = (page) => {
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
+    if (page >= 1 && page <= totalPages) setCurrentPage(page);
   };
 
   const handlePageSizeChange = (size) => {
@@ -178,6 +171,7 @@ function AssetManagement() {
     setEditingAssetId(null);
     setFormName("");
     setFormGroupId(groupId || "");
+    setFormQty(1);
   };
 
   // ========= Validation =========
@@ -188,22 +182,6 @@ function AssetManagement() {
     }
     if (groupName.trim().length < 2) {
       showMessageError("ชื่อ Group ต้องมีอย่างน้อย 2 ตัวอักษร");
-      return false;
-    }
-    return true;
-  };
-
-  const checkValidationAsset = (payload) => {
-    if (!payload.assetName || payload.assetName.trim() === "") {
-      showMessageError("กรุณากรอกชื่อ Asset");
-      return false;
-    }
-    if (payload.assetName.trim().length < 2) {
-      showMessageError("ชื่อ Asset ต้องมีอย่างน้อย 2 ตัวอักษร");
-      return false;
-    }
-    if (!payload.assetGroup?.id) {
-      showMessageError("กรุณาเลือก Group");
       return false;
     }
     return true;
@@ -230,6 +208,7 @@ function AssetManagement() {
         );
         showMessageSave("แก้ไข Group สำเร็จ");
       }
+      clearFormGroup();
       fetchGroups();
       document.getElementById("modalGroup_btnClose")?.click();
     } catch (err) {
@@ -246,14 +225,16 @@ function AssetManagement() {
   };
 
   const onDeleteGroup = async (g) => {
-    const groupAssets = assets.filter((a) => a.assetType === g.assetGroupName);
+    const groupAssets = assets.filter(
+      (a) => String(a.assetGroupId) === String(g.id)
+    );
     let result;
     if (groupAssets.length > 0) {
       result = await showMessageConfirmDelete(
-        `${g.assetGroupName}\n(มีอยู่ ${groupAssets.length} assets จะลบหรือไม่?)`
+        `${g.name}\n(มีอยู่ ${groupAssets.length} assets จะลบหรือไม่?)`
       );
     } else {
-      result = await showMessageConfirmDelete(g.assetGroupName);
+      result = await showMessageConfirmDelete(g.name);
     }
 
     if (!result.isConfirmed) return;
@@ -264,7 +245,9 @@ function AssetManagement() {
       });
 
       setAssetGroups((prev) => prev.filter((x) => x.id !== g.id));
-      setAssets((prev) => prev.filter((x) => x.assetType !== g.assetGroupName));
+      setAssets((prev) =>
+        prev.filter((x) => String(x.assetGroupId) !== String(g.id))
+      );
       if (String(selectedGroupId) === String(g.id)) {
         setSelectedGroupId("ALL");
       }
@@ -284,8 +267,6 @@ function AssetManagement() {
 
     try {
       setSaving(true);
-
-      // ✅ ถ้ามีการกรอก quantity และมากกว่า 1 → ใช้ bulk
       if (editingAssetId == null && parseInt(formQty) > 1) {
         await axios.post(`${apiPath}/assets/bulk`, null, {
           params: {
@@ -296,27 +277,30 @@ function AssetManagement() {
           withCredentials: true,
         });
         showMessageSave(`สร้าง ${formQty} ชิ้นสำเร็จ`);
-      } 
-      // ✅ ถ้าจำนวน = 1 → ใช้ create เดิม
-      else if (editingAssetId == null) {
-        await axios.post(`${apiPath}/assets/create`, {
-          assetName: formName.trim(),
-          assetGroup: { id: parseInt(formGroupId) },
-        }, { withCredentials: true });
+      } else if (editingAssetId == null) {
+        await axios.post(
+          `${apiPath}/assets/create`,
+          {
+            assetName: formName.trim(),
+            assetGroup: { id: parseInt(formGroupId) },
+          },
+          { withCredentials: true }
+        );
         showMessageSave("สร้าง Asset สำเร็จ");
-      } 
-      // ✅ ถ้าเป็นการแก้ไข
-      else {
-        await axios.put(`${apiPath}/assets/update/${editingAssetId}`, {
-          assetName: formName.trim(),
-          assetGroup: { id: parseInt(formGroupId) },
-        }, { withCredentials: true });
+      } else {
+        await axios.put(
+          `${apiPath}/assets/update/${editingAssetId}`,
+          {
+            assetName: formName.trim(),
+            assetGroup: { id: parseInt(formGroupId) },
+          },
+          { withCredentials: true }
+        );
         showMessageSave("แก้ไข Asset สำเร็จ");
       }
-
+      clearFormAsset();
       fetchData(currentPage);
       document.getElementById("modalAsset_btnClose")?.click();
-
     } catch (err) {
       console.error("Error saving asset:", err);
       showMessageError("เกิดข้อผิดพลาดในการบันทึก");
@@ -340,215 +324,256 @@ function AssetManagement() {
     }
   };
 
-  // ========= UI Helper =========
-  const badgeColor = (status) =>
-    status === "Active" ? "bg-success" : "bg-secondary";
+  // ========= Summary =========
+  const getSummaryForSelectedGroup = () => {
+    let filtered = [...assets];
+    if (selectedGroupId !== "ALL") {
+      filtered = filtered.filter(
+        (a) => String(a.assetGroupId) === String(selectedGroupId)
+      );
+    }
+    return {
+      total: filtered.length,
+      inUse: filtered.filter((a) => a.status === "in_use").length,
+      available: filtered.filter((a) => a.status === "available").length,
+    };
+  };
 
+  const summary = getSummaryForSelectedGroup();
+
+  // ========= UI =========
   return (
-    <Layout title="Asset Management" icon="bi bi-box" notifications={0}>
-      <div className="container-fluid">
-        <div className="row min-vh-100">
-          <div className="col-lg-11 p-4">
-            {/* Toolbar */}
-            <div className="toolbar-wrapper card border-0 bg-white">
-              <div className="card-header bg-white border-0 rounded-3">
-                <div className="tm-toolbar d-flex justify-content-between align-items-center">
-                  <div className="d-flex align-items-center gap-3">
-                    <button
-                      className="btn btn-link tm-link p-0"
-                      onClick={() => setSortAsc((s) => !s)}
-                    >
-                      <i className="bi bi-arrow-down-up me-1"></i> Sort
-                    </button>
-                    <div className="input-group tm-search">
-                      <span className="input-group-text bg-white border-end-0">
-                        <i className="bi bi-search"></i>
-                      </span>
-                      <input
-                        type="text"
-                        className="form-control border-start-0"
-                        placeholder="Search asset / group"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                      />
-                    </div>
-                  </div>
+    <Layout title="Asset Management" icon="bi bi-box">
+      <div className="container-fluid p-4">
+        {/* ===== Summary Cards ===== */}
+        <div className="row g-3 mb-4">
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0 rounded-3 text-center p-3">
+              {selectedGroupId === "ALL" ? (
+                <>
+                  <h6 className="text-muted mb-1">Total Groups</h6>
+                  <h4 className="fw-bold">{assetGroups.length}</h4>
+                </>
+              ) : (
+                <>
+                  <h6 className="text-muted mb-1">Groups:</h6>
+                  <h4 className="fw-bold">
+                    {assetGroups.find(
+                      (g) => String(g.id) === String(selectedGroupId)
+                    )?.name || "-"}
+                  </h4>
+                </>
+              )}
+            </div>
+          </div>
 
-                  <div className="d-flex align-items-center gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      data-bs-toggle="modal"
-                      data-bs-target="#groupModal"
-                      onClick={clearFormGroup}
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0 rounded-3 text-center p-3">
+              <h6 className="text-muted mb-1">Total Assets</h6>
+              <h4 className="fw-bold">{summary.total}</h4>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0 rounded-3 text-center p-3">
+              <h6 className="text-muted mb-1">In Use</h6>
+              <h4 className="fw-bold text-warning">{summary.inUse}</h4>
+            </div>
+          </div>
+
+          <div className="col-md-3">
+            <div className="card shadow-sm border-0 rounded-3 text-center p-3">
+              <h6 className="text-muted mb-1">Available</h6>
+              <h4
+                className={`fw-bold ${
+                  summary.available < 5 ? "text-danger" : "text-success"
+                }`}
+              >
+                {summary.available}
+              </h4>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== Sidebar & Asset Grid ===== */}
+        <div className="row g-4">
+          {/* ===== Sidebar ===== */}
+          <div className="col-lg-3">
+            <div className="sidebar-modern card border-0 shadow-sm rounded-4 p-3">
+              <h6 className="fw-semibold text-primary mb-3">
+                <i className="bi bi-diagram-3 me-2"></i>Asset Groups
+              </h6>
+
+              <div className="list-group modern-list">
+                <button
+                  type="button"
+                  className={`list-group-item list-group-item-action ${
+                    selectedGroupId === "ALL" ? "active" : ""
+                  }`}
+                  onClick={() => setSelectedGroupId("ALL")}
+                >
+                  <i className="bi bi-collection me-2"></i> All Groups
+                </button>
+
+                {filteredGroups.map((g) => {
+                  const availableCount = assets.filter(
+                    (a) =>
+                      String(a.assetGroupId) === String(g.id) &&
+                      a.status === "available"
+                  ).length;
+                  const threshold = g.threshold || 5;
+                  const isLow = availableCount <= threshold;
+
+                  return (
+                    <div
+                      key={g.id}
+                      className={`list-group-item list-group-item-action d-flex justify-content-between align-items-center ${
+                        String(selectedGroupId) === String(g.id) ? "active" : ""
+                      }`}
+                      onClick={() => setSelectedGroupId(g.id)}
                     >
-                      <i className="bi bi-plus-lg me-1"></i> Create Asset Group
-                    </button>
-                  </div>
-                </div>
+                      {/* ✅ ฝั่งซ้าย: ชื่อ + icon เตือน */}
+                      <div className="d-flex align-items-center gap-2">
+                        {isLow && (
+                          <i
+                            className="bi bi-exclamation-circle-fill text-danger"
+                            style={{ fontSize: "0.95rem" }}
+                            title={`เหลือ ${availableCount} (ต่ำกว่า threshold ${threshold})`}
+                          ></i>
+                        )}
+                        <span className="text-truncate">{g.name}</span>
+                      </div>
+
+                      {/* ✅ ฝั่งขวา: ปุ่ม action */}
+                      <div className="btn-group btn-group-sm">
+                        <button
+                          className="btn text-success p-0 me-2"
+                          data-bs-toggle="modal"
+                          data-bs-target="#assetModal"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            clearFormAsset(g.id);
+                          }}
+                        >
+                          <i className="bi bi-plus-circle"></i>
+                        </button>
+                        <button
+                          className="btn text-primary p-0 me-2"
+                          data-bs-toggle="modal"
+                          data-bs-target="#groupModal"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingGroupId(g.id);
+                            setGroupName(g.name);
+                          }}
+                        >
+                          <i className="bi bi-pencil"></i>
+                        </button>
+                        <button
+                          className="btn text-danger p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteGroup(g);
+                          }}
+                        >
+                          <i className="bi bi-trash"></i>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
+          </div>
 
-            {/* Sidebar + Table */}
-            <div className="row g-4">
-              {/* Sidebar */}
-              <div className="col-lg-3">
-                <div className="table-wrapper mt-3">
-                  <ul className="list-group">
-                    <li
-                      className={`list-group-item ${
-                        selectedGroupId === "ALL" ? "active" : ""
-                      }`}
-                      onClick={() => setSelectedGroupId("ALL")}
-                      style={{ cursor: "pointer" }}
-                    >
-                      All
-                    </li>
-                    {filteredGroups.map((g) => (
-                      <li
-                        key={g.id}
-                        className={`list-group-item d-flex justify-content-between align-items-center ${
-                          String(selectedGroupId) === String(g.id)
-                            ? "active"
-                            : ""
-                        }`}
-                        onClick={() => setSelectedGroupId(g.id)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <span>{g.assetGroupName}</span>
-                        <span className="btn-group btn-group-sm">
+          {/* ===== Asset Table ===== */}
+          <div className="col-lg-9">
+            <div className="card border-0 shadow-sm rounded-3 overflow-hidden">
+              <table className="table table-hover align-middle mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th className="text-center">Order</th>
+                    <th>Asset Name</th>
+                    <th>Group</th>
+                    <th>Floor</th>
+                    <th>Room</th>
+                    <th>Status</th>
+                    <th className="text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.length ? (
+                    pageRows.map((row, idx) => (
+                      <tr key={row.assetId}>
+                        <td className="text-center">{startIndex + idx + 1}</td>
+                        <td>{row.assetName}</td>
+                        <td>
+                          {assetGroups.find((g) => g.id === row.assetGroupId)
+                            ?.name || "-"}
+                        </td>
+                        <td>{row.floor || "-"}</td>
+                        <td>{row.room || "-"}</td>
+                        <td>
+                          <span
+                            className={`badge rounded-pill ${
+                              row.status === "in_use"
+                                ? "bg-warning text-dark"
+                                : row.status === "available"
+                                ? "bg-success"
+                                : "bg-secondary"
+                            }`}
+                          >
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="text-center">
                           <button
-                            className="btn btn-sm form-Button-Edit"
+                            className="btn btn-sm text-primary me-2"
                             data-bs-toggle="modal"
                             data-bs-target="#assetModal"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              clearFormAsset(g.id);
+                            onClick={() => {
+                              setEditingAssetId(row.assetId);
+                              setFormName(row.assetName);
+                              setFormGroupId(row.assetGroupId);
                             }}
                           >
-                            <i className="bi bi-plus-circle-fill"></i>
+                            <i className="bi bi-pencil"></i>
                           </button>
                           <button
-                            className="btn btn-sm form-Button-Edit"
-                            data-bs-toggle="modal"
-                            data-bs-target="#groupModal"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingGroupId(g.id);
-                              setGroupName(g.assetGroupName);
-                            }}
+                            className="btn btn-sm text-danger"
+                            onClick={() => onDeleteAsset(row)}
                           >
-                            <i className="bi bi-pencil-fill"></i>
+                            <i className="bi bi-trash"></i>
                           </button>
-                          <button
-                            className="btn btn-sm form-Button-Del"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteGroup(g);
-                            }}
-                          >
-                            <i className="bi bi-trash-fill"></i>
-                          </button>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-
-              <div className="col-lg-1"></div>
-
-              {/* Table */}
-              <div className="col-lg-8">
-                <div className="table-wrapper mt-3">
-                  <table className="table text-nowrap">
-                    <thead>
-                      <tr>
-                        <th className="text-center header-color">Order</th>
-                        <th className="text-start header-color">Asset Name</th>
-                        <th className="text-start header-color">Floor</th>
-                        <th className="text-start header-color">Room</th>
-                        <th className="text-start header-color">Status</th>
-                        <th className="text-center header-color">Action</th>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {pageRows.length ? (
-                        pageRows.map((row, idx) => (
-                          <tr key={row.assetId}>
-                            <td className="text-center">
-                              {startIndex + idx + 1}
-                            </td>
-                            <td>{row.assetName}</td>
-                            <td>{row.floor || "-"}</td>
-                            <td>{row.room || "-"}</td>
-                            <td>
-                              <span
-                                className={`badge rounded-pill ${badgeColor(
-                                  row.status || "Inactive"
-                                )}`}
-                              >
-                                {row.status || "Inactive"}
-                              </span>
-                            </td>
-                            <td className="text-center">
-                              <button
-                                className="btn btn-sm form-Button-Edit"
-                                data-bs-toggle="modal"
-                                data-bs-target="#assetModal"
-                                onClick={() => {
-                                  setEditingAssetId(row.assetId);
-                                  setFormName(row.assetName);
-                                  const group = assetGroups.find(
-                                    (g) => g.assetGroupName === row.assetType
-                                  );
-                                  setFormGroupId(group?.id || "");
-                                }}
-                              >
-                                <i className="bi bi-pencil-fill"></i>
-                              </button>
-                              <button
-                                className="btn btn-sm form-Button-Del"
-                                onClick={() => onDeleteAsset(row)}
-                              >
-                                <i className="bi bi-trash-fill"></i>
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="6" className="text-center">
-                            No assets found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={Math.max(
-                    1,
-                    Math.ceil(filteredAssets.length / pageSize)
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="7" className="text-center py-4">
+                        No assets found
+                      </td>
+                    </tr>
                   )}
-                  onPageChange={handlePageChange}
-                  totalRecords={filteredAssets.length}
-                  onPageSizeChange={handlePageSizeChange}
-                />
-              </div>
+                </tbody>
+              </table>
             </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              totalRecords={filteredAssets.length}
+              onPageSizeChange={handlePageSizeChange}
+            />
           </div>
         </div>
       </div>
 
-      {/* Modal Group */}
+      {/* ===== Group Modal ===== */}
       <Modal
         id="groupModal"
-        title={
-          editingGroupId == null ? "Create Asset Group" : "Edit Asset Group"
-        }
+        title={editingGroupId ? "Edit Asset Group" : "Create Asset Group"}
         icon="bi bi-box"
       >
         <form
@@ -582,10 +607,10 @@ function AssetManagement() {
         </form>
       </Modal>
 
-      {/* Modal Asset */}
+      {/* ===== Asset Modal ===== */}
       <Modal
         id="assetModal"
-        title={editingAssetId == null ? "Create Asset" : "Edit Asset"}
+        title={editingAssetId ? "Edit Asset" : "Create Asset"}
         icon="bi bi-box"
       >
         <form
@@ -609,12 +634,12 @@ function AssetManagement() {
               className="form-select"
               value={formGroupId}
               onChange={(e) => setFormGroupId(e.target.value)}
-              disabled={!!editingAssetId} // create เลือก group ได้, edit ล็อค
+              disabled={!!editingAssetId}
             >
               <option value="">Select Group</option>
               {assetGroups.map((g) => (
                 <option key={g.id} value={g.id}>
-                  {g.assetGroupName}
+                  {g.name}
                 </option>
               ))}
             </select>
@@ -627,7 +652,7 @@ function AssetManagement() {
               min="1"
               value={formQty}
               onChange={(e) => setFormQty(e.target.value)}
-              disabled={!!editingAssetId} // ใช้ได้เฉพาะตอนสร้างใหม่
+              disabled={!!editingAssetId}
             />
           </div>
           <div className="d-flex justify-content-center gap-3 pt-3 pb-2">

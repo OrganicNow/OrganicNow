@@ -29,6 +29,13 @@ public class AssetGroupService {
                 .toList();
     }
 
+    // ✅ เพิ่ม threshold ให้ทุก group = 5 ในการดึงข้อมูลทั้งหมด
+    public List<AssetGroupDropdownDto> getAllGroups() {
+        return assetGroupRepository.findAll().stream()
+                .map(g -> new AssetGroupDropdownDto(g.getId(), g.getAssetGroupName(), 5)) // ใช้ threshold = 5 ตลอด
+                .toList();
+    }
+
     // ✅ Get all (Entity)
     public List<AssetGroup> getAllAssetGroups() {
         return assetGroupRepository.findAll();

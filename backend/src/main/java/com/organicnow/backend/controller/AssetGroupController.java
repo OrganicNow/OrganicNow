@@ -19,11 +19,9 @@ public class AssetGroupController {
         this.assetGroupService = assetGroupService;
     }
 
-    // Get all Asset Groups
     @GetMapping("/list")
-    public ResponseEntity<List<AssetGroup>> getAllAssetGroups() {
-        List<AssetGroup> assetGroups = assetGroupService.getAllAssetGroups();
-        return ResponseEntity.ok(assetGroups);
+    public ResponseEntity<List<?>> getAllAssetGroups() {
+        return ResponseEntity.ok(assetGroupService.getAllGroups());
     }
 
     // Create Asset Group
