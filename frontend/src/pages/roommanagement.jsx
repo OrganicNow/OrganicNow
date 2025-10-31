@@ -6,6 +6,7 @@ import Modal from "../component/modal";
 import Pagination from "../component/pagination";
 import { useToast } from "../component/Toast.jsx";
 import { pageSize as defaultPageSize, apiPath } from "../config_variable";
+import useMessage from "../component/useMessage";
 import "../assets/css/roommanagement.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -13,7 +14,6 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 
 function RoomManagement() {
   const navigate = useNavigate();
-  const { showSuccess, showError } = useToast();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -28,6 +28,14 @@ function RoomManagement() {
     pendingRequests: "ALL",
     search: "",
   });
+
+    const {
+      showMessagePermission,
+      showMessageError,
+      showMessageSave,
+      showMessageConfirmDelete,
+    } = useMessage();
+
 
   const [modalAssets, setModalAssets] = useState([]);
   const [selectedAsset, setSelectedAsset] = useState([]);
@@ -162,11 +170,11 @@ function RoomManagement() {
 
     try {
       await axios.delete(`${apiPath}/room/${roomId}`, { withCredentials: true });
-      showSuccess("Room deleted successfully!");
+      showMessageSave("Room deleted successfully!");
       await fetchRooms(); // refresh data
     } catch (err) {
       console.error("Error deleting room:", err);
-      showError("Failed to delete room.");
+      showMessageError("Failed to delete room.");
     }
   };
 
@@ -186,11 +194,9 @@ function RoomManagement() {
     e.preventDefault();
 
     if (!roomNumber || !selectedFloor || !roomSize) {
-      showError("Please fill all required fields!");
+      showMessageError("กรุณากรอกข้อมูลให้ครบทุกช่อง");
       return;
     }
-
-    console.log("🟢 Selected assets before save:", selectedAsset);
 
     try {
       const payload = {
@@ -202,30 +208,39 @@ function RoomManagement() {
       const res = await axios.post(`${apiPath}/room`, payload, {
         withCredentials: true,
       });
-      const newRoom = res.data;
 
+      const newRoom = res.data;
       const newRoomId = newRoom.roomId || newRoom.id;
 
       if (selectedAsset.length > 0 && newRoomId) {
-        console.log("📦 Sending asset IDs:", selectedAsset, "➡ room:", newRoomId);
         await axios.put(`${apiPath}/room/${newRoomId}/assets`, selectedAsset, {
           withCredentials: true,
           headers: { "Content-Type": "application/json" },
         });
       }
 
-      showSuccess("Room and assets added successfully!");
+      // ✅ แสดงการ์ด success
+      showMessageSave("บันทึกข้อมูลสำเร็จ");
+
+
       await fetchRooms();
+      await fetchAvailableAssets();
+
       document.getElementById("addRoomModal_btnClose").click();
+
       setRoomNumber("");
       setRoomSize("");
       setSelectedFloor("");
       setSelectedAsset([]);
+
     } catch (err) {
       console.error("Error adding room:", err);
-      showError("Failed to add room.");
+
+      // ❌ แสดงการ์ด error
+      showMessageError("เกิดข้อผิดพลาดในการเพิ่มห้อง");
     }
   };
+
 
   return (
     <Layout title="Room Management" icon="bi bi-building" notifications={3}>
@@ -284,7 +299,7 @@ function RoomManagement() {
             {/* Table */}
             {error && <p className="text-danger">{error}</p>}
             <div className="table-wrapper">
-              <table className="table text-nowrap align-middle">
+              <table className="table text-nowrap align-middle room-table">
                 <thead>
                   <tr className="header-color">
                     <th>Order</th>
@@ -316,13 +331,19 @@ function RoomManagement() {
                             </button>
 
                             {/* 🗑️ ปุ่มลบ */}
-                            <button
-                              className="btn btn-sm form-Button-Del"
-                              onClick={async () => await handleDeleteRoom(item.roomId, item.roomNumber)}
-                              aria-label="Delete"
-                            >
-                              <i className="bi bi-trash-fill"></i>
-                            </button>
+                           <button
+                             className="btn btn-sm form-Button-Del"
+                             onClick={async () => {
+                               const result = await showMessageConfirmDelete(item.roomNumber);
+                               if (result.isConfirmed) {
+                                 handleDeleteRoom(item.roomId);
+                               }
+                             }}
+                             aria-label="Delete"
+                           >
+                             <i className="bi bi-trash-fill"></i>
+                           </button>
+
 
                           </div>
                         </td>

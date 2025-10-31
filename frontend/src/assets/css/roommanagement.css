@@ -112,6 +112,29 @@
   background-color: #ffc107 !important;
   color: #000 !important;
 }
+/* ================================
+   ✅ Align Action icons for RoomManagement only
+================================ */
+.room-table tbody td:last-child {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.room-table tbody td:last-child .d-flex {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+/* ================================
+   ✅ สีเขียวสดเฉพาะ Status Available ในหน้า RoomManagement
+================================ */
+.room-table .badge.bg-success,
+.room-table .badge.text-bg-success {
+  background-color: #28a745 !important; /* เขียวสด (Material Green A700) */
+  color: #ffffff !important;
+  font-weight: 600 !important;
+}
 
 /* ================================
    ✅ Responsive
