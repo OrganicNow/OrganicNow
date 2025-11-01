@@ -20,7 +20,33 @@ import "../assets/css/fullcalendar.css";
 // ===== API base =====
 const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
 
-// ===== Helpers =====
+// ===== Date Helpers (dd/mm/yyyy <-> ISO yyyy-MM-dd) =====
+const pad2 = (n) => String(n).padStart(2, "0");
+
+const toDmy = (dateObj) => {
+    if (!dateObj || isNaN(dateObj)) return "";
+    return `${pad2(dateObj.getDate())}/${pad2(dateObj.getMonth() + 1)}/${dateObj.getFullYear()}`;
+};
+
+const todayDmy = () => toDmy(new Date());
+
+const isoToDmy = (iso) => {
+    if (!iso) return "";
+    const [y, m, d] = iso.split("-").map(Number);
+    if (!y || !m || !d) return "";
+    return `${pad2(d)}/${pad2(m)}/${y}`;
+};
+
+const dmyToIso = (dmy) => {
+    if (!dmy) return "";
+    const parts = dmy.split(/[\/\-.]/).map((s) => s.trim());
+    if (parts.length < 3) return "";
+    const [dd, mm, yyyy] = parts;
+    if (!dd || !mm || !yyyy) return "";
+    return `${yyyy}-${pad2(mm)}-${pad2(dd)}`;
+};
+
+// เพิ่มเดือนให้ "ISO" แล้วคืน "ISO"
 const addMonthsISO = (isoDate, months) => {
     if (!isoDate) return "";
     const [y, m, d] = isoDate.split("-").map(Number);
@@ -32,37 +58,42 @@ const addMonthsISO = (isoDate, months) => {
     return `${yyyy}-${mm}-${dd}`;
 };
 
-// Convert date to LocalDateTime format for backend
-const d2ldt = (d) => (d ? `${d}T00:00:00` : null);
+// เพิ่มเดือนให้ "dd/mm/yyyy" แล้วคืน "dd/mm/yyyy"
+const addMonthsDMY = (dmy, months) => {
+    const iso = dmyToIso(dmy);
+    if (!iso) return "";
+    const nextIso = addMonthsISO(iso, months);
+    return isoToDmy(nextIso);
+};
+
+// Convert to LocalDateTime (ISO) for backend
+const d2ldt = (isoDate) => (isoDate ? `${isoDate}T00:00:00` : null);
 
 // ล้างซาก Backdrop + class บน body (เผื่อ modal/offcanvas ค้าง)
 const cleanupBackdrops = () => {
-    // ลบทุก backdrop ที่ค้าง
-    document.querySelectorAll(".modal-backdrop, .offcanvas-backdrop").forEach(el => el.remove());
-    // เคลียร์ class/inline style ที่ Bootstrap ใส่ให้ body
+    document.querySelectorAll(".modal-backdrop, .offcanvas-backdrop").forEach((el) => el.remove());
     document.body.classList.remove("modal-open");
     document.body.style.removeProperty("padding-right");
 };
 
 // ===== Endpoints =====
 const SCHEDULE_API = {
-    LIST: `${API_BASE}/schedules`,                 // GET -> { result, assetGroupDropdown }
-    CREATE: `${API_BASE}/schedules`,               // POST
+    LIST: `${API_BASE}/schedules`, // GET -> { result, assetGroupDropdown }
+    CREATE: `${API_BASE}/schedules`, // POST
     DELETE: (id) => `${API_BASE}/schedules/${id}`, // DELETE
 };
 
-// ===== Mapping: API -> แถวบนตาราง =====
+// ===== Mapping: API -> แถวบนตาราง (เก็บเป็น dd/mm/yyyy) =====
 function fromApi(item) {
     const rawScope = item.scheduleScope ?? item.scope;
     const scope = rawScope === 0 ? "Asset" : "Building";
 
-    const lastDate = item.lastDoneDate ? String(item.lastDoneDate).slice(0, 10) : "";
+    const lastIso = item.lastDoneDate ? String(item.lastDoneDate).slice(0, 10) : "";
     const cycle = Number(item.cycleMonth ?? 0);
-    const nextDate = item.nextDueDate
-        ? String(item.nextDueDate).slice(0, 10)
-        : lastDate && cycle
-            ? addMonthsISO(lastDate, cycle)
-            : "";
+    const backendNextIso = item.nextDueDate ? String(item.nextDueDate).slice(0, 10) : "";
+
+    // คำนวณ next ถ้า backend ไม่ให้มา
+    const nextIso = backendNextIso || (lastIso && cycle ? addMonthsISO(lastIso, cycle) : "");
 
     const title = item.scheduleTitle ?? "-";
     const description = item.scheduleDescription ?? item.description ?? "";
@@ -70,32 +101,32 @@ function fromApi(item) {
     return {
         id: item.id,
         scope, // "Asset" | "Building"
-        title, // ใช้ในคอลัมน์ Title
+        title,
         description,
         cycle,
         notify: Number(item.notifyBeforeDate ?? 0),
-        lastDate,
-        nextDate,
+        lastDate: isoToDmy(lastIso), // << dd/mm/yyyy
+        nextDate: isoToDmy(nextIso), // << dd/mm/yyyy
         assetGroupId: item.assetGroupId ?? null,
         assetGroupName: item.assetGroupName ?? null,
     };
 }
 
-// ===== Mapping: ฟอร์ม -> payload (8 ฟิลด์ตามสเปค) =====
+// ===== Mapping: ฟอร์ม -> payload (ส่งเป็น ISO ให้ backend) =====
 function toCreatePayload(f) {
-    const scopeNum  = Number(f.scope);      // "0"/"1" -> 0/1
-    const cycleNum  = Number(f.cycle);
+    const scopeNum = Number(f.scope); // "0"/"1" -> 0/1
+    const cycleNum = Number(f.cycle);
     const notifyNum = Number(f.notify);
 
-    const lastISO = f.lastDate || "";
-    const nextISO = lastISO && cycleNum ? addMonthsISO(lastISO, cycleNum) : "";
+    const lastIso = dmyToIso(f.lastDate || ""); // << แปลงจาก dd/mm/yyyy เป็น ISO
+    const nextIso = lastIso && cycleNum ? addMonthsISO(lastIso, cycleNum) : "";
 
     return {
-        scheduleScope: scopeNum,                                         // 0=Asset, 1=Building
+        scheduleScope: scopeNum, // 0=Asset, 1=Building
         assetGroupId: scopeNum === 0 ? (Number(f.assetGroupId) || null) : null,
         cycleMonth: cycleNum,
-        lastDoneDate: d2ldt(lastISO),                                    // "YYYY-MM-DDT00:00:00"
-        nextDueDate: nextISO ? d2ldt(nextISO) : null,                    // "YYYY-MM-DDT00:00:00"
+        lastDoneDate: d2ldt(lastIso), // "YYYY-MM-DDT00:00:00"
+        nextDueDate: nextIso ? d2ldt(nextIso) : null, // "YYYY-MM-DDT00:00:00"
         notifyBeforeDate: notifyNum,
         scheduleTitle: (f.title || "").trim(),
         scheduleDescription: f.description ?? "",
@@ -161,30 +192,30 @@ function MaintenanceSchedule() {
         cycleMax: "",
         notifyMin: "",
         notifyMax: "",
-        dateFrom: "", // lastDate from
-        dateTo: "",   // lastDate to
-        nextFrom: "",
-        nextTo: "",
+        dateFrom: "", // dd/mm/yyyy
+        dateTo: "", // dd/mm/yyyy
+        nextFrom: "", // dd/mm/yyyy
+        nextTo: "", // dd/mm/yyyy
         assetGroupId: "",
     });
 
     // ===== สร้างรายการ (POST /schedules) =====
     const [saving, setSaving] = useState(false);
     const [newSch, setNewSch] = useState({
-        scope: "",          // "0" | "1"
-        assetGroupId: "",   // เมื่อ scope=0 (Asset)
-        cycle: "",          // cycleMonth
-        lastDate: new Date().toISOString().slice(0, 10),
-        notify: "",         // notifyBeforeDate
-        title: "",          // scheduleTitle
-        description: "",    // scheduleDescription
+        scope: "", // "0" | "1"
+        assetGroupId: "", // เมื่อ scope=0 (Asset)
+        cycle: "", // cycleMonth
+        lastDate: todayDmy(), // << dd/mm/yyyy
+        notify: "", // notifyBeforeDate
+        title: "", // scheduleTitle
+        description: "", // scheduleDescription
     });
 
     // ====== VIEW MODAL (รายละเอียดอีเวนต์) ======
     const [viewEvent, setViewEvent] = useState(null);
 
     const openViewModal = (data) => {
-        setViewEvent(data);
+        setViewEvent(data); // data ต้องมี scheduleId
         const el = document.getElementById("viewScheduleModal");
         if (el) (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el)).show();
     };
@@ -196,8 +227,8 @@ function MaintenanceSchedule() {
     };
 
     const handleDeleteFromView = async () => {
-        if (!viewEvent?.id) return;
-        await deleteRow(viewEvent.id);
+        if (!viewEvent?.scheduleId) return;
+        await deleteRow(viewEvent.scheduleId); // ลบด้วย scheduleId (ทั้งซีรีส์)
         closeViewModal();
         setViewEvent(null);
     };
@@ -217,6 +248,8 @@ function MaintenanceSchedule() {
         if (!newSch.cycle || Number(newSch.cycle) < 1) return "Cycle ต้อง ≥ 1";
         if (newSch.notify === "" || Number(newSch.notify) < 0) return "Notify ต้อง ≥ 0";
         if (!newSch.lastDate) return "กรุณาเลือก Last date";
+        // ตรวจรูปแบบ dd/mm/yyyy ง่าย ๆ
+        if (!/^\d{2}\/\d{2}\/\d{4}$/.test(newSch.lastDate)) return "รูปแบบวันที่ต้องเป็น dd/mm/yyyy";
         return null;
     };
 
@@ -232,34 +265,18 @@ function MaintenanceSchedule() {
             const msg = await res.text().catch(() => "");
             throw new Error(`HTTP ${res.status} ${msg || ""}`.trim());
         }
-        
-        const newSchedule = await res.json();
+
+        await res.json();
         await loadSchedules();
-        
-        // 🎯 แสดง toast เมื่อสร้าง schedule สำเร็จ
-        showMaintenanceCreated({
-            scheduleTitle: newSch.title
-        });
-        
-        // 🔔 Refresh notifications หลังจากสร้าง schedule ใหม่
+
+        // 🎯 toast
+        showMaintenanceCreated({ scheduleTitle: newSch.title });
+
+        // 🔔 refresh notifications
         setTimeout(() => {
             refreshNotifications();
-        }, 1000); // รอ 1 วินาทีให้ backend สร้าง notification เสร็จก่อน
+        }, 1000);
     };
-
-    const clearFilters = () =>
-        setFilters({
-            scope: "ALL",
-            cycleMin: "",
-            cycleMax: "",
-            notifyMin: "",
-            notifyMax: "",
-            dateFrom: "",
-            dateTo: "",
-            nextFrom: "",
-            nextTo: "",
-            assetGroupId: "",
-        });
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -274,10 +291,20 @@ function MaintenanceSchedule() {
             if (filters.cycleMax !== "" && r.cycle > Number(filters.cycleMax)) return false;
             if (filters.notifyMin !== "" && r.notify < Number(filters.notifyMin)) return false;
             if (filters.notifyMax !== "" && r.notify > Number(filters.notifyMax)) return false;
-            if (filters.dateFrom && r.lastDate && r.lastDate < filters.dateFrom) return false;
-            if (filters.dateTo && r.lastDate && r.lastDate > filters.dateTo) return false;
-            if (filters.nextFrom && r.nextDate && r.nextDate < filters.nextFrom) return false;
-            if (filters.nextTo && r.nextDate && r.nextDate > filters.nextTo) return false;
+
+            // เปรียบเทียบช่วงวันที่ ด้วยการแปลง dd/mm/yyyy -> ISO แล้วเปรียบเทียบ string
+            const lastIso = dmyToIso(r.lastDate);
+            const nextIso = dmyToIso(r.nextDate);
+            const fromIso = dmyToIso(filters.dateFrom);
+            const toIso = dmyToIso(filters.dateTo);
+            const nFromIso = dmyToIso(filters.nextFrom);
+            const nToIso = dmyToIso(filters.nextTo);
+
+            if (filters.dateFrom && lastIso && lastIso < fromIso) return false;
+            if (filters.dateTo && lastIso && lastIso > toIso) return false;
+            if (filters.nextFrom && nextIso && nextIso < nFromIso) return false;
+            if (filters.nextTo && nextIso && nextIso > nToIso) return false;
+
             return true;
         });
 
@@ -289,81 +316,130 @@ function MaintenanceSchedule() {
                     (r.description || "").toLowerCase().includes(q) ||
                     String(r.cycle).includes(q) ||
                     String(r.notify).includes(q) ||
-                    r.lastDate.includes(q) ||
-                    r.nextDate.includes(q)
+                    (r.lastDate || "").includes(q) ||
+                    (r.nextDate || "").includes(q)
             );
         }
 
-        rows.sort((a, b) =>
-            sortAsc ? a.lastDate.localeCompare(b.lastDate) : b.lastDate.localeCompare(a.lastDate)
-        );
+        // sort โดยใช้ ISO เพื่อให้ถูกต้องตามลำดับเวลา
+        rows.sort((a, b) => {
+            const ai = dmyToIso(a.lastDate) || "";
+            const bi = dmyToIso(b.lastDate) || "";
+            return sortAsc ? ai.localeCompare(bi) : bi.localeCompare(ai);
+        });
+
         return rows;
     }, [schedules, filters, search, sortAsc]);
 
-    const calendarEvents = useMemo(() => {
+    // ===== สร้างอีเวนต์เฉพาะช่วงเวลาที่ FullCalendar ขอ (ไม่จำกัดปี) =====
+    function buildEventsInRange(viewStart, viewEnd, rows) {
         const evs = [];
-        for (const r of filtered) {
-            // 1) แสดง LAST (ถ้ามี)
-            if (r.lastDate) {
-                evs.push({
-                    id: `${r.id}-last`,
-                    title: r.title + (r.assetGroupName ? ` · ${r.assetGroupName}` : ""),
-                    start: r.lastDate,
-                    allDay: true,
-                    extendedProps: {
-                        kind: "last",                // << สำคัญ: ชนิดอีเวนต์
-                        scope: r.scope,
-                        lastDate: r.lastDate,
-                        nextDate: r.nextDate,
-                        description: r.description,
-                        assetGroupName: r.assetGroupName,
-                    },
-                    // โทนเทาอ่อนสำหรับ LAST
-                    backgroundColor: "#adb5bd",
-                    borderColor: "#adb5bd",
-                });
+
+        // helper: เพิ่มเดือนแบบคืน Date ใหม่
+        const addMonthsDate = (date, months) => {
+            const d = new Date(date);
+            d.setMonth(d.getMonth() + months);
+            return d;
+        };
+
+        for (const r of rows) {
+            if (!r.lastDate) continue;
+
+            const cycle = Number(r.cycle || 0);
+            const baseIso = dmyToIso(r.lastDate);
+            if (!baseIso) continue;
+
+            const isAsset = r.scope === "Asset";
+            const title = r.title + (r.assetGroupName ? ` · ${r.assetGroupName}` : "");
+
+            // 🎨 สีคงที่ต่อชุด (เหมือนเดิม)
+            const baseColor = isAsset
+                ? `hsl(${(r.id * 47 % 60) + 0}, 80%, 65%)`    // โทนร้อน 0–60°
+                : `hsl(${(r.id * 67 % 100) + 200}, 80%, 65%)`; // โทนเย็น 200–300°
+
+            // คำนวณ occurrence ตัวแรกที่อยู่ใน (หรือก่อน)ช่วงที่ขอ
+            const firstDate = new Date(baseIso);
+
+            if (cycle <= 0) {
+                // ไม่มี cycle → แสดงแค่ครั้งเดียวถ้าอยู่ในช่วง
+                if (firstDate <= viewEnd && firstDate >= viewStart) {
+                    const nextDmy = ""; // ไม่มี next
+                    evs.push({
+                        id: `${r.id}-single`,
+                        title,
+                        start: baseIso,
+                        allDay: true,
+                        extendedProps: {
+                            kind: "single",
+                            scheduleId: r.id,
+                            scope: r.scope,
+                            occurrenceDate: r.lastDate, // dmy
+                            nextDate: nextDmy,
+                            description: r.description,
+                            assetGroupName: r.assetGroupName,
+                            cycle: r.cycle,
+                        },
+                        backgroundColor: baseColor,
+                        borderColor: baseColor,
+                    });
+                }
+                continue;
             }
 
-            // 2) แสดง NEXT (ถ้ามี)
-            if (r.nextDate) {
-                const isAsset = r.scope === "Asset";
+            // มี cycle (เดือน)
+            // กระโดดข้ามให้ถึง occurrence แรกที่ไม่ก่อน viewStart
+            let cur = new Date(firstDate);
+
+            if (cur < viewStart) {
+                // คำนวณจำนวนเดือนต่าง (approx) เพื่อกระโดดทีเดียว
+                const monthsDiff =
+                    (viewStart.getFullYear() - cur.getFullYear()) * 12 +
+                    (viewStart.getMonth() - cur.getMonth());
+
+                // หา step ที่คร่อม viewStart
+                const step = Math.max(0, Math.floor(monthsDiff / cycle));
+                cur = addMonthsDate(cur, step * cycle);
+
+                // ถ้ายังน้อยกว่า viewStart ให้ขยับอีกหนึ่งรอบ
+                while (cur < viewStart) {
+                    cur = addMonthsDate(cur, cycle);
+                }
+            }
+
+            // ไล่สร้าง occurrence ไปจนพ้นช่วง viewEnd
+            while (cur <= viewEnd) {
+                const yyyy = cur.getFullYear();
+                const mm = pad2(cur.getMonth() + 1);
+                const dd = pad2(cur.getDate());
+                const occIso = `${yyyy}-${mm}-${dd}`;
+                const occDmy = isoToDmy(occIso);
+                const occNextDmy = addMonthsDMY(occDmy, cycle);
+
                 evs.push({
-                    id: `${r.id}-next`,
-                    title: r.title + (r.assetGroupName ? ` · ${r.assetGroupName}` : ""),
-                    start: r.nextDate,
+                    id: `${r.id}-${yyyy}${mm}${dd}`,
+                    title,
+                    start: occIso,
                     allDay: true,
                     extendedProps: {
-                        kind: "next",
+                        kind: occIso === baseIso ? "last" : "recurring",
+                        scheduleId: r.id,
                         scope: r.scope,
-                        lastDate: r.lastDate,
-                        nextDate: r.nextDate,
+                        occurrenceDate: occDmy,
+                        nextDate: occNextDmy,
                         description: r.description,
                         assetGroupName: r.assetGroupName,
+                        cycle: r.cycle,
                     },
-                    // สีเดิมของ Asset / Building
-                    backgroundColor: isAsset ? "#02BEA3" : undefined,
-                    borderColor: isAsset ? "#02BEA3" : undefined,
+                    backgroundColor: baseColor,
+                    borderColor: baseColor,
                 });
+
+                cur = addMonthsDate(cur, cycle);
             }
         }
+
         return evs;
-    }, [filtered]);
-
-
-    // --------- PAGINATION ----------
-    const [currentPage, setCurrentPage] = useState(1);
-    const [pageSize, setPageSize] = useState(defaultPageSize || 10);
-    const totalRecords = filtered.length;
-    const totalPages = Math.max(1, Math.ceil(totalRecords / pageSize));
-
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [search, sortAsc, pageSize, filters]);
-
-    const pageRows = useMemo(() => {
-        const start = (currentPage - 1) * pageSize;
-        return filtered.slice(start, start + pageSize);
-    }, [filtered, currentPage, pageSize]);
+    }
 
     // ===== ลบรายการ =====
     const deleteRow = async (rowId) => {
@@ -381,8 +457,7 @@ function MaintenanceSchedule() {
         }
     };
 
-    const calendarRef = useRef(null); // ✅ เก็บ ref ของ FullCalendar
-
+    const calendarRef = useRef(null);
 
     return (
         <Layout title="Maintenance Schedule" icon="bi bi-alarm" notifications={0}>
@@ -437,7 +512,13 @@ function MaintenanceSchedule() {
                                     height="auto"
                                     dayMaxEventRows={3}
                                     eventOrder="start,-duration,allDay,title"
-                                    events={calendarEvents}
+                                    // 👇 สร้างอีเวนต์เฉพาะช่วงที่ FullCalendar ขอ (อนันต์ตามการเลื่อน)
+                                    events={(fetchInfo, successCallback) => {
+                                        const start = fetchInfo.start; // Date
+                                        const end = fetchInfo.end;     // Date (exclusive บาง view)
+                                        const evs = buildEventsInRange(start, end, filtered);
+                                        successCallback(evs);
+                                    }}
                                     eventContent={(arg) => {
                                         const { title, start } = arg.event;
                                         const dayIndex = start ? new Date(start).getDay() : 0; // 0=Sun..6=Sat
@@ -445,14 +526,14 @@ function MaintenanceSchedule() {
                                         const dayClass = `fc-event-card fc-event-${dayNames[dayIndex]}`;
                                         return {
                                             html: `
-                      <div class="${dayClass}">
-                        <div class="fc-event-title">${title}</div>
-                      </div>
-                    `,
+        <div class="${dayClass}">
+          <div class="fc-event-title">${title}</div>
+        </div>
+      `,
                                         };
                                     }}
                                     dateClick={(arg) => {
-                                        setNewSch((p) => ({ ...p, lastDate: arg.dateStr }));
+                                        setNewSch((p) => ({ ...p, lastDate: isoToDmy(arg.dateStr) }));
                                         const modalEl = document.getElementById("createScheduleModal");
                                         if (modalEl) {
                                             (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).show();
@@ -462,13 +543,15 @@ function MaintenanceSchedule() {
                                         const ev = info.event;
                                         const xp = ev.extendedProps || {};
                                         openViewModal({
-                                            id: ev.id,
+                                            scheduleId: xp.scheduleId,
+                                            eventId: ev.id,
                                             title: ev.title,
                                             scope: xp.scope || "-",
-                                            lastDate: xp.lastDate || "-",
-                                            nextDate: xp.nextDate || "-",
+                                            lastDate: xp.occurrenceDate || "-", // dmy
+                                            nextDate: xp.nextDate || "-",       // dmy
                                             assetGroupName: xp.assetGroupName || "-",
                                             description: xp.description || "",
+                                            cycle: xp.cycle ?? "-",
                                         });
                                     }}
                                     eventMouseEnter={(info) => {
@@ -493,12 +576,7 @@ function MaintenanceSchedule() {
                             {/* Scope */}
                             <div className="col-md-6">
                                 <label className="form-label">Scope</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    value={viewEvent.scope || "-"}
-                                    disabled
-                                />
+                                <input type="text" className="form-control" value={viewEvent.scope || "-"} disabled />
                             </div>
 
                             {/* Asset Group */}
@@ -507,11 +585,7 @@ function MaintenanceSchedule() {
                                 <input
                                     type="text"
                                     className="form-control"
-                                    value={
-                                        viewEvent.assetGroupName && viewEvent.assetGroupName !== "-"
-                                            ? viewEvent.assetGroupName
-                                            : "-"
-                                    }
+                                    value={viewEvent.assetGroupName && viewEvent.assetGroupName !== "-" ? viewEvent.assetGroupName : "-"}
                                     disabled
                                 />
                             </div>
@@ -519,61 +593,41 @@ function MaintenanceSchedule() {
                             {/* Last date */}
                             <div className="col-md-6">
                                 <label className="form-label">Last date</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    value={viewEvent.lastDate || "-"}
-                                    disabled
-                                />
+                                <input type="text" className="form-control" value={viewEvent.lastDate || "-"} disabled />
                             </div>
 
                             {/* Next date */}
                             <div className="col-md-6">
                                 <label className="form-label">Next date</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    value={viewEvent.nextDate || "-"}
-                                    disabled
-                                />
+                                <input type="text" className="form-control" value={viewEvent.nextDate || "-"} disabled />
+                            </div>
+
+                            {/* Cycle */}
+                            <div className="col-md-6">
+                                <label className="form-label">Cycle</label>
+                                <input type="text" className="form-control" value={viewEvent.cycle
+                                    ? `every ${viewEvent.cycle} month${viewEvent.cycle > 1 ? "s" : ""}`
+                                    : "-"} disabled />
                             </div>
 
                             {/* Title */}
                             <div className="col-md-12">
                                 <label className="form-label">Title</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    value={viewEvent.title || "-"}
-                                    disabled
-                                />
+                                <input type="text" className="form-control" value={viewEvent.title || "-"} disabled />
                             </div>
 
                             {/* Description */}
                             <div className="col-md-12">
                                 <label className="form-label">Description</label>
-                                <textarea
-                                    className="form-control"
-                                    rows={3}
-                                    value={viewEvent.description || "-"}
-                                    disabled
-                                />
+                                <textarea className="form-control" rows={3} value={viewEvent.description || "-"} disabled />
                             </div>
 
                             {/* Footer Buttons */}
                             <div className="col-12 d-flex justify-content-between pt-3">
-                                <button
-                                    type="button"
-                                    className="btn btn-outline-secondary"
-                                    onClick={closeViewModal}
-                                >
+                                <button type="button" className="btn btn-outline-secondary" onClick={closeViewModal}>
                                     Close
                                 </button>
-                                <button
-                                    type="button"
-                                    className="btn btn-danger"
-                                    onClick={handleDeleteFromView}
-                                >
+                                <button type="button" className="btn btn-danger" onClick={handleDeleteFromView}>
                                     <i className="bi bi-trash me-1" /> Delete
                                 </button>
                             </div>
@@ -584,14 +638,16 @@ function MaintenanceSchedule() {
                 )}
             </Modal>
 
-
             {/* Create Schedule Modal */}
             <Modal id="createScheduleModal" title="Create Schedule" icon="bi bi-alarm" size="modal-lg">
                 <form
                     onSubmit={async (e) => {
                         e.preventDefault();
                         const err = validateNewSch();
-                        if (err) { alert(err); return; }
+                        if (err) {
+                            alert(err);
+                            return;
+                        }
                         try {
                             setSaving(true);
                             await addSchedule(); // POST ไป backend + reload ตาราง
@@ -607,7 +663,7 @@ function MaintenanceSchedule() {
                                 scope: "",
                                 assetGroupId: "",
                                 cycle: "",
-                                lastDate: new Date().toISOString().slice(0, 10),
+                                lastDate: todayDmy(),
                                 notify: "",
                                 title: "",
                                 description: "",
@@ -620,8 +676,7 @@ function MaintenanceSchedule() {
                         }
                     }}
                 >
-
-                <div className="row g-3">
+                    <div className="row g-3">
                         {/* 1) scheduleScope */}
                         <div className="col-md-6">
                             <label className="form-label">Scope</label>
@@ -643,17 +698,11 @@ function MaintenanceSchedule() {
                             <select
                                 className="form-select"
                                 value={newSch.assetGroupId}
-                                onChange={(e) =>
-                                    setNewSch((p) => ({ ...p, assetGroupId: e.target.value }))
-                                }
+                                onChange={(e) => setNewSch((p) => ({ ...p, assetGroupId: e.target.value }))}
                                 disabled={newSch.scope !== "0"}
                                 required={newSch.scope === "0"}
                             >
-                                <option value="">
-                                    {newSch.scope === "0"
-                                        ? "Select Asset Group"
-                                        : " "}
-                                </option>
+                                <option value="">{newSch.scope === "0" ? "Select Asset Group" : " "}</option>
                                 {assetOptions.map((a) => (
                                     <option key={a.id} value={a.id}>
                                         {a.name}
@@ -676,14 +725,18 @@ function MaintenanceSchedule() {
                             />
                         </div>
 
-                        {/* 4) lastDoneDate */}
+                        {/* 4) Last date (dd/mm/yyyy) */}
                         <div className="col-md-4">
                             <label className="form-label">Last date</label>
                             <input
                                 type="date"
                                 className="form-control"
-                                value={newSch.lastDate}
-                                onChange={(e) => setNewSch((p) => ({ ...p, lastDate: e.target.value }))}
+                                value={dmyToIso(newSch.lastDate) || ""}   // แปลง dd/mm/yyyy -> ISO ให้ input=date
+                                onChange={(e) => {
+                                    // รับค่าจาก calendar เป็น ISO แล้วแปลงกลับไปเก็บเป็น dd/mm/yyyy
+                                    const iso = e.target.value;             // yyyy-MM-dd หรือ ""
+                                    setNewSch((p) => ({ ...p, lastDate: iso ? isoToDmy(iso) : "" }));
+                                }}
                                 required
                             />
                         </div>
@@ -692,13 +745,9 @@ function MaintenanceSchedule() {
                         <div className="col-md-4">
                             <label className="form-label">Next date (auto)</label>
                             <input
-                                type="date"
+                                type="text"
                                 className="form-control"
-                                value={
-                                    newSch.lastDate && newSch.cycle
-                                        ? addMonthsISO(newSch.lastDate, newSch.cycle)
-                                        : ""
-                                }
+                                value={newSch.lastDate && newSch.cycle ? addMonthsDMY(newSch.lastDate, newSch.cycle) : ""}
                                 disabled
                                 readOnly
                             />
@@ -744,25 +793,13 @@ function MaintenanceSchedule() {
                         </div>
 
                         <div className="col-12 d-flex justify-content-center gap-3 pt-3 pb-3">
-                            <button
-                                type="button"
-                                className="btn btn-outline-secondary"
-                                data-bs-dismiss="modal"
-                            >
+                            <button type="button" className="btn btn-outline-secondary" data-bs-dismiss="modal">
                                 Cancel
                             </button>
-                            <button
-                                type="submit"
-                                className="btn btn-primary"
-                                disabled={saving}
-                            >
+                            <button type="submit" className="btn btn-primary" disabled={saving}>
                                 {saving ? (
                                     <>
-                    <span
-                        className="spinner-border spinner-border-sm me-2"
-                        role="status"
-                        aria-hidden="true"
-                    ></span>
+                                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                                         Saving...
                                     </>
                                 ) : (
