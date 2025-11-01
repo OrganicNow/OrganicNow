@@ -164,14 +164,14 @@ function RoomManagement() {
     </span>
   );
 
-  // ✅ ลบห้อง
   const handleDeleteRoom = async (roomId) => {
     if (!window.confirm("Are you sure you want to delete this room?")) return;
 
     try {
       await axios.delete(`${apiPath}/room/${roomId}`, { withCredentials: true });
       showMessageSave("Room deleted successfully!");
-      await fetchRooms(); // refresh data
+      await fetchRooms();              // ✅ refresh rooms
+      await fetchAvailableAssets();    // ✅ refresh asset list
     } catch (err) {
       console.error("Error deleting room:", err);
       showMessageError("Failed to delete room.");
