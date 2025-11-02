@@ -395,6 +395,42 @@ function AssetManagement() {
           </div>
         </div>
 
+        <div className="card border-0 bg-white shadow-sm rounded-3 mb-4">
+          <div className="card-body d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div className="d-flex align-items-center gap-3">
+              <button
+                className="btn btn-link tm-link p-0 d-inline-flex align-items-center "
+                onClick={() => setSortAsc((s) => !s)}
+              >
+                <i className="bi bi-arrow-down-up me-1 gap-3"></i>
+                Sort
+              </button>
+              <div className="input-group tm-search">
+                <span className="input-group-text bg-white border-end-0">
+                  <i className="bi bi-search"></i>
+                </span>
+                <input
+                  type="text"
+                  className="form-control border-start-0"
+                  placeholder="Search asset / group"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              data-bs-toggle="modal"
+              data-bs-target="#groupModal"
+              onClick={clearFormGroup}
+            >
+              <i className="bi bi-plus-lg me-1"></i> Create Asset Group
+            </button>
+          </div>
+        </div>
+
         {/* ===== Sidebar & Asset Grid ===== */}
         <div className="row g-4">
           {/* ===== Sidebar ===== */}
