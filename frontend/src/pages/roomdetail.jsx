@@ -109,7 +109,7 @@ function RoomDetail() {
     <Layout title="Room Detail" icon="bi bi-folder" notifications={3}>
       <div className="container-fluid">
         <div className="row min-vh-100">
-          <div className="col-lg-11 p-4 mx-auto">
+          <div className="col-lg-12 p-4 mx-auto">
             {/* ===== Toolbar ===== */}
             <div className="card border-0 shadow-sm bg-white rounded-3 mb-4">
               <div className="card-body d-flex justify-content-between align-items-center">

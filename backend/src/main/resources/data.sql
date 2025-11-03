@@ -136,6 +136,23 @@ VALUES
 ON CONFLICT DO NOTHING;
 
 -- ========================
+-- Notification Skip (เก็บเฉพาะรอย skip ต่อรอบกำหนด)
+-- ========================
+CREATE TABLE IF NOT EXISTS maintenance_notification_skip (
+                                                             skip_id BIGSERIAL PRIMARY KEY,
+                                                             schedule_id BIGINT NOT NULL,
+                                                             due_date DATE NOT NULL,
+                                                             skipped_by_user_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                                                             CONSTRAINT fk_mns_schedule
+                                                                 FOREIGN KEY (schedule_id) REFERENCES maintenance_schedule(schedule_id)
+                                                                     ON DELETE CASCADE
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_mns_schedule_due
+    ON maintenance_notification_skip (schedule_id, due_date);
+
+
+-- ========================
 -- Fix Asset Status (หลัง Assign เสร็จ)
 -- ========================
 

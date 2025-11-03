@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+// src/components/NotificationBell.jsx
+import React, { useMemo, useRef, useEffect } from 'react';
 import { Button } from 'primereact/button';
 import { Badge } from 'primereact/badge';
 import { OverlayPanel } from 'primereact/overlaypanel';
@@ -7,6 +8,10 @@ import { Divider } from 'primereact/divider';
 import { Tooltip } from 'primereact/tooltip';
 import { useNotifications } from '../contexts/NotificationContext';
 import '../assets/css/notification.css';
+import { useNavigate } from 'react-router-dom';
+
+const BADGE_MAX = 99;
+const formatBadge = (n) => (n > BADGE_MAX ? `${BADGE_MAX}+` : `${n}`);
 
 const NotificationBell = () => {
     const {
@@ -14,14 +19,17 @@ const NotificationBell = () => {
         unreadCount,
         loading,
         refreshNotifications,
-        markAsRead,
-        markAllAsRead,
         deleteNotification
     } = useNotifications();
-    
-    const op = useRef(null);
 
-    // Format เวลา
+    const op = useRef(null);
+    const navigate = useNavigate();
+
+    // ✅ เรียก refreshNotifications ทันทีตอนหน้าโหลดใหม่
+    useEffect(() => {
+        refreshNotifications();
+    }, [refreshNotifications]);
+
     const formatTime = (dateString) => {
         if (!dateString) return '';
         const date = new Date(dateString);
@@ -30,7 +38,6 @@ const NotificationBell = () => {
         const diffMins = Math.floor(diffMs / (1000 * 60));
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
         if (diffMins < 1) return 'Just now';
         if (diffMins < 60) return `${diffMins}m ago`;
         if (diffHours < 24) return `${diffHours}h ago`;
@@ -38,136 +45,118 @@ const NotificationBell = () => {
         return date.toLocaleDateString();
     };
 
-    const notificationTypes = {
-        'MAINTENANCE_SCHEDULE_CREATED': { icon: 'pi pi-plus-circle', color: '#28a745' },
-        'MAINTENANCE_DUE': { icon: 'pi pi-exclamation-triangle', color: '#ffc107' },
-        'MAINTENANCE_OVERDUE': { icon: 'pi pi-times-circle', color: '#dc3545' },
-        'default': { icon: 'pi pi-info-circle', color: '#6c757d' }
+    const iconClass = 'pi pi-exclamation-triangle';
+    const iconColor = '#ffc107';
+
+    const ordered = useMemo(() => {
+        return [...(notifications || [])].sort((a, b) => {
+            const ta = new Date(a.notifyAt || a.nextDueDate).getTime();
+            const tb = new Date(b.notifyAt || b.nextDueDate).getTime();
+            return tb - ta; // ใหม่ → เก่า
+        });
+    }, [notifications]);
+
+    const goToAction = (n) => {
+        op.current?.hide();
+        const dueSrc = n.nextDueDate || n.notifyAt;
+        const due = dueSrc ? new Date(dueSrc).toISOString().slice(0, 10) : '';
+        navigate(`/maintenanceschedule?scheduleId=${n.scheduleId}${due ? `&due=${due}` : ''}`);
     };
 
-    const getTypeConfig = (type) => notificationTypes[type] || notificationTypes.default;
+    const onSkip = async (n) => {
+        await deleteNotification(n);
+    };
 
     return (
         <>
             <Tooltip target=".notification-bell" content="Notifications" position="bottom" />
-            <div className="p-overlay-badge">
+
+            <div className="p-overlay-badge bell-badge-wrapper">
                 <Button
                     icon="pi pi-bell"
                     className="p-button-rounded p-button-text topbar-btn notification-bell"
-                    onClick={(e) => op.current.toggle(e)}
+                    onClick={(e) => op.current?.toggle(e)}
+                    aria-label="Notifications"
                 />
                 {unreadCount > 0 && (
-                    <Badge 
-                        value={unreadCount > 99 ? '99+' : unreadCount} 
-                        severity="danger" 
-                    />
+                    <Badge className="notif-badge" value={formatBadge(unreadCount)} severity="danger" />
                 )}
             </div>
 
-            <OverlayPanel 
-                ref={op} 
-                style={{ 
-                    width: '400px', 
-                    maxHeight: '600px',
+            <OverlayPanel
+                ref={op}
+                style={{
+                    width: '460px',
+                    maxHeight: '800px',
                     border: 'none',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                    borderRadius: '8px'
+                    boxShadow: '0 8px 28px rgba(0,0,0,.15)',
+                    borderRadius: '12px'
                 }}
                 className="notification-panel"
                 pt={{
-                    content: { style: { padding: '16px', border: 'none' } },
+                    content: { style: { padding: 0, border: 'none' } },
                     root: { style: { border: 'none' } }
                 }}
             >
                 <div className="notification-header">
-                    <h4 className="mb-2">Notifications</h4>
-                    <div className="notification-actions">
-                        <Button
-                            label="Refresh"
-                            icon="pi pi-refresh"
-                            className="p-button-text p-button-sm"
-                            onClick={refreshNotifications}
-                            loading={loading}
-                        />
-                        {unreadCount > 0 && (
-                            <Button
-                                label="Mark all read"
-                                icon="pi pi-check"
-                                className="p-button-text p-button-sm"
-                                onClick={markAllAsRead}
-                            />
-                        )}
+                    <div className="notification-header__left">
+                        <h4 className="notification-title">Notifications</h4>
+                        <span className="notification-subtitle">
+              {unreadCount > 0 ? `${unreadCount} due` : 'All caught up 🎉'}
+            </span>
                     </div>
+                    {/* 🚫 ปุ่ม Refresh ถูกลบออก */}
                 </div>
-                
-                <Divider />
 
-                <ScrollPanel style={{ width: '100%', height: '350px' }}>
+                <Divider className="notification-divider" />
+
+                <ScrollPanel style={{ width: '100%', height: '380px' }}>
                     {loading ? (
-                        <div className="text-center p-3">
-                            <i className="pi pi-spin pi-spinner"></i> Loading...
+                        <div className="notif-empty">
+                            <i className="pi pi-spin" />
+                            <p>Loading...</p>
                         </div>
-                    ) : notifications.length === 0 ? (
-                        <div className="text-center p-3 text-muted">
-                            <i className="pi pi-inbox" style={{ fontSize: '2rem' }}></i>
-                            <p className="mt-2 mb-0">No notifications</p>
+                    ) : ordered.length === 0 ? (
+                        <div className="notif-empty">
+                            <i className="pi pi-inbox" />
+                            <p>No notifications</p>
                         </div>
                     ) : (
                         <div className="notification-list">
-                            {notifications.map((notification) => {
-                                const typeConfig = getTypeConfig(notification.type);
-                                return (
-                                    <div
-                                        key={notification.id}
-                                        className={`notification-item ${!notification.isRead ? 'unread' : ''}`}
-                                    >
-                                        <div className="notification-content">
-                                            <div className="notification-icon">
-                                                <i 
-                                                    className={typeConfig.icon} 
-                                                    style={{ color: typeConfig.color }}
-                                                ></i>
-                                            </div>
-                                            <div className="notification-details">
-                                                <div 
-                                                    className="notification-title"
-                                                    onClick={() => !notification.isRead && markAsRead(notification.id)}
-                                                    style={{ cursor: !notification.isRead ? 'pointer' : 'default' }}
-                                                >
-                                                    {notification.title}
-                                                    {!notification.isRead && (
-                                                        <span className="unread-dot"></span>
-                                                    )}
-                                                </div>
-                                                <div className="notification-message">
-                                                    {notification.message}
-                                                </div>
-                                                <div className="notification-time">
-                                                    {formatTime(notification.createdAt)}
-                                                </div>
-                                            </div>
-                                            <div className="notification-actions">
-                                                {!notification.isRead && (
-                                                    <Button
-                                                        icon="pi pi-check"
-                                                        className="p-button-text p-button-rounded p-button-sm"
-                                                        onClick={() => markAsRead(notification.id)}
-                                                        tooltip="Mark as read"
-                                                        tooltipOptions={{ position: 'top' }}
-                                                    />
-                                                )}
-                                                <Button
-                                                    icon="pi pi-times"
-                                                    className="p-button-text p-button-rounded p-button-sm p-button-danger"
-                                                    onClick={() => deleteNotification(notification.id)}
-                                                    tooltip="Delete"
-                                                    tooltipOptions={{ position: 'top' }}
-                                                />
+                            {ordered.map((n) => (
+                                <div
+                                    key={`${n.scheduleId}-${n.nextDueDate}`}
+                                    className="notification-item is-unread"
+                                >
+                                    <div className="notification-left">
+                    <span className="notification-type-icon" style={{ color: iconColor }}>
+                      <i className={iconClass} />
+                    </span>
+                                    </div>
+
+                                    <div className="notification-center" onClick={() => goToAction(n)}>
+                                        <div className="notification-row">
+                                            <div className="notification-title-text">
+                                                {n.title || 'Maintenance due soon'} <span className="unread-dot" />
                                             </div>
                                         </div>
+                                        {n.message && <div className="notification-message">{n.message}</div>}
                                     </div>
-                                );
-                            })}
+
+                                    <div className="notification-right">
+                                        <div className="notification-time">
+                                            {formatTime(n.notifyAt || n.nextDueDate)}
+                                        </div>
+                                        <Button
+                                            icon="pi pi-times"
+                                            className="p-button-text p-button-rounded p-button-sm p-button-danger"
+                                            onClick={() => onSkip(n)}
+                                            tooltip="Skip this notification"
+                                            tooltipOptions={{ position: 'top' }}
+                                        />
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </ScrollPanel>

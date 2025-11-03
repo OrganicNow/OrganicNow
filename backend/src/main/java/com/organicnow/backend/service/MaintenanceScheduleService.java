@@ -1,3 +1,4 @@
+// src/main/java/com/organicnow/backend/service/MaintenanceScheduleService.java
 package com.organicnow.backend.service;
 
 import com.organicnow.backend.dto.MaintenanceScheduleCreateDto;
@@ -25,31 +26,16 @@ public class MaintenanceScheduleService {
 
     private final MaintenanceScheduleRepository scheduleRepo;
     private final AssetGroupRepository assetGroupRepo;
-    private final NotificationService notificationService;
 
     /** ✅ สร้าง schedule ใหม่ */
     public MaintenanceScheduleDto createSchedule(MaintenanceScheduleCreateDto dto) {
         MaintenanceSchedule s = new MaintenanceSchedule();
         applyDtoToEntity(dto, s);
         MaintenanceSchedule saved = scheduleRepo.save(s);
-        
-        // สร้าง notification เมื่อมี maintenance schedule ใหม่
-        try {
-            notificationService.createMaintenanceScheduleNotification(saved);
-            log.info("✅ Created maintenance schedule notification for: {}", saved.getId());
-        } catch (Exception e) {
-            log.error("Failed to create notification for maintenance schedule: {}", saved.getId(), e);
-        }
-        
-        // ตรวจสอบ due notifications ทันทีหลังสร้าง schedule
-        try {
-            log.info("🔍 Checking due notifications immediately after creating schedule: {}", saved.getId());
-            notificationService.checkAndCreateDueNotifications();
-            log.info("✅ Completed immediate due notification check for schedule: {}", saved.getId());
-        } catch (Exception e) {
-            log.error("Failed to check due notifications for new schedule: {}", saved.getId(), e);
-        }
-        
+
+        // 🔄 สถาปัตยกรรมใหม่: ไม่ต้องสร้าง/เช็ค notification ตรงนี้
+        // Notification จะถูกคำนวณจาก maintenance_schedule ตอนเรียก /api/notifications/due
+
         return toDto(saved);
     }
 
@@ -78,16 +64,10 @@ public class MaintenanceScheduleService {
         // ตรวจสอบว่า schedule มีอยู่จริงหรือไม่
         MaintenanceSchedule schedule = scheduleRepo.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Schedule not found: " + id));
-        
-        // ลบ notifications ที่เกี่ยวข้องก่อน
-        try {
-            notificationService.deleteNotificationsByMaintenanceSchedule(id);
-            log.info("Deleted notifications for maintenance schedule: {}", id);
-        } catch (Exception e) {
-            log.warn("Failed to delete notifications for schedule {}: {}", id, e.getMessage());
-        }
-        
-        // ลบ schedule
+
+        // 🔄 ไม่ต้องลบ notification เดิม เพราะเราไม่ได้เก็บ notification entity แล้ว
+        // (มีแค่ตาราง skip ซึ่งผูก FK ON DELETE CASCADE ที่ schedule อยู่แล้ว หากสร้างตามที่แนะนำ)
+
         scheduleRepo.deleteById(id);
         log.info("Deleted maintenance schedule: {}", id);
     }
@@ -142,7 +122,7 @@ public class MaintenanceScheduleService {
                 .id(s.getId())
                 .scheduleScope(s.getScheduleScope())
                 .assetGroupId(s.getAssetGroup() != null ? s.getAssetGroup().getId() : null)
-                .assetGroupName(s.getAssetGroup() != null ? s.getAssetGroup().getAssetGroupName() : null) // ✅ แก้ตรงนี้
+                .assetGroupName(s.getAssetGroup() != null ? s.getAssetGroup().getAssetGroupName() : null)
                 .cycleMonth(s.getCycleMonth())
                 .lastDoneDate(s.getLastDoneDate())
                 .nextDueDate(s.getNextDueDate())
