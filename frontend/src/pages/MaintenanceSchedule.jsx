@@ -8,6 +8,7 @@ import { useToast } from "../contexts/ToastContext";
 import * as bootstrap from "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
+import { useLocation } from "react-router-dom";
 
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -458,6 +459,45 @@ function MaintenanceSchedule() {
     };
 
     const calendarRef = useRef(null);
+
+    // === Handle deep-link from NotificationBell (?scheduleId=...&due=YYYY-MM-DD) ===
+    const location = useLocation();
+
+    useEffect(() => {
+        // ต้องมีทั้ง scheduleId และ due (รูปแบบ YYYY-MM-DD)
+        const params = new URLSearchParams(location.search || "");
+        const sid = params.get("scheduleId");
+        const dueIso = params.get("due"); // e.g. 2025-11-09
+
+        if (!sid || !dueIso || !schedules?.length) return;
+
+        const row = schedules.find((r) => String(r.id) === String(sid));
+        if (!row) return;
+
+        // เลื่อนไปยังวันที่ due
+        const cal = calendarRef.current?.getApi();
+        const dueDateObj = new Date(dueIso);
+        if (cal && !isNaN(dueDateObj)) {
+            cal.gotoDate(dueDateObj);
+        }
+
+        // เตรียมข้อมูลเปิดโมดัล เหมือน eventClick
+        const occDmy = isoToDmy(dueIso);                          // dd/mm/yyyy
+        const nextDmy = row.cycle ? addMonthsDMY(occDmy, row.cycle) : "";
+
+        openViewModal({
+            scheduleId: row.id,
+            eventId: `${row.id}-${dueIso.replaceAll("-", "")}`,
+            title: row.title + (row.assetGroupName ? ` · ${row.assetGroupName}` : ""),
+            scope: row.scope || "-",
+            lastDate: occDmy || "-",
+            nextDate: nextDmy || "-",
+            assetGroupName: row.assetGroupName || "-",
+            description: row.description || "",
+            cycle: row.cycle ?? "-",
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.search, schedules]);
 
     return (
         <Layout title="Maintenance Schedule" icon="bi bi-alarm" notifications={0}>

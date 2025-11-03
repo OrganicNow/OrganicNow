@@ -474,7 +474,7 @@ function PackageManagement() {
                                             <input
                                                 type="text"
                                                 className="form-control border-start-0"
-                                                placeholder="Search package / room size / rent"
+                                                placeholder="Search package"
                                                 value={search}
                                                 onChange={(e) => setSearch(e.target.value)}
                                             />
