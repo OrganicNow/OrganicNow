@@ -630,21 +630,21 @@ function PackageManagement() {
                             />
                         </div>
 
-                        <div className="col-md-6 d-flex align-items-end">
-                            <div className="form-check form-switch">
-                                <input
-                                    className="form-check-input"
-                                    type="checkbox"
-                                    role="switch"
-                                    checked={newPkg.active}
-                                    onChange={(e) => setNewPkg((p) => ({ ...p, active: e.target.checked }))}
-                                    id="newPkgActive"
-                                />
-                                <label className="form-check-label ms-2" htmlFor="newPkgActive">
-                                    Active
-                                </label>
-                            </div>
-                        </div>
+                        {/*<div className="col-md-6 d-flex align-items-end">*/}
+                        {/*    <div className="form-check form-switch">*/}
+                        {/*        <input*/}
+                        {/*            className="form-check-input"*/}
+                        {/*            type="checkbox"*/}
+                        {/*            role="switch"*/}
+                        {/*            checked={newPkg.active}*/}
+                        {/*            onChange={(e) => setNewPkg((p) => ({ ...p, active: e.target.checked }))}*/}
+                        {/*            id="newPkgActive"*/}
+                        {/*        />*/}
+                        {/*        <label className="form-check-label ms-2" htmlFor="newPkgActive">*/}
+                        {/*            Active*/}
+                        {/*        </label>*/}
+                        {/*    </div>*/}
+                        {/*</div>*/}
 
                         <div className="col-12 d-flex justify-content-center gap-3 pt-3 pb-3">
                             <button type="button" className="btn btn-outline-secondary" data-bs-dismiss="modal">
@@ -666,7 +666,10 @@ function PackageManagement() {
             </Modal>
 
             {/* Filters Offcanvas */}
-            <div className="offcanvas offcanvas-end" tabIndex="-1" id="packageFilterCanvas" aria-labelledby="packageFilterCanvasLabel">
+            <div className="offcanvas offcanvas-end"
+                 tabIndex="-1" id="packageFilterCanvas"
+                 aria-labelledby="packageFilterCanvasLabel"
+                 data-bs-backdrop="static">
                 <div className="offcanvas-header">
                     <h5 id="packageFilterCanvasLabel" className="mb-0">
                         <i className="bi bi-filter me-2"></i>Filters
