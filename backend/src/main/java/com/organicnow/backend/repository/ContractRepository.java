@@ -102,4 +102,14 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
     int updateExpiredContracts();
 
     Optional<Contract> findByRoomAndPackagePlan_IdAndStatus(Room room, Long packageId, Integer status);
+    
+    // เพิ่มสำหรับ CSV Import
+    @Query("""
+        SELECT c FROM Contract c 
+        WHERE c.room.id = :roomId 
+        AND c.status = 1 
+        AND c.endDate >= CURRENT_TIMESTAMP
+        ORDER BY c.signDate DESC
+    """)
+    Optional<Contract> findActiveContractByRoomId(@Param("roomId") Long roomId);
 }

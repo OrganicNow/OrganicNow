@@ -27,6 +27,12 @@ function InvoiceManagement() {
   // ✅ สถานะกำลังลบใบแจ้งหนี้ (เพื่อ disable ปุ่ม/โชว์ spinner)
   const [deletingId, setDeletingId] = useState(null);
 
+  // ===== CSV Import States =====
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvResult, setCsvResult] = useState("");
+
   // ====== DATA จาก Backend ======
   const [data, setData] = useState([]);
   const [rooms, setRooms] = useState([]);
@@ -468,8 +474,57 @@ function InvoiceManagement() {
   // ====== ACTIONS ======
   const [selectedItems, setSelectedItems] = useState([]);
 
+  // ✅ ดาวน์โหลด PDF ใบแจ้งหนี้
+  const handleDownloadPdf = async (invoice) => {
+    try {
+      setErr("");
+      
+      // แสดง loading สำหรับ PDF นั้น ๆ (optional)
+      showWarning(`กำลังสร้างไฟล์ PDF สำหรับใบแจ้งหนี้ ${invoice.id}...`);
+      
+      const response = await fetch(`${API_BASE}/invoice/pdf/${invoice.id}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/pdf',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(errorText || `Failed to generate PDF (HTTP ${response.status})`);
+      }
+
+      // ดาวน์โหลดไฟล์
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // ตั้งชื่อไฟล์ตามข้อมูล Invoice
+      const fileName = `Invoice_${invoice.id}_${invoice.firstName}_${invoice.lastName}_Room_${invoice.room}.pdf`;
+      link.download = fileName;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      
+      showSuccess(`📄 ดาวน์โหลด PDF ใบแจ้งหนี้ ${invoice.id} สำเร็จแล้ว!`);
+      
+    } catch (error) {
+      console.error('PDF Download Error:', error);
+      setErr(`ดาวน์โหลด PDF ล้มเหลว: ${error.message}`);
+      showError(`❌ ดาวน์โหลด PDF ล้มเหลว: ${error.message}`);
+    }
+  };
+
   const handleUpdate = (item) => {
-    // Update functionality
+    // Update functionality - placeholder for future implementation
+    console.log('Update functionality not yet implemented for:', item);
   };
 
   // ✅ ลบใบแจ้งหนี้ (DELETE /invoice/delete/{id})
@@ -619,6 +674,65 @@ function InvoiceManagement() {
     }
   };
 
+  // ===== CSV Import Functions =====
+  
+  const handleCsvFileChange = (e) => {
+    const file = e.target.files[0];
+    setCsvFile(file);
+    setCsvResult("");
+  };
+
+  const handleCsvImport = async () => {
+    if (!csvFile) {
+      showError("Please select a CSV file first");
+      return;
+    }
+
+    if (!csvFile.name.toLowerCase().endsWith('.csv')) {
+      showError("Please select a valid CSV file");
+      return;
+    }
+
+    setCsvUploading(true);
+    setCsvResult("");
+
+    try {
+      const formData = new FormData();
+      formData.append('file', csvFile);
+
+      const response = await fetch(`${API_BASE}/invoice/import-csv`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.text();
+        setCsvResult(result);
+        showSuccess("CSV imported successfully!");
+        
+        // Refresh the invoice list
+        setTimeout(() => {
+          fetchData();
+        }, 1000);
+      } else {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to import CSV');
+      }
+    } catch (error) {
+      console.error('CSV Import Error:', error);
+      showError(`Failed to import CSV: ${error.message}`);
+      setCsvResult(`Error: ${error.message}`);
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  const closeCsvModal = () => {
+    setShowCsvModal(false);
+    setCsvFile(null);
+    setCsvResult("");
+  };
+
   return (
     <Layout title="Invoice Management" icon="bi bi-currency-dollar" notifications={3}>
       <div className="container-fluid">
@@ -686,6 +800,16 @@ function InvoiceManagement() {
                       title={Object.keys(roomsByFloor).length === 0 ? "No occupied rooms available for invoice creation" : "Create new invoice"}
                     >
                       <i className="bi bi-plus-lg me-1"></i> Create Invoice
+                    </button>
+                    
+                    {/* CSV Import Button */}
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      onClick={() => setShowCsvModal(true)}
+                      title="Import utility usage from CSV file"
+                    >
+                      <i className="bi bi-file-earmark-spreadsheet me-1"></i> Import CSV
                     </button>
                     {/* <button className="btn btn-outline-secondary" onClick={fetchData} disabled={loading}>
                       <i className={`bi ${loading ? "bi-arrow-repeat spin" : "bi-arrow-repeat"} me-1`}></i>
@@ -789,13 +913,15 @@ function InvoiceManagement() {
                             className="btn btn-sm form-Button-Edit me-1"
                             onClick={() => handleViewInvoice(item)}
                             aria-label="View invoice"
+                            title="ดูรายละเอียดใบแจ้งหนี้"
                           >
                             <i className="bi bi-eye-fill"></i>
                           </button>
                           <button
                             className="btn btn-sm form-Button-Edit me-1"
-                            onClick={() => handleUpdate(item)}
+                            onClick={() => handleDownloadPdf(item)}
                             aria-label="Download PDF"
+                            title="ดาวน์โหลด PDF ใบแจ้งหนี้"
                           >
                             <i className="bi bi-file-earmark-pdf-fill"></i>
                           </button>
@@ -803,6 +929,7 @@ function InvoiceManagement() {
                             className="btn btn-sm form-Button-Del me-1"
                             onClick={() => handleDelete(item.id)}  // ✅ ส่ง id
                             aria-label="Delete invoice"
+                            title="ลบใบแจ้งหนี้"
                             disabled={deletingId === item.id || loading} // ✅ กันกดซ้ำ
                           >
                             <i className={`bi ${deletingId === item.id ? "bi-arrow-repeat spin" : "bi-trash-fill"}`}></i>
@@ -1205,6 +1332,119 @@ function InvoiceManagement() {
           </div>
         </div>
       </div>
+
+      {/* CSV Import Modal */}
+      {showCsvModal && (
+        <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-file-earmark-spreadsheet me-2"></i>
+                  Import Utility Usage from CSV
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={closeCsvModal}
+                  disabled={csvUploading}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <h6>CSV Format Requirements:</h6>
+                  <div className="alert alert-info">
+                    <p className="mb-2"><strong>Required columns (in order):</strong></p>
+                    <ol className="mb-2">
+                      <li><strong>RoomNumber</strong> - Room number (e.g., "101", "A201")</li>
+                      <li><strong>WaterUsage</strong> - Water usage in units (e.g., 25)</li>
+                      <li><strong>ElectricityUsage</strong> - Electricity usage in units (e.g., 150)</li>
+                      <li><strong>BillingMonth</strong> - Billing month in YYYY-MM format (e.g., "2024-11")</li>
+                    </ol>
+                    <p className="mb-2"><strong>Optional columns:</strong></p>
+                    <ul className="mb-0">
+                      <li><strong>WaterRate</strong> - Water rate per unit (default: 20 THB/unit)</li>
+                      <li><strong>ElectricityRate</strong> - Electricity rate per unit (default: 8 THB/unit)</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="alert alert-warning">
+                    <h6><i className="bi bi-exclamation-triangle me-1"></i> Sample CSV Format:</h6>
+                    <pre className="mb-0" style={{ fontSize: '0.85em' }}>
+{`RoomNumber,WaterUsage,ElectricityUsage,BillingMonth,WaterRate,ElectricityRate
+101,25,150,2024-11,20,8
+102,30,180,2024-11,20,8
+A201,22,140,2024-11,20,8`}
+                    </pre>
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <label htmlFor="csvFile" className="form-label">
+                    <strong>Select CSV File:</strong>
+                  </label>
+                  <input
+                    type="file"
+                    className="form-control"
+                    id="csvFile"
+                    accept=".csv"
+                    onChange={handleCsvFileChange}
+                    disabled={csvUploading}
+                  />
+                </div>
+
+                {csvFile && (
+                  <div className="alert alert-success">
+                    <i className="bi bi-file-check me-1"></i>
+                    Selected file: <strong>{csvFile.name}</strong> ({(csvFile.size / 1024).toFixed(2)} KB)
+                  </div>
+                )}
+
+                {csvResult && (
+                  <div className="mb-3">
+                    <label className="form-label"><strong>Import Result:</strong></label>
+                    <textarea
+                      className="form-control"
+                      rows="8"
+                      value={csvResult}
+                      readOnly
+                      style={{ fontSize: '0.9em', fontFamily: 'monospace' }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={closeCsvModal}
+                  disabled={csvUploading}
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  onClick={handleCsvImport}
+                  disabled={!csvFile || csvUploading}
+                >
+                  {csvUploading ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-upload me-1"></i>
+                      Import CSV
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

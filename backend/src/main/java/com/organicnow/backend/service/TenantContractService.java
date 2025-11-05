@@ -1,7 +1,5 @@
 package com.organicnow.backend.service;
 
-import com.lowagie.text.*;
-import com.lowagie.text.pdf.*;
 import com.organicnow.backend.dto.CreateTenantContractRequest;
 import com.organicnow.backend.dto.TenantDto;
 import com.organicnow.backend.dto.TenantDetailDto;
@@ -11,7 +9,6 @@ import com.organicnow.backend.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -23,6 +20,7 @@ public class TenantContractService {
     private final PackagePlanRepository packagePlanRepository;
     private final ContractRepository contractRepository;
     private final InvoiceRepository invoiceRepository;
+    private final TenantContractPdfService tenantContractPdfService;
 
     // ❌ ลบ TenantSearchService ออกทั้งหมด
 
@@ -30,12 +28,14 @@ public class TenantContractService {
                                  RoomRepository roomRepository,
                                  PackagePlanRepository packagePlanRepository,
                                  ContractRepository contractRepository,
-                                 InvoiceRepository invoiceRepository) {
+                                 InvoiceRepository invoiceRepository,
+                                 TenantContractPdfService tenantContractPdfService) {
         this.tenantRepository = tenantRepository;
         this.roomRepository = roomRepository;
         this.packagePlanRepository = packagePlanRepository;
         this.contractRepository = contractRepository;
         this.invoiceRepository = invoiceRepository;
+        this.tenantContractPdfService = tenantContractPdfService;
     }
 
     // ➕ CREATE
@@ -149,6 +149,14 @@ public class TenantContractService {
         if (!contractRepository.existsById(contractId)) {
             throw new RuntimeException("Contract not found: " + contractId);
         }
+        
+        // ลบ invoices ที่เกี่ยวข้องก่อน
+        List<Invoice> invoices = invoiceRepository.findByContact_IdOrderByIdDesc(contractId);
+        if (!invoices.isEmpty()) {
+            invoiceRepository.deleteAll(invoices);
+        }
+        
+        // จากนั้นลบ contract
         contractRepository.deleteById(contractId);
     }
 
@@ -206,25 +214,11 @@ public class TenantContractService {
                 .orElseThrow(() -> new RuntimeException("Contract not found: " + contractId));
 
         Tenant tenant = contract.getTenant();
-        Room room = contract.getRoom();
-        PackagePlan plan = contract.getPackagePlan();
-
-        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
-            Document document = new Document(PageSize.A4, 36, 36, 54, 36);
-            PdfWriter.getInstance(document, baos);
-            document.open();
-            // ... PDF code เดิม
-            document.close();
-            return baos.toByteArray();
-        } catch (Exception e) {
-            throw new RuntimeException("Error generating PDF", e);
+        if (tenant == null) {
+            throw new RuntimeException("Tenant not found for contract: " + contractId);
         }
-    }
 
-    private PdfPCell makeCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setPadding(5);
-        return cell;
+        // ใช้ TenantContractPdfService ในการสร้าง PDF
+        return tenantContractPdfService.generateContractPdf(tenant, contract);
     }
 }

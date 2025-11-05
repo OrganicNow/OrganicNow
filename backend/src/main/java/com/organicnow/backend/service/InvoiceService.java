@@ -6,6 +6,7 @@ import com.organicnow.backend.dto.UpdateInvoiceRequest;
 import com.organicnow.backend.model.Invoice;
 import com.organicnow.backend.repository.InvoiceRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -38,4 +39,14 @@ public interface InvoiceService {
     InvoiceDto markAsPaid(Long id);
     InvoiceDto cancelInvoice(Long id);
     InvoiceDto addPenalty(Long id, Integer penaltyAmount);
+    
+    // ===== CSV Import Feature =====
+    
+    // Import utility usage from CSV file
+    String importUtilityUsageFromCsv(MultipartFile file);
+    
+    // ===== PDF Generation Feature =====
+    
+    // Generate invoice PDF
+    byte[] generateInvoicePdf(Long invoiceId);
 }

@@ -6,6 +6,7 @@ import com.organicnow.backend.dto.UpdateInvoiceRequest;
 import com.organicnow.backend.service.InvoiceService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -222,6 +223,44 @@ public class InvoiceController {
         try {
             List<InvoiceDto> invoices = invoiceService.getInvoicesByNetAmountRange(minAmount, maxAmount);
             return ResponseEntity.ok(invoices);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    // ===== CSV Import Feature =====
+    
+    // Import utility usage from CSV file
+    @PostMapping("/import-csv")
+    public ResponseEntity<?> importUtilityUsageFromCsv(@RequestParam("file") MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body("Please select a file to upload");
+            }
+            
+            if (!file.getOriginalFilename().toLowerCase().endsWith(".csv")) {
+                return ResponseEntity.badRequest().body("Please upload a CSV file");
+            }
+            
+            String result = invoiceService.importUtilityUsageFromCsv(file);
+            return ResponseEntity.ok().body(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Failed to import CSV: " + e.getMessage());
+        }
+    }
+
+    // ===== PDF Generation Feature =====
+    
+    // Generate and download invoice PDF
+    @GetMapping("/pdf/{id}")
+    public ResponseEntity<byte[]> generateInvoicePdf(@PathVariable Long id) {
+        try {
+            byte[] pdfBytes = invoiceService.generateInvoicePdf(id);
+            
+            return ResponseEntity.ok()
+                    .header("Content-Type", "application/pdf")
+                    .header("Content-Disposition", "attachment; filename=\"invoice_" + id + ".pdf\"")
+                    .body(pdfBytes);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
