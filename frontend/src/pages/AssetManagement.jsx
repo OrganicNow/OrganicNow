@@ -33,6 +33,9 @@ function AssetManagement() {
   // ====== Asset Group form ======
   const [groupName, setGroupName] = useState("");
   const [editingGroupId, setEditingGroupId] = useState(null);
+  const [monthlyAddonFee, setMonthlyAddonFee] = useState(0);
+  const [oneTimeDamageFee, setOneTimeDamageFee] = useState(0);
+  const [freeReplacement, setFreeReplacement] = useState(true);
 
   // ====== Asset form ======
   const [formName, setFormName] = useState("");
@@ -626,6 +629,35 @@ function AssetManagement() {
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
             />
+          </div>
+          <div className="mb-3">
+            <label>Monthly Add-on Fee</label>
+            <input
+              type="number"
+              className="form-control"
+              value={monthlyAddonFee}
+              onChange={(e) => setMonthlyAddonFee(e.target.value)}
+            />
+          </div>
+
+          <div className="mb-3">
+            <label>One-time Damage Fee</label>
+            <input
+              type="number"
+              className="form-control"
+              value={oneTimeDamageFee}
+              onChange={(e) => setOneTimeDamageFee(e.target.value)}
+            />
+          </div>
+
+          <div className="form-check mb-3">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              checked={freeReplacement}
+              onChange={(e) => setFreeReplacement(e.target.checked)}
+            />
+            <label className="form-check-label">Free Replacement</label>
           </div>
           <div className="d-flex justify-content-center gap-3 pt-3 pb-2">
             <button

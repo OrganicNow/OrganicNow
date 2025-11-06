@@ -46,20 +46,38 @@ public class AssetGroupService {
         if (assetGroupRepository.existsByAssetGroupName(assetGroup.getAssetGroupName())) {
             throw new RuntimeException("duplicate_group_name");
         }
+
+        // ถ้ายังไม่ได้กำหนดค่า ให้ใส่ค่า default
+        if (assetGroup.getMonthlyAddonFee() == null) {
+            assetGroup.setMonthlyAddonFee(java.math.BigDecimal.ZERO);
+        }
+        if (assetGroup.getOneTimeDamageFee() == null) {
+            assetGroup.setOneTimeDamageFee(java.math.BigDecimal.ZERO);
+        }
+        if (assetGroup.getFreeReplacement() == null) {
+            assetGroup.setFreeReplacement(true);
+        }
+
         return assetGroupRepository.save(assetGroup);
     }
 
-    // ✅ Update
+    // ✅ Update (รองรับฟิลด์ใหม่)
     public AssetGroup updateAssetGroup(Long id, AssetGroup assetGroup) {
         AssetGroup existingAssetGroup = assetGroupRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Asset Group not found with id " + id));
 
+        // ตรวจชื่อซ้ำ
         if (!existingAssetGroup.getAssetGroupName().equals(assetGroup.getAssetGroupName())
                 && assetGroupRepository.existsByAssetGroupName(assetGroup.getAssetGroupName())) {
             throw new RuntimeException("duplicate_group_name");
         }
 
+        // อัปเดตข้อมูลทั้งหมด
         existingAssetGroup.setAssetGroupName(assetGroup.getAssetGroupName());
+        existingAssetGroup.setMonthlyAddonFee(assetGroup.getMonthlyAddonFee());
+        existingAssetGroup.setOneTimeDamageFee(assetGroup.getOneTimeDamageFee());
+        existingAssetGroup.setFreeReplacement(assetGroup.getFreeReplacement());
+
         return assetGroupRepository.save(existingAssetGroup);
     }
 
