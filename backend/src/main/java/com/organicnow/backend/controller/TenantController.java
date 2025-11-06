@@ -17,7 +17,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/tenant")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:5173", "http://app.localtest.me"}, allowCredentials = "true")
 public class TenantController {
 
     private final TenantService tenantService;

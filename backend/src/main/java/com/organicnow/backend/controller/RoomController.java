@@ -15,7 +15,7 @@ import java.util.List;
 @RequestMapping("/room")
 @RequiredArgsConstructor
 @CrossOrigin(
-        origins = {"http://localhost:5173", "http://localhost:3000"},
+        origins = {"http://localhost:5173", "http://localhost:3000", "http://app.localtest.me"},
         allowCredentials = "true",
         allowedHeaders = "*",
         methods = {

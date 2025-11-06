@@ -94,7 +94,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: organicnow-backend:local   # ← ใช้ image ที่คุณ build ในเครื่อง
+          image: organicnow-backend   # ← ใช้ image ที่คุณ build ในเครื่อง
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -173,7 +173,7 @@ spec:
     spec:
       containers:
         - name: nginx                      # เปลี่ยนชื่อให้สื่อว่าเป็น nginx runtime
-          image: organicnow-frontend:local # ต้อง build จาก Dockerfile.prod
+          image: organicnow-frontend # ต้อง build จาก Dockerfile.prod
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80            # ✅ ตัวคอนเทนเนอร์ฟังที่ 80
@@ -219,6 +219,12 @@ kind: Ingress
 metadata:
   name: app-web
   namespace: organicnow
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://app.localtest.me"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization,Content-Type,Accept,Origin"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
 spec:
   ingressClassName: nginx
   rules:
@@ -232,3 +238,13 @@ spec:
                 name: frontend
                 port:
                   number: 80
+    - host: api.localtest.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080

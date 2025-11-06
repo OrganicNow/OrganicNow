@@ -25,7 +25,7 @@ import java.util.List;
  */
 @RestController
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:5173", "http://app.localtest.me"}, allowCredentials = "true")
 public class LegacyApiController {
 
     private final ContractService contractService;

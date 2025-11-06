@@ -10,7 +10,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/asset-group")
-@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000", "http://localhost:4173"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000", "http://localhost:4173", "http://app.localtest.me"}, allowCredentials = "true")
 public class AssetGroupController {
 
     private final AssetGroupService assetGroupService;
