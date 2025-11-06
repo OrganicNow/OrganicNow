@@ -46,6 +46,7 @@ function TenantManagement() {
   const [packages, setPackages] = useState([]);
   const [allPackages, setAllPackages] = useState([]);
   const [occupiedRoomIds, setOccupiedRoomIds] = useState([]);
+  const [roomSizeForSelectedRoom, setRoomSizeForSelectedRoom] = useState(null);
 
   // 🔍 Filter + Sort + Search
   const [filters, setFilters] = useState({
@@ -185,6 +186,23 @@ function TenantManagement() {
     };
     fetchRooms();
   }, []);
+
+  useEffect(() => {
+    if (selectedRoomId) {
+      const selectedRoom = rooms.find(
+        (r) => r.roomId === parseInt(selectedRoomId)
+      );
+      if (selectedRoom) {
+        setRoomSizeForSelectedRoom(
+          selectedRoom.roomSize ?? selectedRoom.room_size ?? null
+        );
+      } else {
+        setRoomSizeForSelectedRoom(null);
+      }
+    } else {
+      setRoomSizeForSelectedRoom(null);
+    }
+  }, [selectedRoomId, rooms]);
 
   // 📋 โหลด tenant ทั้งหมด
   const fetchData = async (page = 1) => {
@@ -546,10 +564,10 @@ function TenantManagement() {
                       Floor
                     </th>
                     <th className="text-center align-top header-color">Room</th>
-                    <th className="text-start align-top header-color">
+                    <th className="text-center align-top header-color">
                       Package
                     </th>
-                    <th className="text-start align-top header-color">Rent</th>
+                    <th className="text-center align-top header-color">Rent</th>
                     <th className="text-start align-top header-color">
                       End date
                     </th>
@@ -817,6 +835,23 @@ function TenantManagement() {
                       ))}
                   </select>
                 </div>
+
+                {/* 🔹 แสดงขนาดห้องหลังเลือก */}
+                {roomSizeForSelectedRoom !== null && (
+                  <div className="text-muted small mt-1">
+                    Room Size:&nbsp;
+                    {(() => {
+                      // normalize เพื่อให้แน่ใจว่าเทียบได้ทุกกรณี
+                      const v = String(roomSizeForSelectedRoom)
+                        .trim()
+                        .toLowerCase();
+                      if (v === "0" || v === "studio") return "Studio";
+                      if (v === "1" || v === "superior") return "Superior";
+                      if (v === "2" || v === "deluxe") return "Deluxe";
+                      return v; // fallback กรณี backend ส่งชื่ออื่น
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -833,13 +868,63 @@ function TenantManagement() {
                     className="form-select"
                     value={packageId}
                     onChange={(e) => setPackageId(e.target.value)}
+                    disabled={!selectedRoomId} // 🔒 ต้องเลือกห้องก่อนถึงเปิดได้
                   >
-                    <option value="">Tenant Package</option>
-                    {packages.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.contract_name}
-                      </option>
-                    ))}
+                    <option value="">
+                      {selectedRoomId ? "Select Package" : "Select Room First"}
+                    </option>
+
+                    {packages
+                      .filter((p) => {
+                        if (roomSizeForSelectedRoom == null) return true;
+
+                        const v = String(roomSizeForSelectedRoom)
+                          .trim()
+                          .toLowerCase();
+                        const pkgV = String(p.room_size).trim().toLowerCase();
+
+                        // handle both numeric and text matches (หลังสลับ Deluxe ↔ Superior)
+                        if (v === pkgV) return true;
+                        if (
+                          (v === "studio" && pkgV === "0") ||
+                          (v === "0" && pkgV === "studio")
+                        )
+                          return true;
+                        if (
+                          (v === "superior" && pkgV === "1") ||
+                          (v === "1" && pkgV === "superior")
+                        )
+                          return true;
+                        if (
+                          (v === "deluxe" && pkgV === "2") ||
+                          (v === "2" && pkgV === "deluxe")
+                        )
+                          return true;
+
+                        return false;
+                      })
+                      .map((p) => {
+                        let roomSizeLabel = "-";
+                        switch (String(p.room_size)) {
+                          case "0":
+                            roomSizeLabel = "Studio";
+                            break;
+                          case "1":
+                            roomSizeLabel = "Superior";
+                            break;
+                          case "2":
+                            roomSizeLabel = "Deluxe";
+                            break;
+                          default:
+                            roomSizeLabel = p.room_size || "-";
+                        }
+
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {p.contract_name} – {roomSizeLabel}
+                          </option>
+                        );
+                      })}
                   </select>
                 </div>
               </div>
