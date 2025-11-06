@@ -27,6 +27,19 @@ public class DashboardService {
             Map<String, Object> map = new HashMap<>();
             map.put("roomNumber", r.getRoomNumber());
 
+            // ✅ หา floor: ถ้ามี field ใน entity Room ให้ใช้ getFloor() ได้เลย
+            Integer floor = null;
+            try {
+                // ถ้า Room entity มี field floor อยู่แล้วให้เปิดบรรทัดนี้แทน
+                // floor = r.getFloor();
+
+                if (floor == null) {
+                    floor = deriveFloorFromRoomNumber(r.getRoomNumber());
+                }
+            } catch (Exception ignored) { /* ignore */ }
+
+            map.put("room_floor", floor); // 👈 เพิ่มคีย์ใหม่ส่งไป frontend
+
             boolean hasContract = contractRepository.existsActiveContractByRoomId(r.getId());
             boolean hasMaintain = maintainRepository.existsActiveMaintainByRoomId(r.getId());
 
@@ -39,6 +52,24 @@ public class DashboardService {
             }
             return map;
         }).toList();
+    }
+
+    /** 🧮 Helper: คำนวณชั้นจากหมายเลขห้อง เช่น "101" → 1, "212" → 2 */
+    private Integer deriveFloorFromRoomNumber(Object roomNumber) {
+        if (roomNumber == null) return null;
+        String s = String.valueOf(roomNumber).trim();
+
+        // ดึงเฉพาะตัวเลขนำหน้า เช่น "201A" -> "201"
+        StringBuilder digits = new StringBuilder();
+        for (char c : s.toCharArray()) {
+            if (Character.isDigit(c)) digits.append(c);
+            else break;
+        }
+
+        if (digits.length() == 0) return null;
+
+        // สมมติรูปแบบรหัสห้องคือ 1xx / 2xx / 3xx → ใช้เลขหลักแรกเป็นชั้น
+        return Character.getNumericValue(digits.charAt(0));
     }
 
     // ✅ ข้อมูลรีเควส 12 เดือนล่าสุด
@@ -62,7 +93,7 @@ public class DashboardService {
                 .toList();
     }
 
-    // ✅ รวม Dashboard
+    // ✅ รวม Dashboard ทั้งหมด
     public DashboardDto getDashboardData() {
         return new DashboardDto(
                 getRoomStatuses(),
