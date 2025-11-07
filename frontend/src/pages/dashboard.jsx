@@ -84,12 +84,12 @@ function Dashboard() {
       {
         label: "Penalty",
         data: finances.map((f) => f.penalty),
-        backgroundColor: "rgb(84,191,255)",
+        backgroundColor: "rgba(234,179,8,0.8)",
       },
       {
         label: "Overdue",
         data: finances.map((f) => f.overdue),
-        backgroundColor: "rgb(255,108,191)",
+        backgroundColor: "rgba(239,68,68,0.8)",
       },
     ],
   };
