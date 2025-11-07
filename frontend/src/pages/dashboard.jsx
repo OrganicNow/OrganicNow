@@ -84,12 +84,12 @@ function Dashboard() {
       {
         label: "Penalty",
         data: finances.map((f) => f.penalty),
-        backgroundColor: "rgba(234,179,8,0.8)",
+        backgroundColor: "rgba(84,191,255)",
       },
       {
         label: "Overdue",
         data: finances.map((f) => f.overdue),
-        backgroundColor: "rgba(239,68,68,0.8)",
+        backgroundColor: "rgba(255,108,191)",
       },
     ],
   };
@@ -139,13 +139,17 @@ function Dashboard() {
                 {/* Legend */}
                 <div className="mt-4 small text-center">
                   <span className="me-3">
-                    <span className="badge bg-success me-1">&nbsp;</span> Available
+                    <span
+                        className="badge me-1"
+                        style={{ backgroundColor: "#22c55e" }}>&nbsp;</span> Available
                   </span>
                   <span className="me-3">
-                    <span className="badge bg-danger me-1">&nbsp;</span> Unavailable
+                    <span className="badge me-1"
+                          style={{ backgroundColor: "#ef4444" }}>&nbsp;</span> Unavailable
                   </span>
                   <span>
-                    <span className="badge bg-warning me-1">&nbsp;</span> Repair
+                    <span className="badge me-1"
+                          style={{ backgroundColor: "#facc15" }}>&nbsp;</span> Repair
                   </span>
                 </div>
               </div>
