@@ -4,7 +4,7 @@ import Layout from "../component/layout";
 import Modal from "../component/modal";
 import { pageSize as defaultPageSize } from "../config_variable";
 import { useNotifications } from "../contexts/NotificationContext";
-import { useToast } from "../contexts/ToastContext";
+import useMessage from "../component/useMessage";
 import * as bootstrap from "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
@@ -110,7 +110,7 @@ function MaintenanceSchedule() {
 
     // notification context สำหรับ refresh
     const { refreshNotifications } = useNotifications();
-    const { showMaintenanceCreated } = useToast();
+    const { showMessageSave, showMessageError, showMessageConfirmDelete } = useMessage();
 
     // assetGroupDropdown (จาก /schedules)
     const [assetOptions, setAssetOptions] = useState([]);
@@ -237,9 +237,7 @@ function MaintenanceSchedule() {
         await loadSchedules();
         
         // 🎯 แสดง toast เมื่อสร้าง schedule สำเร็จ
-        showMaintenanceCreated({
-            scheduleTitle: newSch.title
-        });
+        showMessageSave();
         
         // 🔔 Refresh notifications หลังจากสร้าง schedule ใหม่
         setTimeout(() => {
@@ -367,7 +365,9 @@ function MaintenanceSchedule() {
 
     // ===== ลบรายการ =====
     const deleteRow = async (rowId) => {
-        if (!confirm("ลบรายการนี้ใช่หรือไม่?")) return;
+        const result = await showMessageConfirmDelete(`รายการ #${rowId}`);
+        if (!result.isConfirmed) return;
+        
         try {
             const res = await fetch(SCHEDULE_API.DELETE(rowId), {
                 method: "DELETE",
@@ -375,9 +375,10 @@ function MaintenanceSchedule() {
             });
             if (!res.ok) throw new Error(await res.text());
             await loadSchedules();
+            showMessageSave();
         } catch (e) {
             console.error(e);
-            alert("ลบไม่สำเร็จ");
+            showMessageError("ลบไม่สำเร็จ");
         }
     };
 
@@ -591,7 +592,7 @@ function MaintenanceSchedule() {
                     onSubmit={async (e) => {
                         e.preventDefault();
                         const err = validateNewSch();
-                        if (err) { alert(err); return; }
+                        if (err) { showMessageError(err); return; }
                         try {
                             setSaving(true);
                             await addSchedule(); // POST ไป backend + reload ตาราง
@@ -614,7 +615,7 @@ function MaintenanceSchedule() {
                             });
                         } catch (e2) {
                             console.error(e2);
-                            alert("บันทึกไม่สำเร็จ");
+                            showMessageError("บันทึกไม่สำเร็จ");
                         } finally {
                             setSaving(false);
                         }

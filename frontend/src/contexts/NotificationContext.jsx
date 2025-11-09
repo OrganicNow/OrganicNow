@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useToast } from './ToastContext';
 
 const NotificationContext = createContext();
 
@@ -19,8 +18,6 @@ export const NotificationProvider = ({ children }) => {
     const [loading, setLoading] = useState(false);
     const [previousCount, setPreviousCount] = useState(0);
     const [lastToastTime, setLastToastTime] = useState(0); // เก็บเวลาแสดง toast ครั้งสุดท้าย
-    
-    const { showGeneralNotification } = useToast();
 
     // โหลดจำนวน unread notifications
     const loadUnreadCount = async () => {
@@ -90,10 +87,10 @@ export const NotificationProvider = ({ children }) => {
                 // แสดง toast เฉพาะ notification ที่สร้างใหม่จริงๆ (1 อันเท่านั้น)
                 if (brandNewNotifications.length > 0) {
                     const newestNotification = brandNewNotifications[0];
-                    console.log('🎯 Showing toast for BRAND NEW notification:', newestNotification.title);
-                    showGeneralNotification(newestNotification);
+                    console.log('🎯 New notification found (toast disabled):', newestNotification.title);
+                    // showGeneralNotification(newestNotification); // ปิดการแสดง toast
                 } else {
-                    console.log('🎯 No brand new notifications - no toast shown');
+                    console.log('🎯 No brand new notifications');
                 }
             } else {
                 console.error('🎯 Failed to load notifications for toast:', response.status);

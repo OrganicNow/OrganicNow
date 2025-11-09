@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
+import useMessage from "../component/useMessage";
 import "../assets/css/tenantmanagement.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -14,6 +15,7 @@ function InvoiceDetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const { invoice, invoiceId, tenantName } = location.state || {};
+  const { showMessageError, showMessageSave } = useMessage();
 
   const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -53,6 +55,7 @@ function InvoiceDetails() {
   const SERVICE_FEE = 0;
   const ROUND_TO = 2;
 
+  // ===== State สำหรับฟอร์มและการแสดงผล =====
   const [invoiceForm, setInvoiceForm] = useState({
     id: initial.id,
     createDate: initial.createDate,
@@ -83,22 +86,31 @@ function InvoiceDetails() {
         
         if (response.ok) {
           const apiData = await response.json();
-          console.log("API Invoice Data:", apiData);
+          console.log("🔍 API Invoice Data:", apiData);
+          console.log("🔍 Water Unit from API:", apiData.waterUnit);
+          console.log("🔍 Electricity Unit from API:", apiData.electricityUnit);
           
-          // อัปเดตด้วยข้อมูลจาก API
-          setInvoiceForm(prev => ({
-            ...prev,
-            rent: Number(apiData.rent) || prev.rent,
-            water: Number(apiData.water) || prev.water,
-            electricity: Number(apiData.electricity) || prev.electricity,
-            waterUnit: Number(apiData.waterUnit) || prev.waterUnit,
-            electricityUnit: Number(apiData.electricityUnit) || prev.electricityUnit,
-            amount: Number(apiData.netAmount || apiData.amount) || prev.amount,
-            penalty: Number(apiData.penaltyTotal || apiData.penalty) || prev.penalty,
+          const updateData = {
+            rent: Number(apiData.rent) || initial.rent,
+            water: Number(apiData.water) || initial.water,
+            electricity: Number(apiData.electricity) || initial.electricity,
+            // ใช้ค่าจาก backend ถ้ามี ไม่ใช้ fallback ที่อาจผิด
+            waterUnit: apiData.waterUnit !== undefined ? Number(apiData.waterUnit) : initial.waterUnit,
+            electricityUnit: apiData.electricityUnit !== undefined ? Number(apiData.electricityUnit) : initial.electricityUnit,
+            amount: Number(apiData.netAmount || apiData.amount) || initial.amount,
+            penalty: Number(apiData.penaltyTotal || apiData.penalty) || initial.penalty,
             status: (apiData.invoiceStatus === 1 ? "complete" : 
                     apiData.invoiceStatus === 2 ? "cancelled" : "pending"),
-            payDate: apiData.payDate ? d2str(apiData.payDate) : prev.payDate,
-            penaltyDate: apiData.penaltyAppliedAt ? d2str(apiData.penaltyAppliedAt) : prev.penaltyDate,
+            payDate: apiData.payDate ? d2str(apiData.payDate) : initial.payDate,
+            penaltyDate: apiData.penaltyAppliedAt ? d2str(apiData.penaltyAppliedAt) : initial.penaltyDate,
+          };
+          
+          console.log("🔍 Update Data:", updateData);
+          
+          // อัปเดตฟอร์ม
+          setInvoiceForm(prev => ({
+            ...prev,
+            ...updateData
           }));
         }
       } catch (error) {
@@ -145,24 +157,22 @@ function InvoiceDetails() {
     const waterBill = round(toNumber(invoiceForm.waterUnit) * RATE_WATER_PER_UNIT);
     const elecBill = round(toNumber(invoiceForm.electricityUnit) * RATE_ELEC_PER_UNIT);
     const rent = toNumber(invoiceForm.rent);
-
-    // ✅ เก็บค่า penalty เดิมไว้ ไม่คำนวณใหม่ เพื่อให้รู้ว่าบิลไหนเคยติด penalty
-    const existingPenalty = toNumber(invoiceForm.penalty);
+    const penalty = toNumber(invoiceForm.penalty);
+    
     const subtotal = round(rent + waterBill + elecBill + SERVICE_FEE);
-    const net = subtotal + existingPenalty;
+    const net = subtotal + penalty;
 
     setInvoiceForm((p) => ({
       ...p,
       water: waterBill,
       electricity: elecBill,
       amount: net,
-      // penalty ไม่เปลี่ยน - ใช้ค่าเดิมจาก backend
     }));
   }, [
     invoiceForm.waterUnit,
     invoiceForm.electricityUnit,
     invoiceForm.rent,
-    // ✅ เอา penalty-related dependencies ออก เพื่อไม่ให้คำนวณ penalty ใหม่
+    invoiceForm.penalty,
   ]);
 
   //============= cleanupBackdrops =============//
@@ -175,15 +185,18 @@ function InvoiceDetails() {
   //============= handleSave (PUT /invoice/update/{id}) =============//
   const handleSave = async (e) => {
     e.preventDefault();
+    console.log("🔧 handleSave called, current form:", invoiceForm);
 
+    // คำนวณค่า bill จาก unit ที่ผู้ใช้ป้อน
+    const waterBill = round(toNumber(invoiceForm.waterUnit) * RATE_WATER_PER_UNIT);
+    const elecBill = round(toNumber(invoiceForm.electricityUnit) * RATE_ELEC_PER_UNIT);
+    const rent = toNumber(invoiceForm.rent);
+    const penalty = toNumber(invoiceForm.penalty);
+    
     // แปลงค่าเป็น Integer ตาม DTO backend
-    const subTotalInt = Math.round(
-      toNumber(invoiceForm.rent) +
-      toNumber(invoiceForm.water) +
-      toNumber(invoiceForm.electricity)
-    );
-    const penaltyInt = Math.round(toNumber(invoiceForm.penalty));
-    const netInt = Math.round(toNumber(invoiceForm.amount));
+    const subTotalInt = Math.round(rent + waterBill + elecBill);
+    const penaltyInt = Math.round(penalty);
+    const netInt = Math.round(subTotalInt + penalty);
 
     const payload = {
       // ✅ ส่งข้อมูล unit ไปด้วยเพื่อให้ backend อัปเดต
@@ -204,6 +217,12 @@ function InvoiceDetails() {
       // notes: มีใน DTO แต่ entity ยังไม่มี — ไม่จำเป็นต้องส่ง
     };
 
+    console.log("🚀 Sending payload:", payload);
+    console.log("🔍 Current invoiceForm units:", { 
+      waterUnit: invoiceForm.waterUnit, 
+      electricityUnit: invoiceForm.electricityUnit 
+    });
+
     try {
       const res = await fetch(
         `${API_BASE}/invoice/update/${invoiceId || invoiceForm.id}`,
@@ -215,28 +234,33 @@ function InvoiceDetails() {
         }
       );
 
+      console.log("📡 Response status:", res.status, res.ok);
+
       if (!res.ok) {
         const t = await res.text().catch(() => "");
+        console.error("❌ Response error:", t);
         throw new Error(t || `HTTP ${res.status}`);
       }
 
       // ใช้ค่าที่ backend คำนวณกลับมา (ถ้าต้องการ)
       const updated = await res.json();
+      console.log("✅ Updated data from backend:", updated);
 
-      // อัปเดตหน้าด้วยข้อมูลล่าสุดจาก backend (แปลงให้อยู่รูปแบบฟอร์ม)
-      setInvoiceForm((p) => ({
-        ...p,
-        id: updated.id ?? p.id,
-        createDate: d2str(updated.createDate) || p.createDate,
-        // floor/room ไม่ได้แก้ผ่านอัปเดตนี้
-        rent: Number(updated.rent ?? p.rent) || p.rent,
-        water: Number(updated.water ?? p.water) || p.water,
-        electricity: Number(updated.electricity ?? p.electricity) || p.electricity,
-        amount: Number(updated.netAmount ?? updated.amount ?? p.amount) || p.amount,
-        status: (updated.status ?? updated.statusText ?? p.status).toLowerCase(),
-        penalty: Number(updated.penaltyTotal ?? p.penalty) || p.penalty,
-        penaltyDate: d2str(updated.penaltyAppliedAt) || p.penaltyDate,
-        payDate: d2str(updated.payDate) || p.payDate,
+      // อัปเดต invoiceForm หลัง Save สำเร็จ
+      setInvoiceForm((prev) => ({
+        ...prev,
+        id: updated.id ?? prev.id,
+        createDate: d2str(updated.createDate) || prev.createDate,
+        rent: Number(updated.rent ?? invoiceForm.rent) || prev.rent,
+        waterUnit: updated.waterUnit !== undefined ? Number(updated.waterUnit) : Number(invoiceForm.waterUnit),
+        electricityUnit: updated.electricityUnit !== undefined ? Number(updated.electricityUnit) : Number(invoiceForm.electricityUnit),
+        water: Number(updated.water ?? waterBill) || prev.water,
+        electricity: Number(updated.electricity ?? elecBill) || prev.electricity,
+        amount: Number(updated.netAmount ?? updated.amount ?? netInt) || prev.amount,
+        status: (updated.status ?? updated.statusText ?? invoiceForm.status).toLowerCase(),
+        penalty: Number(updated.penaltyTotal ?? invoiceForm.penalty) || prev.penalty,
+        penaltyDate: d2str(updated.penaltyAppliedAt) || prev.penaltyDate,
+        payDate: d2str(updated.payDate) || prev.payDate,
       }));
 
       // ✅ ปิด modal อย่างถูกต้องและ cleanup
@@ -266,14 +290,16 @@ function InvoiceDetails() {
           if (response.ok) {
             const freshData = await response.json();
             console.log("Fresh data after save:", freshData);
+            console.log("🔍 Fresh waterUnit:", freshData.waterUnit);
+            console.log("🔍 Fresh electricityUnit:", freshData.electricityUnit);
             
             setInvoiceForm(prev => ({
               ...prev,
               rent: Number(freshData.rent) || prev.rent,
               water: Number(freshData.water) || prev.water,
               electricity: Number(freshData.electricity) || prev.electricity,
-              waterUnit: Number(freshData.waterUnit) || prev.waterUnit,
-              electricityUnit: Number(freshData.electricityUnit) || prev.electricityUnit,
+              waterUnit: freshData.waterUnit !== undefined ? Number(freshData.waterUnit) : prev.waterUnit,
+              electricityUnit: freshData.electricityUnit !== undefined ? Number(freshData.electricityUnit) : prev.electricityUnit,
               amount: Number(freshData.netAmount || freshData.amount) || prev.amount,
               penalty: Number(freshData.penaltyTotal || freshData.penalty) || prev.penalty,
               status: (freshData.invoiceStatus === 1 ? "complete" : 
@@ -286,9 +312,13 @@ function InvoiceDetails() {
           console.error("Failed to refresh data after save:", error);
         }
       }, 300);
+      
+      // แสดงข้อความสำเร็จ
+      showMessageSave();
+      
     } catch (err) {
       console.error("Save failed:", err);
-      alert(`Update failed: ${err.message}`);
+      showMessageError(`Update failed: ${err.message}`);
     }
   };
 

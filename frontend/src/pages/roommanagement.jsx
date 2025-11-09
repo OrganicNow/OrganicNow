@@ -4,7 +4,6 @@ import axios from "axios";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
 import Pagination from "../component/pagination";
-import { useToast } from "../component/Toast.jsx";
 import { pageSize as defaultPageSize, apiPath } from "../config_variable";
 import useMessage from "../component/useMessage";
 import "../assets/css/roommanagement.css";
@@ -165,11 +164,12 @@ function RoomManagement() {
   );
 
   const handleDeleteRoom = async (roomId) => {
-    if (!window.confirm("Are you sure you want to delete this room?")) return;
+    const result = await showMessageConfirmDelete(`room #${roomId}`);
+    if (!result.isConfirmed) return;
 
     try {
       await axios.delete(`${apiPath}/room/${roomId}`, { withCredentials: true });
-      showMessageSave("Room deleted successfully!");
+      showMessageSave();
       await fetchRooms();              // ✅ refresh rooms
       await fetchAvailableAssets();    // ✅ refresh asset list
     } catch (err) {

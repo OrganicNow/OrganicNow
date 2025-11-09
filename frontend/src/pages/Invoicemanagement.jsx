@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
 import Pagination from "../component/pagination";
-import { useToast } from "../component/Toast.jsx";
+import useMessage from "../component/useMessage";
 import { pageSize as defaultPageSize } from "../config_variable";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -13,7 +13,7 @@ const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
 
 function InvoiceManagement() {
   const navigate = useNavigate();
-  const { showSuccess, showError, showWarning } = useToast();
+  const { showMessageError, showMessageSave, showMessageConfirmDelete, showMessageAdjust } = useMessage();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -32,6 +32,29 @@ function InvoiceManagement() {
   const [csvFile, setCsvFile] = useState(null);
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvResult, setCsvResult] = useState("");
+
+  // ===== Payment Management States =====
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [paymentRecords, setPaymentRecords] = useState([]);
+  const [paymentForm, setPaymentForm] = useState({
+    paymentAmount: '',
+    paymentMethod: 'BANK_TRANSFER',
+    paymentDate: new Date().toISOString().slice(0, 16),
+    transactionReference: '',
+    notes: '',
+    recordedBy: 'admin'
+  });
+  const [paymentMethods, setPaymentMethods] = useState({});
+  const [paymentStatuses, setPaymentStatuses] = useState({});
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
+
+  // ===== File Upload States =====
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [proofType, setProofType] = useState('BANK_SLIP');
+  const [proofDescription, setProofDescription] = useState('');
+  const [uploadingProof, setUploadingProof] = useState(false);
 
   // ====== DATA จาก Backend ======
   const [data, setData] = useState([]);
@@ -473,6 +496,8 @@ function InvoiceManagement() {
 
   // ====== ACTIONS ======
   const [selectedItems, setSelectedItems] = useState([]);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // ✅ ดาวน์โหลด PDF ใบแจ้งหนี้
   const handleDownloadPdf = async (invoice) => {
@@ -480,23 +505,54 @@ function InvoiceManagement() {
       setErr("");
       
       // แสดง loading สำหรับ PDF นั้น ๆ (optional)
-      showWarning(`กำลังสร้างไฟล์ PDF สำหรับใบแจ้งหนี้ ${invoice.id}...`);
+      // showWarning(`กำลังสร้างไฟล์ PDF สำหรับใบแจ้งหนี้ ${invoice.id}...`);
       
-      const response = await fetch(`${API_BASE}/invoice/pdf/${invoice.id}`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/pdf',
-        },
-      });
+      // ✅ ใช้วิธีสร้าง mock PDF แทน เนื่องจาก backend ยังไม่มี PDF endpoint
+      showMessageSave(`กำลังสร้าง PDF สำหรับใบแจ้งหนี้ #${invoice.id}...`);
+      
+      // Mock PDF content - สร้าง HTML แทน PDF ชั่วคราว
+      const printContent = `
+        <html>
+          <head>
+            <title>Invoice ${invoice.id}</title>
+            <style>
+              body { font-family: Arial, sans-serif; padding: 20px; }
+              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+              .invoice-info { margin-bottom: 20px; }
+              .invoice-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+              .invoice-table th, .invoice-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+              .invoice-table th { background-color: #f8f9fa; }
+              .total-row { background-color: #e9ecef; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>ใบแจ้งหนี้</h1>
+              <h2>Invoice #${invoice.id}</h2>
+              <p>วันที่: ${invoice.createDate}</p>
+            </div>
+            <div class="invoice-info">
+              <h3>ข้อมูลลูกค้า</h3>
+              <p><strong>ชื่อ:</strong> ${invoice.firstName} ${invoice.lastName}</p>
+              <p><strong>ห้อง:</strong> ชั้น ${invoice.floor} ห้อง ${invoice.room}</p>
+            </div>
+            <table class="invoice-table">
+              <thead>
+                <tr><th>รายการ</th><th>จำนวนเงิน (บาท)</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>ค่าเช่า</td><td>${invoice.rent?.toLocaleString()}</td></tr>
+                <tr><td>ค่าน้ำ</td><td>${invoice.water?.toLocaleString()}</td></tr>
+                <tr><td>ค่าไฟ</td><td>${invoice.electricity?.toLocaleString()}</td></tr>
+                <tr class="total-row"><td><strong>รวมทั้งสิ้น</strong></td><td><strong>${invoice.amount?.toLocaleString()} บาท</strong></td></tr>
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
 
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        throw new Error(errorText || `Failed to generate PDF (HTTP ${response.status})`);
-      }
-
-      // ดาวน์โหลดไฟล์
-      const blob = await response.blob();
+      // สร้าง HTML file และ download
+      const blob = new Blob([printContent], { type: 'text/html' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -513,12 +569,133 @@ function InvoiceManagement() {
       // Cleanup
       window.URL.revokeObjectURL(url);
       
-      showSuccess(`📄 ดาวน์โหลด PDF ใบแจ้งหนี้ ${invoice.id} สำเร็จแล้ว!`);
+      showMessageSave();
       
     } catch (error) {
       console.error('PDF Download Error:', error);
       setErr(`ดาวน์โหลด PDF ล้มเหลว: ${error.message}`);
-      showError(`❌ ดาวน์โหลด PDF ล้มเหลว: ${error.message}`);
+      showMessageError(`ดาวน์โหลด PDF ล้มเหลว: ${error.message}`);
+    }
+  };
+
+  // ✅ ดาวน์โหลด PDF หลายใบพร้อมกัน
+  const handleBulkDownloadPdf = async () => {
+    if (selectedItems.length === 0) {
+      showMessageError("กรุณาเลือกใบแจ้งหนี้ที่ต้องการดาวน์โหลด");
+      return;
+    }
+
+    setBulkDownloading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      showMessageSave(`กำลังดาวน์โหลด PDF ${selectedItems.length} ใบ...`);
+
+      for (const invoiceId of selectedItems) {
+        const invoice = pageRows.find(item => item.id === invoiceId);
+        if (!invoice) continue;
+
+        try {
+          const response = await fetch(`${API_BASE}/invoice/pdf/${invoice.id}`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Invoice_${invoice.id}_${invoice.firstName}_${invoice.lastName}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            successCount++;
+          } else {
+            console.error(`Failed to download PDF for invoice ${invoice.id}`);
+            errorCount++;
+          }
+        } catch (error) {
+          console.error(`Error downloading PDF for invoice ${invoice.id}:`, error);
+          errorCount++;
+        }
+
+        // หน่วงเวลาเล็กน้อยเพื่อไม่ให้ request มากเกินไป
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      if (successCount > 0) {
+        showMessageSave(`ดาวน์โหลด PDF สำเร็จ ${successCount} ใบ${errorCount > 0 ? `, ไม่สำเร็จ ${errorCount} ใบ` : ''}`);
+      } else {
+        showMessageError("ไม่สามารถดาวน์โหลด PDF ได้");
+      }
+
+      // เคลียร์การเลือก
+      setSelectedItems([]);
+
+    } catch (error) {
+      console.error('Bulk download error:', error);
+      showMessageError("เกิดข้อผิดพลาดในการดาวน์โหลด PDF");
+    } finally {
+      setBulkDownloading(false);
+    }
+  };
+
+  // ✅ ลบใบแจ้งหนี้หลายรายการพร้อมกัน
+  const handleBulkDelete = async () => {
+    if (selectedItems.length === 0) {
+      showMessageError("กรุณาเลือกใบแจ้งหนี้ที่ต้องการลบ");
+      return;
+    }
+
+    const confirmed = await showMessageConfirmDelete(
+      `คุณต้องการลบใบแจ้งหนี้ ${selectedItems.length} รายการ ใช่หรือไม่?`,
+      "การลบจะไม่สามารถกู้คืนได้"
+    );
+
+    if (!confirmed) return;
+
+    setBulkDeleting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const invoiceId of selectedItems) {
+        try {
+          const response = await fetch(`${API_BASE}/invoice/delete/${invoiceId}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            console.error(`Failed to delete invoice ${invoiceId}`);
+            errorCount++;
+          }
+        } catch (error) {
+          console.error(`Error deleting invoice ${invoiceId}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        showMessageSave(`ลบใบแจ้งหนี้สำเร็จ ${successCount} รายการ${errorCount > 0 ? `, ไม่สำเร็จ ${errorCount} รายการ` : ''}`);
+        fetchData(); // รีเฟรชข้อมูล
+      } else {
+        showMessageError("ไม่สามารถลบใบแจ้งหนี้ได้");
+      }
+
+      // เคลียร์การเลือก
+      setSelectedItems([]);
+
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      showMessageError("เกิดข้อผิดพลาดในการลบใบแจ้งหนี้");
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -527,10 +704,316 @@ function InvoiceManagement() {
     console.log('Update functionality not yet implemented for:', item);
   };
 
+  // ===== Payment Management Functions =====
+
+  // เปิด Payment Management Modal
+  const handlePaymentManagement = async (invoice) => {
+    setSelectedInvoice(invoice);
+    setShowPaymentModal(true);
+    await loadPaymentRecords(invoice.id);
+    await loadPaymentMethods();
+  };
+
+  // โหลดข้อมูล Payment Records
+  const loadPaymentRecords = async (invoiceId) => {
+    try {
+      setLoadingPayments(true);
+      const response = await fetch(`${API_BASE}/api/payments/records/invoice/${invoiceId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentRecords(data);
+      } else {
+        console.error('Failed to load payment records');
+        setPaymentRecords([]);
+      }
+    } catch (error) {
+      console.error('Error loading payment records:', error);
+      setPaymentRecords([]);
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  // โหลดข้อมูล Payment Methods
+  const loadPaymentMethods = async () => {
+    try {
+      const [methodsResponse, statusesResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/payments/payment-methods`).catch(() => null),
+        fetch(`${API_BASE}/api/payments/payment-statuses`).catch(() => null)
+      ]);
+
+      if (methodsResponse?.ok) {
+        const methods = await methodsResponse.json();
+        setPaymentMethods(methods);
+      } else {
+        // Fallback payment methods
+        setPaymentMethods({
+          'CASH': 'เงินสด',
+          'BANK_TRANSFER': 'โอนเงิน',
+          'PROMPTPAY': 'พร้อมเพย์',
+          'CREDIT_CARD': 'บัตรเครดิต'
+        });
+      }
+
+      if (statusesResponse?.ok) {
+        const statuses = await statusesResponse.json();
+        setPaymentStatuses(statuses);
+      } else {
+        // Fallback payment statuses
+        setPaymentStatuses({
+          'PENDING': 'รอยืนยัน',
+          'CONFIRMED': 'ยืนยันแล้ว',
+          'REJECTED': 'ปฏิเสธ'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading payment methods:', error);
+      // Set fallback values when error occurs
+      setPaymentMethods({
+        'CASH': 'เงินสด',
+        'BANK_TRANSFER': 'โอนเงิน',
+        'PROMPTPAY': 'พร้อมเพย์',
+        'CREDIT_CARD': 'บัตรเครดิต'
+      });
+      setPaymentStatuses({
+        'PENDING': 'รอยืนยัน',
+        'CONFIRMED': 'ยืนยันแล้ว',
+        'REJECTED': 'ปฏิเสธ'
+      });
+    }
+  };
+
+  // เพิ่มการบันทึกการชำระเงิน
+  const handleAddPayment = async (e) => {
+    e.preventDefault();
+    
+    if (!selectedInvoice) {
+      showMessageError('ไม่พบข้อมูลใบแจ้งหนี้');
+      return;
+    }
+    
+    // Validate form data
+    if (!paymentForm.paymentAmount || parseFloat(paymentForm.paymentAmount) <= 0) {
+      showMessageError('กรุณาระบุจำนวนเงินที่ถูกต้อง');
+      return;
+    }
+    
+    try {
+      setSavingPayment(true);
+      
+      const paymentData = {
+        invoiceId: selectedInvoice.id,
+        paymentAmount: parseFloat(paymentForm.paymentAmount),
+        paymentMethod: paymentForm.paymentMethod,
+        paymentDate: new Date(paymentForm.paymentDate).toISOString(),
+        transactionReference: paymentForm.transactionReference,
+        notes: paymentForm.notes,
+        recordedBy: paymentForm.recordedBy || 'admin'
+      };
+
+      const response = await fetch(`${API_BASE}/api/payments/records`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(paymentData)
+      });
+
+      if (response.ok) {
+        showMessageSave();
+        
+        // รีเซ็ตฟอร์ม
+        setPaymentForm({
+          paymentAmount: '',
+          paymentMethod: 'BANK_TRANSFER',
+          paymentDate: new Date().toISOString().slice(0, 16),
+          transactionReference: '',
+          notes: '',
+          recordedBy: 'admin'
+        });
+        
+        // โหลดข้อมูลใหม่
+        await loadPaymentRecords(selectedInvoice.id);
+        await fetchData(); // อัปเดตตาราง Invoice
+        
+      } else {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(errorText || `HTTP ${response.status}`);
+      }
+      
+    } catch (error) {
+      console.error('Error adding payment:', error);
+      showMessageError(`เพิ่มการบันทึกการชำระเงินล้มเหลว: ${error.message}`);
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
+  // ดาวน์โหลดหลักฐานการชำระเงิน
+  const handleViewProof = async (proofId, fileName) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/payments/proofs/${proofId}/download`, {
+        method: 'GET'
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        
+        // สร้าง element สำหรับดาวน์โหลด
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName || `หลักฐาน_${proofId}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // ทำความสะอาด URL
+        window.URL.revokeObjectURL(url);
+        
+        showMessageSave();
+      } else {
+        showMessageError('ไม่สามารถดาวน์โหลดหลักฐานได้');
+      }
+    } catch (error) {
+      console.error('Error downloading proof:', error);
+      showMessageError('เกิดข้อผิดพลาดในการดาวน์โหลดหลักฐาน');
+    }
+  };
+
+  // อัปโหลดหลักฐานการชำระเงิน
+  const handleUploadProof = async () => {
+    if (!selectedFile) {
+      showMessageError('กรุณาเลือกไฟล์');
+      return;
+    }
+
+    if (!selectedInvoice) {
+      showMessageError('ไม่พบข้อมูลใบแจ้งหนี้');
+      return;
+    }
+
+    // ตรวจสอบขนาดไฟล์ (ไม่เกิน 5MB)
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      showMessageError('ขนาดไฟล์ไม่ควรเกิน 5MB');
+      return;
+    }
+
+    // ตรวจสอบประเภทไฟล์
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    if (!allowedTypes.includes(selectedFile.type)) {
+      showMessageError('รองรับเฉพาะไฟล์ JPG, PNG, GIF และ PDF');
+      return;
+    }
+
+    try {
+      setUploadingProof(true);
+      
+      // ถ้าไม่มี payment records ให้เพิ่มก่อน
+      if (!paymentRecords.length) {
+        showMessageError('กรุณาเพิ่มการบันทึกการชำระเงินก่อนอัปโหลดหลักฐาน');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('proofType', proofType);
+      formData.append('description', proofDescription || 'หลักฐานการชำระเงิน');
+      formData.append('uploadedBy', 'admin');
+
+      // ใช้ payment record ล่าสุด
+      const latestPaymentId = paymentRecords[0]?.id;
+      if (!latestPaymentId) {
+        throw new Error('ไม่พบการบันทึกการชำระเงิน');
+      }
+
+      const response = await fetch(`${API_BASE}/api/payments/records/${latestPaymentId}/proofs`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        showMessageSave();
+        
+        // รีเซ็ต form
+        setSelectedFile(null);
+        setProofType('BANK_SLIP');
+        setProofDescription('');
+        
+        // Clear file input
+        const fileInput = document.querySelector('input[type="file"]');
+        if (fileInput) fileInput.value = '';
+        
+        // โหลดข้อมูลใหม่
+        await loadPaymentRecords(selectedInvoice.id);
+        
+      } else {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('Upload failed:', errorText);
+        throw new Error(errorText || `HTTP ${response.status}`);
+      }
+      
+    } catch (error) {
+      console.error('Error uploading proof:', error);
+      showMessageError(`อัปโหลดหลักฐานล้มเหลว: ${error.message}`);
+    } finally {
+      setUploadingProof(false);
+    }
+  };
+
+  // อัปเดตสถานะการชำระ
+  const handleUpdatePaymentStatus = async (paymentId, newStatus) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/payments/records/${paymentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paymentStatus: newStatus
+        })
+      });
+
+      if (response.ok) {
+        showMessageSave();
+        await loadPaymentRecords(selectedInvoice.id);
+        await fetchData(); // อัปเดตตาราง Invoice
+      } else {
+        throw new Error('Failed to update payment status');
+      }
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      showMessageError(`อัปเดตสถานะการชำระเงินล้มเหลว: ${error.message}`);
+    }
+  };
+
+  // ลบการบันทึกการชำระเงิน
+  const handleDeletePayment = async (paymentId) => {
+    const result = await showMessageConfirmDelete('payment record');
+    if (!result.isConfirmed) return;
+    
+    try {
+      const response = await fetch(`${API_BASE}/api/payments/records/${paymentId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        showMessageSave();
+        await loadPaymentRecords(selectedInvoice.id);
+        await fetchData(); // อัปเดตตาราง Invoice
+      } else {
+        throw new Error('Failed to delete payment record');
+      }
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      showMessageError(`ลบการบันทึกการชำระเงินล้มเหลว: ${error.message}`);
+    }
+  };
+
   // ✅ ลบใบแจ้งหนี้ (DELETE /invoice/delete/{id})
   const handleDelete = async (id) => {
-    const yes = window.confirm("ต้องการลบใบแจ้งหนี้นี้หรือไม่?");
-    if (!yes) return;
+    const result = await showMessageConfirmDelete(`ใบแจ้งหนี้ #${id}`);
+    if (!result.isConfirmed) return;
 
     try {
       setDeletingId(id);
@@ -549,11 +1032,11 @@ function InvoiceManagement() {
 
       // ลบสำเร็จ → ตัดแถวออกจาก state
       setData((prev) => prev.filter((x) => x.id !== id));
-      showSuccess("🗑️ ลบ Invoice สำเร็จแล้ว!");
+      showMessageSave();
     } catch (e) {
       console.error(e);
       setErr(e.message || "ลบไม่สำเร็จ");
-      showError(`❌ ลบ Invoice ล้มเหลว: ${e.message}`);
+      showMessageError(`ลบ Invoice ล้มเหลว: ${e.message}`);
     } finally {
       setDeletingId(null);
     }
@@ -569,17 +1052,22 @@ function InvoiceManagement() {
     });
   };
 
-  const handleSelectRow = (rowIndex) => {
-    setSelectedItems((prev) =>
-      prev.includes(rowIndex) ? prev.filter((i) => i !== rowIndex) : [...prev, rowIndex]
-    );
+  const handleSelectRow = (invoiceId) => {
+    console.log('🔍 Selecting invoice:', invoiceId);
+    setSelectedItems((prev) => {
+      const newSelection = prev.includes(invoiceId) 
+        ? prev.filter((i) => i !== invoiceId) 
+        : [...prev, invoiceId];
+      console.log('🔍 New selection:', newSelection);
+      return newSelection;
+    });
   };
 
   const handleSelectAll = () => {
     if (selectedItems.length === pageRows.length) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(pageRows.map((_, idx) => idx));
+      setSelectedItems(pageRows.map((item) => item.id));
     }
   };
 
@@ -662,12 +1150,12 @@ function InvoiceManagement() {
       
       await fetchData(); // refresh list เพื่อดูข้อมูลจริงจาก database
       
-      showSuccess("🎉 สร้าง Invoice สำเร็จแล้ว!");
+      showMessageSave();
       return true;
     } catch (e) {
       console.error(e);
       setErr(`Create invoice failed: ${e.message}`);
-      showError(`❌ สร้าง Invoice ล้มเหลว: ${e.message}`);
+      showMessageError(`สร้าง Invoice ล้มเหลว: ${e.message}`);
       return false;
     } finally {
       setSaving(false);
@@ -684,12 +1172,12 @@ function InvoiceManagement() {
 
   const handleCsvImport = async () => {
     if (!csvFile) {
-      showError("Please select a CSV file first");
+      showMessageError("Please select a CSV file first");
       return;
     }
 
     if (!csvFile.name.toLowerCase().endsWith('.csv')) {
-      showError("Please select a valid CSV file");
+      showMessageError("Please select a valid CSV file");
       return;
     }
 
@@ -708,7 +1196,7 @@ function InvoiceManagement() {
       if (response.ok) {
         const result = await response.text();
         setCsvResult(result);
-        showSuccess("CSV imported successfully!");
+        showMessageSave();
         
         // Refresh the invoice list
         setTimeout(() => {
@@ -720,7 +1208,7 @@ function InvoiceManagement() {
       }
     } catch (error) {
       console.error('CSV Import Error:', error);
-      showError(`Failed to import CSV: ${error.message}`);
+      showMessageError(`Failed to import CSV: ${error.message}`);
       setCsvResult(`Error: ${error.message}`);
     } finally {
       setCsvUploading(false);
@@ -770,6 +1258,60 @@ function InvoiceManagement() {
                       />
                     </div>
                   </div>
+
+                  {/* แสดงปุ่มจัดการหลายรายการเมื่อมีการเลือก */}
+                  {selectedItems.length > 0 && (
+                    <div className="d-flex align-items-center gap-2 me-3">
+                      <span className="badge bg-primary">{selectedItems.length} รายการที่เลือก</span>
+                      <button
+                        type="button"
+                        className="btn btn-outline-success btn-sm"
+                        onClick={handleBulkDownloadPdf}
+                        disabled={bulkDownloading}
+                        title={`ดาวน์โหลด PDF ${selectedItems.length} ใบ`}
+                      >
+                        {bulkDownloading ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-1"></span>
+                            ดาวน์โหลด...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-file-earmark-pdf-fill me-1"></i>
+                            ดาวน์โหลด PDF ({selectedItems.length})
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger btn-sm"
+                        onClick={handleBulkDelete}
+                        disabled={bulkDeleting}
+                        title={`ลบ ${selectedItems.length} รายการ`}
+                      >
+                        {bulkDeleting ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-1"></span>
+                            ลบ...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-trash-fill me-1"></i>
+                            ลบ ({selectedItems.length})
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm"
+                        onClick={() => setSelectedItems([])}
+                        title="ยกเลิกการเลือก"
+                      >
+                        <i className="bi bi-x-circle me-1"></i>
+                        ยกเลิก
+                      </button>
+                    </div>
+                  )}
 
                   {/* Right cluster: Create / Refresh */}
                   <div className="d-flex align-items-center gap-2">
@@ -841,9 +1383,14 @@ function InvoiceManagement() {
               <table className="table text-nowrap">
                 <thead>
                   <tr>
-                    {/* <th className="text-center header-color checkbox-cell">
-                      <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} />
-                    </th> */}
+                    <th className="text-center header-color" style={{ width: '40px', padding: '8px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={isAllSelected} 
+                        onChange={handleSelectAll}
+                        style={{ transform: 'scale(1.1)' }}
+                      />
+                    </th>
                     <th className="text-center align-middle header-color">Order</th>
                     <th className="text-center align-middle header-color">Create date</th>
                     <th className="text-start align-middle header-color">First Name</th>
@@ -863,20 +1410,21 @@ function InvoiceManagement() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="12" className="text-center">
+                      <td colSpan="14" className="text-center">
                         Loading...
                       </td>
                     </tr>
                   ) : pageRows.length > 0 ? (
                     pageRows.map((item, idx) => (
                       <tr key={`${item.id}-${idx}`}>
-                        {/* <td className="align-middle text-center checkbox-cell">
+                        <td className="align-middle text-center" style={{ width: '40px', padding: '8px' }}>
                           <input
                             type="checkbox"
-                            checked={selectedItems.includes(idx)}
-                            onChange={() => handleSelectRow(idx)}
+                            checked={selectedItems.includes(item.id)}
+                            onChange={() => handleSelectRow(item.id)}
+                            style={{ transform: 'scale(1.1)' }}
                           />
-                        </td> */}
+                        </td>
                         <td className="align-middle text-center">
                           {(currentPage - 1) * pageSize + idx + 1}
                         </td>
@@ -918,6 +1466,14 @@ function InvoiceManagement() {
                             <i className="bi bi-eye-fill"></i>
                           </button>
                           <button
+                            className="btn btn-sm btn-success me-1"
+                            onClick={() => handlePaymentManagement(item)}
+                            aria-label="Manage payments"
+                            title="จัดการการชำระเงิน"
+                          >
+                            <i className="bi bi-credit-card-fill"></i>
+                          </button>
+                          <button
                             className="btn btn-sm form-Button-Edit me-1"
                             onClick={() => handleDownloadPdf(item)}
                             aria-label="Download PDF"
@@ -939,7 +1495,7 @@ function InvoiceManagement() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="12" className="text-center">
+                      <td colSpan="14" className="text-center">
                         No invoices found
                       </td>
                     </tr>
@@ -1439,6 +1995,377 @@ A201,22,140,2024-11,20,8`}
                       Import CSV
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Payment Management Modal ===== */}
+      {showPaymentModal && selectedInvoice && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-credit-card-fill me-2"></i>
+                  จัดการการชำระเงิน - Invoice #{selectedInvoice.id}
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowPaymentModal(false)}
+                ></button>
+              </div>
+              
+              <div className="modal-body">
+                {/* Invoice Summary */}
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <div className="card">
+                      <div className="card-body">
+                        <h6 className="card-title">ข้อมูลใบแจ้งหนี้</h6>
+                        <p className="mb-1"><strong>ลูกค้า:</strong> {selectedInvoice.firstName} {selectedInvoice.lastName}</p>
+                        <p className="mb-1"><strong>ห้อง:</strong> {selectedInvoice.floor}/{selectedInvoice.room}</p>
+                        <p className="mb-1"><strong>ยอดรวม:</strong> <span className="text-primary fw-bold">{selectedInvoice.amount?.toLocaleString()} บาท</span></p>
+                        <p className="mb-0">
+                          <strong>สถานะ:</strong> 
+                          <span className={`badge ms-2 ${selectedInvoice.status === 'Complete' ? 'bg-success' : 'bg-warning text-dark'}`}>
+                            {selectedInvoice.status === 'Complete' ? 'ชำระแล้ว' : 'ยังไม่ชำระ'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="col-md-6">
+                    <div className="card">
+                      <div className="card-body">
+                        <h6 className="card-title">สรุปการชำระ</h6>
+                        {selectedInvoice.totalPaidAmount !== undefined ? (
+                          <>
+                            <p className="mb-1"><strong>ชำระแล้ว:</strong> <span className="text-success fw-bold">{selectedInvoice.totalPaidAmount?.toLocaleString()} บาท</span></p>
+                            <p className="mb-1"><strong>รอยืนยัน:</strong> <span className="text-warning fw-bold">{selectedInvoice.totalPendingAmount?.toLocaleString()} บาท</span></p>
+                            <p className="mb-0"><strong>คงเหลือ:</strong> <span className="text-danger fw-bold">{selectedInvoice.remainingAmount?.toLocaleString()} บาท</span></p>
+                          </>
+                        ) : (
+                          <p className="text-muted">กำลังโหลดข้อมูล...</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Add Payment Form */}
+                <div className="card mb-4">
+                  <div className="card-header">
+                    <h6 className="mb-0"><i className="bi bi-plus-circle me-2"></i>เพิ่มการบันทึกการชำระเงิน</h6>
+                  </div>
+                  <div className="card-body">
+                    <form onSubmit={handleAddPayment}>
+                      <div className="row g-3">
+                        <div className="col-md-3">
+                          <label className="form-label">จำนวนเงิน *</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            value={paymentForm.paymentAmount}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, paymentAmount: e.target.value }))}
+                            step="0.01"
+                            min="0"
+                            required
+                          />
+                        </div>
+                        
+                        <div className="col-md-3">
+                          <label className="form-label">วิธีการชำระ *</label>
+                          <select
+                            className="form-select"
+                            value={paymentForm.paymentMethod}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                            required
+                          >
+                            {Object.entries(paymentMethods).map(([key, value]) => (
+                              <option key={key} value={key}>{value}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div className="col-md-3">
+                          <label className="form-label">วันที่ชำระ *</label>
+                          <input
+                            type="datetime-local"
+                            className="form-control"
+                            value={paymentForm.paymentDate}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, paymentDate: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        
+                        <div className="col-md-3">
+                          <label className="form-label">เลขที่อ้างอิง</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={paymentForm.transactionReference}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, transactionReference: e.target.value }))}
+                            placeholder="เลขที่โอนเงิน"
+                          />
+                        </div>
+                        
+                        <div className="col-md-9">
+                          <label className="form-label">หมายเหตุ</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={paymentForm.notes}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, notes: e.target.value }))}
+                            placeholder="หมายเหตุเพิ่มเติม"
+                          />
+                        </div>
+                        
+                        <div className="col-md-3">
+                          <label className="form-label">ผู้บันทึก</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={paymentForm.recordedBy}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, recordedBy: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        
+                        <div className="col-12">
+                          <button
+                            type="submit"
+                            className="btn btn-success"
+                            disabled={savingPayment}
+                          >
+                            {savingPayment ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm me-2"></span>
+                                กำลังบันทึก...
+                              </>
+                            ) : (
+                              <>
+                                <i className="bi bi-plus-circle me-2"></i>
+                                เพิ่มการบันทึกการชำระ
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                {/* File Upload Section for Payment Proofs */}
+                <div className="card mb-4">
+                  <div className="card-header">
+                    <h6 className="mb-0">
+                      <i className="bi bi-cloud-upload me-2"></i>
+                      อัปโหลดหลักฐานการชำระเงิน (ทางเลือก)
+                    </h6>
+                  </div>
+                  <div className="card-body">
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label">เลือกไฟล์</label>
+                        <input
+                          type="file"
+                          className="form-control"
+                          accept="image/*,.pdf"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              // Validate file size
+                              if (file.size > 5 * 1024 * 1024) {
+                                showMessageError('ขนาดไฟล์ไม่ควรเกิน 5MB');
+                                e.target.value = '';
+                                return;
+                              }
+                              
+                              // Validate file type
+                              const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+                              if (!allowedTypes.includes(file.type)) {
+                                showMessageError('รองรับเฉพาะไฟล์ JPG, PNG, GIF และ PDF');
+                                e.target.value = '';
+                                return;
+                              }
+                              
+                              setSelectedFile(file);
+                            }
+                          }}
+                        />
+                        <div className="form-text">
+                          รองรับ: รูปภาพ (JPG, PNG, GIF), PDF | ขนาดไม่เกิน 5MB
+                          {selectedFile && (
+                            <div className="mt-1">
+                              <span className="badge bg-info">
+                                📎 {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="col-md-3">
+                        <label className="form-label">ประเภทหลักฐาน</label>
+                        <select 
+                          className="form-select"
+                          value={proofType}
+                          onChange={(e) => setProofType(e.target.value)}
+                        >
+                          <option value="BANK_SLIP">สลิปโอนเงิน</option>
+                          <option value="RECEIPT">ใบเสร็จ</option>
+                          <option value="BANK_STATEMENT">Statement ธนาคาร</option>
+                          <option value="OTHER">อื่นๆ</option>
+                        </select>
+                      </div>
+
+                      <div className="col-md-3">
+                        <label className="form-label">&nbsp;</label>
+                        <div>
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary"
+                            onClick={handleUploadProof}
+                            disabled={!selectedFile || uploadingProof}
+                          >
+                            {uploadingProof ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm me-2"></span>
+                                อัปโหลด...
+                              </>
+                            ) : (
+                              <>
+                                <i className="bi bi-upload me-2"></i>
+                                อัปโหลด
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="col-12">
+                        <label className="form-label">รายละเอียดเพิ่มเติม</label>
+                        <textarea
+                          className="form-control"
+                          rows="2"
+                          value={proofDescription}
+                          onChange={(e) => setProofDescription(e.target.value)}
+                          placeholder="รายละเอียดเพิ่มเติมเกี่ยวกับหลักฐาน (ถ้ามี)"
+                        ></textarea>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Records List */}
+                <div className="card">
+                  <div className="card-header">
+                    <h6 className="mb-0"><i className="bi bi-list me-2"></i>ประวัติการชำระเงิน</h6>
+                  </div>
+                  <div className="card-body">
+                    {loadingPayments ? (
+                      <div className="text-center py-3">
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        กำลังโหลดข้อมูล...
+                      </div>
+                    ) : paymentRecords.length > 0 ? (
+                      <div className="table-responsive">
+                        <table className="table table-hover">
+                          <thead>
+                            <tr>
+                              <th>วันที่ชำระ</th>
+                              <th>จำนวนเงิน</th>
+                              <th>วิธีการชำระ</th>
+                              <th>สถานะ</th>
+                              <th>เลขที่อ้างอิง</th>
+                              <th>หลักฐาน</th>
+                              <th>หมายเหตุ</th>
+                              <th>การจัดการ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paymentRecords.map((payment) => (
+                              <tr key={payment.id}>
+                                <td>{new Date(payment.paymentDate).toLocaleString('th-TH')}</td>
+                                <td className="fw-bold text-success">{payment.paymentAmount?.toLocaleString()} บาท</td>
+                                <td>{payment.paymentMethodDisplay}</td>
+                                <td>
+                                  <select
+                                    className={`form-select form-select-sm ${
+                                      payment.paymentStatus === 'CONFIRMED' ? 'text-success' :
+                                      payment.paymentStatus === 'PENDING' ? 'text-warning' : 'text-danger'
+                                    }`}
+                                    value={payment.paymentStatus}
+                                    onChange={(e) => handleUpdatePaymentStatus(payment.id, e.target.value)}
+                                  >
+                                    {Object.entries(paymentStatuses).map(([key, value]) => (
+                                      <option key={key} value={key}>{value}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td>{payment.transactionReference}</td>
+                                <td>
+                                  {payment.paymentProofs && payment.paymentProofs.length > 0 ? (
+                                    <div>
+                                      <span className="badge bg-info me-1">
+                                        <i className="bi bi-paperclip me-1"></i>
+                                        {payment.paymentProofs.length} ไฟล์
+                                      </span>
+                                      {payment.paymentProofs.map((proof, index) => (
+                                        <div key={proof.id} className="small d-flex align-items-center gap-2 mt-1">
+                                          <span>📎 {proof.fileName}</span>
+                                          <span className="badge bg-secondary">{proof.proofTypeDisplay}</span>
+                                          <button
+                                            className="btn btn-sm btn-outline-success"
+                                            onClick={() => handleViewProof(proof.id, proof.fileName)}
+                                            title="ดาวน์โหลดหลักฐาน"
+                                          >
+                                            <i className="bi bi-download"></i>
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted small">ไม่มีหลักฐาน</span>
+                                  )}
+                                </td>
+                                <td>{payment.notes}</td>
+                                <td>
+                                  <button
+                                    className="btn btn-sm btn-outline-danger"
+                                    onClick={() => handleDeletePayment(payment.id)}
+                                    title="ลบการบันทึก"
+                                  >
+                                    <i className="bi bi-trash"></i>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-3 text-muted">
+                        <i className="bi bi-inbox display-6"></i>
+                        <p>ยังไม่มีการบันทึกการชำระเงิน</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowPaymentModal(false)}
+                >
+                  ปิด
                 </button>
               </div>
             </div>

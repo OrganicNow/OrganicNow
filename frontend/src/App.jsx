@@ -1,8 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { NotificationProvider } from './contexts/NotificationContext';
-import { ToastProvider } from './contexts/ToastContext';
-import { ToastProvider as PrimeToastProvider } from './component/Toast.jsx';
 
 // Import pages
 import Dashboard from './pages/dashboard';
@@ -22,36 +20,32 @@ import MaintenanceDetails from './pages/MaintenanceDetails';
 
 function App() {
   return (
-    <ToastProvider>
-      <NotificationProvider>
-        <PrimeToastProvider>
-          <Router>
-            <Routes>
-              {/* ✅ Direct Routes - No authentication needed */}
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/roommanagement" element={<RoomManagement />} />
-              <Route path="/tenantmanagement" element={<TenantManagement />} />
-              <Route path="/invoicemanagement" element={<InvoiceManagement />} />
-              <Route path="/maintenancerequest" element={<MaintenanceRequest />} />
-              <Route path="/assetmanagement" element={<AssetManagement />} />
-              <Route path="/packagemanagement" element={<PackageManagement />} />
-              <Route path="/maintenanceschedule" element={<MaintenanceSchedule />} />
-              
-              {/* ✅ Detail Pages */}
-              <Route path="/tenantdetail/:contractId" element={<TenantDetail />} />
-              <Route path="/roomdetail/:roomId" element={<RoomDetail />} />
-              <Route path="/invoicedetails" element={<InvoiceDetails />} />
-              <Route path="/maintenancedetails" element={<MaintenanceDetails />} />
-              
-              {/* ✅ Fallback */}
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
-          </Router>
-        </PrimeToastProvider>
-      </NotificationProvider>
-    </ToastProvider>
+    <NotificationProvider>
+      <Router>
+        <Routes>
+          {/* ✅ Direct Routes - No authentication needed */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/roommanagement" element={<RoomManagement />} />
+          <Route path="/tenantmanagement" element={<TenantManagement />} />
+          <Route path="/invoicemanagement" element={<InvoiceManagement />} />
+          <Route path="/maintenancerequest" element={<MaintenanceRequest />} />
+          <Route path="/assetmanagement" element={<AssetManagement />} />
+          <Route path="/packagemanagement" element={<PackageManagement />} />
+          <Route path="/maintenanceschedule" element={<MaintenanceSchedule />} />
+          
+          {/* ✅ Detail Pages */}
+          <Route path="/tenantdetail/:contractId" element={<TenantDetail />} />
+          <Route path="/roomdetail/:roomId" element={<RoomDetail />} />
+          <Route path="/invoicedetails" element={<InvoiceDetails />} />
+          <Route path="/maintenancedetails" element={<MaintenanceDetails />} />
+          
+          {/* ✅ Fallback */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </Router>
+    </NotificationProvider>
   );
 }
 

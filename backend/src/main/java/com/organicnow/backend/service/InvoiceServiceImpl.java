@@ -2,18 +2,9 @@ package com.organicnow.backend.service;
 
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.*;
-import com.organicnow.backend.dto.CreateInvoiceRequest;
-import com.organicnow.backend.dto.InvoiceDto;
-import com.organicnow.backend.dto.UpdateInvoiceRequest;
-import com.organicnow.backend.dto.UtilityUsageDto;
-import com.organicnow.backend.model.Contract;
-import com.organicnow.backend.model.Invoice;
-import com.organicnow.backend.model.Room;
-import com.organicnow.backend.model.Tenant;
-import com.organicnow.backend.model.PackagePlan;
-import com.organicnow.backend.repository.ContractRepository;
-import com.organicnow.backend.repository.InvoiceRepository;
-import com.organicnow.backend.repository.RoomRepository;
+import com.organicnow.backend.dto.*;
+import com.organicnow.backend.model.*;
+import com.organicnow.backend.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -22,6 +13,7 @@ import java.awt.Color;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -34,13 +26,16 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final InvoiceRepository invoiceRepository;
     private final ContractRepository contractRepository;
     private final RoomRepository roomRepository;
+    private final PaymentRecordRepository paymentRecordRepository;
 
     public InvoiceServiceImpl(InvoiceRepository invoiceRepository,
                               ContractRepository contractRepository,
-                              RoomRepository roomRepository) {
+                              RoomRepository roomRepository,
+                              PaymentRecordRepository paymentRecordRepository) {
         this.invoiceRepository = invoiceRepository;
         this.contractRepository = contractRepository;
         this.roomRepository = roomRepository;
+        this.paymentRecordRepository = paymentRecordRepository;
     }
 
     // ===== CRUD =====
@@ -236,6 +231,20 @@ public class InvoiceServiceImpl implements InvoiceService {
             amountTouched = true;
         }
 
+        // ===== หน่วยน้ำและไฟ =====
+        if (request.getWaterUnit() != null) {
+            int waterUnit = Math.max(0, request.getWaterUnit());
+            inv.setRequestedWaterUnit(waterUnit);
+            // คำนวณค่าน้ำจากหน่วย (30 บาท/หน่วย)
+            inv.setRequestedWater(waterUnit * 30);
+        }
+        if (request.getElectricityUnit() != null) {
+            int electricityUnit = Math.max(0, request.getElectricityUnit());
+            inv.setRequestedElectricityUnit(electricityUnit);
+            // คำนวณค่าไฟจากหน่วย (6.5 บาท/หน่วย)
+            inv.setRequestedElectricity((int) Math.round(electricityUnit * 6.5));
+        }
+
         if (request.getPenaltyAppliedAt() != null) {
             inv.setPenaltyAppliedAt(request.getPenaltyAppliedAt());
         }
@@ -331,6 +340,18 @@ public class InvoiceServiceImpl implements InvoiceService {
             }
         }
 
+        // ดึงข้อมูล Payment Records
+        List<PaymentRecord> paymentRecords = paymentRecordRepository.findByInvoiceIdOrderByPaymentDateDesc(invoice.getId());
+        List<PaymentRecordDto> paymentRecordDtos = paymentRecords.stream()
+                .map(PaymentRecordDto::fromEntity)
+                .toList();
+        
+        // คำนวณยอดเงินการชำระ
+        BigDecimal totalPaid = paymentRecordRepository.calculateTotalPaidAmount(invoice.getId());
+        BigDecimal totalPending = paymentRecordRepository.calculateTotalPendingAmount(invoice.getId());
+        BigDecimal invoiceAmount = BigDecimal.valueOf(invoice.getNetAmount());
+        BigDecimal remainingAmount = invoiceAmount.subtract(totalPaid);
+
         return InvoiceDto.builder()
                 .id(invoice.getId())
                 .contractId(invoice.getContact() != null ? invoice.getContact().getId() : null)
@@ -343,6 +364,11 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .penaltyTotal(invoice.getPenaltyTotal())
                 .netAmount(invoice.getSubTotal() + invoice.getPenaltyTotal()) // ✅ คำนวณ real-time
                 .penaltyAppliedAt(invoice.getPenaltyAppliedAt())
+                // Payment Information
+                .paymentRecords(paymentRecordDtos)
+                .totalPaidAmount(totalPaid)
+                .totalPendingAmount(totalPending)
+                .remainingAmount(remainingAmount)
                 // ✅ ใช้ข้อมูล tenant ปัจจุบัน
                 .firstName(currentFirstName)
                 .lastName(currentLastName)
@@ -371,13 +397,13 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .water(invoice.getRequestedWater() != null && invoice.getRequestedWater() > 0 
                         ? invoice.getRequestedWater() 
                         : (invoice.getSubTotal() != null ? Math.round(invoice.getSubTotal() * 0.2f) : 0))
-                .waterUnit(invoice.getRequestedWaterUnit() != null && invoice.getRequestedWaterUnit() > 0 
+                .waterUnit(invoice.getRequestedWaterUnit() != null 
                         ? invoice.getRequestedWaterUnit() 
                         : (invoice.getSubTotal() != null ? Math.round((invoice.getSubTotal() * 0.2f) / 30) : 0))
                 .electricity(invoice.getRequestedElectricity() != null && invoice.getRequestedElectricity() > 0 
                         ? invoice.getRequestedElectricity() 
                         : (invoice.getSubTotal() != null ? Math.round(invoice.getSubTotal() * 0.8f) : 0))
-                .electricityUnit(invoice.getRequestedElectricityUnit() != null && invoice.getRequestedElectricityUnit() > 0 
+                .electricityUnit(invoice.getRequestedElectricityUnit() != null 
                         ? invoice.getRequestedElectricityUnit() 
                         : (invoice.getSubTotal() != null ? Math.round((invoice.getSubTotal() * 0.8f) / 8) : 0))
                 // Penalty info

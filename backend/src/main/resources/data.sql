@@ -159,3 +159,32 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 -- สร้าง index สำหรับค้นหาชื่อผู้เช่าแบบพิมพ์ผิดได้
 CREATE INDEX IF NOT EXISTS idx_tenant_name_trgm
 ON tenant USING gin ((first_name || ' ' || last_name) gin_trgm_ops);
+
+-- ========================
+-- Payment Records และ Payment Proofs Tables
+-- ========================
+
+-- JPA จะสร้าง tables เองจาก Entity classes
+-- ไม่ต้องสร้าง tables ใน SQL เพราะ spring.jpa.hibernate.ddl-auto=create
+
+-- Payment Records Table จะถูกสร้างโดย JPA จาก PaymentRecord.java
+-- Payment Proofs Table จะถูกสร้างโดย JPA จาก PaymentProof.java
+
+-- ========================
+-- Sample Payment Records
+-- ========================
+
+-- เพิ่ม sample payments หลังจาก JPA สร้าง tables แล้ว
+-- Payment สำหรับ Invoice #1 (Somchai - ชำระแล้ว)
+-- INSERT INTO payment_records (invoice_id, payment_amount, payment_method, payment_status, payment_date, transaction_reference, notes, recorded_by) VALUES
+-- (1, 8000.00, 'BANK_TRANSFER', 'CONFIRMED', '2025-10-03 14:30:00', 'TXN001234567', 'โอนผ่านแอป', 'admin'),
+-- (2, 4000.00, 'CASH', 'CONFIRMED', '2025-11-01 09:15:00', 'CSH001', 'เงินสดจ่ายบางส่วน', 'admin'),
+-- (3, 8000.00, 'PROMPTPAY', 'PENDING', '2025-12-01 16:45:00', 'PP789123456', 'รอยืนยันการโอน', 'admin')
+-- ON CONFLICT DO NOTHING;
+
+-- Payment สำหรับ Invoice #4 (Suda - ชำระแล้ว)  
+-- INSERT INTO payment_records (invoice_id, payment_amount, payment_method, payment_status, payment_date, transaction_reference, notes, recorded_by) VALUES
+-- (4, 15000.00, 'BANK_TRANSFER', 'CONFIRMED', '2025-10-02 11:20:00', 'TXN987654321', 'โอนครบจำนวน', 'admin'),
+-- (5, 10000.00, 'BANK_TRANSFER', 'CONFIRMED', '2025-11-02 10:30:00', 'TXN111222333', 'จ่ายบางส่วน', 'admin'),
+-- (5, 5000.00, 'CASH', 'PENDING', '2025-11-03 15:00:00', 'CSH002', 'เงินสดส่วนที่เหลือ', 'admin')
+-- ON CONFLICT DO NOTHING;
