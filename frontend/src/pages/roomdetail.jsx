@@ -7,6 +7,7 @@ import "../assets/css/roomdetail.css";
 import useMessage from "../component/useMessage";
 import { apiPath } from "../config_variable";
 
+
 function RoomDetail() {
   const { roomId: id } = useParams();
   const [roomData, setRoomData] = useState(null);
@@ -17,20 +18,27 @@ function RoomDetail() {
   const [assetGroups, setAssetGroups] = useState([]);
   const [assetsToShow, setAssetsToShow] = useState(10);
   const [selectedGroup, setSelectedGroup] = useState("all");
+  const [assetHistory, setAssetHistory] = useState([]); // 🆕 asset event history
 
-  // ✅ โหลดข้อมูลห้อง + asset groups
+  // 🆕 สำหรับ Modal เหตุผล
+  const [showReasonModal, setShowReasonModal] = useState(false);
+  const [reasonType, setReasonType] = useState("addon");
+
+  // ✅ โหลดข้อมูลห้อง + asset groups + event logs
   useEffect(() => {
     const fetchRoomDetail = async () => {
       try {
-        const [roomRes, assetRes, groupRes] = await Promise.all([
+        const [roomRes, assetRes, groupRes, eventRes] = await Promise.all([
           axios.get(`${apiPath}/room/${id}/detail`, { withCredentials: true }),
           axios.get(`${apiPath}/assets/all`, { withCredentials: true }),
           axios.get(`${apiPath}/asset-group/list`, { withCredentials: true }),
+          axios.get(`${apiPath}/room/${id}/events`, { withCredentials: true }),
         ]);
 
         const roomData = roomRes.data;
         const allAssets = assetRes.data.result;
         const assetGroups = groupRes.data;
+        const assetEvents = eventRes.data || [];
 
         // ✅ หา assets ที่ถูกใช้แล้ว
         const allUsedAssetIds = new Set();
@@ -67,6 +75,7 @@ function RoomDetail() {
 
         setRoomData(roomData);
         setAssetGroups(assetGroups);
+        setAssetHistory(assetEvents);
         setForm((prevState) => ({
           ...prevState,
           allAssets: updatedAssets,
@@ -86,12 +95,13 @@ function RoomDetail() {
     fetchRoomDetail();
   }, [id]);
 
-  const filterAssetsByGroup = (group) => {
-    if (group === "all") return form.allAssets;
-    return form.allAssets.filter((asset) => asset.assetType === group);
+  const filterAssetsByGroup = (groupId) => {
+    if (groupId === "all") return form.allAssets;
+    return form.allAssets.filter(
+      (asset) => String(asset.assetGroupId) === String(groupId)
+    );
   };
 
-  // ✅ แปะ class สีตาม package
   const getPackageBadgeClass = (contractName) => {
     if (!contractName) return "bg-secondary";
     if (contractName.includes("3")) return "bg-warning text-dark";
@@ -99,6 +109,52 @@ function RoomDetail() {
     if (contractName.includes("9")) return "bg-info text-white";
     if (contractName.includes("1")) return "bg-primary text-white";
     return "bg-secondary";
+  };
+
+  // 🆕 ยืนยันและบันทึกด้วยเหตุผล
+  const handleSaveWithReason = async () => {
+    try {
+      const selectedIds = form.allAssets
+        .filter((a) => a.checked && !a.isMock)
+        .map((a) => a.assetId);
+
+      await axios.put(
+        `${apiPath}/room/${id}/assets/event`,
+        {
+          assetIds: selectedIds,
+          reasonType: reasonType,
+        },
+        { withCredentials: true }
+      );
+
+      await axios.put(
+        `${apiPath}/room/${id}`,
+        {
+          roomFloor: form.roomFloor,
+          roomNumber: form.roomNumber,
+          roomSize: form.roomSize,
+          status: form.status,
+        },
+        { withCredentials: true }
+      );
+
+      const refreshed = await axios.get(`${apiPath}/room/${id}/detail`, {
+        withCredentials: true,
+      });
+      setRoomData(refreshed.data);
+
+      const refreshedHistory = await axios.get(`${apiPath}/room/${id}/events`, {
+        withCredentials: true,
+      });
+      setAssetHistory(refreshedHistory.data);
+
+      showMessageSave("Room updated with reason logged successfully!");
+      setShowReasonModal(false);
+      document.querySelector('[data-bs-dismiss="modal"]').click();
+    } catch (err) {
+      console.error("Error:", err);
+      showMessageError("Error while updating room with reason");
+    }
   };
 
   if (loading) return <p className="text-center mt-5">Loading...</p>;
@@ -109,7 +165,7 @@ function RoomDetail() {
     <Layout title="Room Detail" icon="bi bi-folder" notifications={3}>
       <div className="container-fluid">
         <div className="row min-vh-100">
-          <div className="col-lg-11 p-4 mx-auto">
+          <div className="col-lg-12 p-4 mx-auto">
             {/* ===== Toolbar ===== */}
             <div className="card border-0 shadow-sm bg-white rounded-3 mb-4">
               <div className="card-body d-flex justify-content-between align-items-center">
@@ -121,7 +177,9 @@ function RoomDetail() {
                     Room Management
                   </Link>
                   <span className="text-muted">›</span>
-                  <span className="breadcrumb-current">{roomData.roomNumber}</span>
+                  <span className="breadcrumb-current">
+                    {roomData.roomNumber}
+                  </span>
                 </div>
 
                 <div className="d-flex align-items-center gap-2">
@@ -249,9 +307,23 @@ function RoomDetail() {
                           Request History
                         </button>
                       </li>
+                      {/* 🆕 Asset History Tab */}
+                      <li className="nav-item" role="presentation">
+                        <button
+                          className="nav-link"
+                          id="history-tab"
+                          data-bs-toggle="tab"
+                          data-bs-target="#history"
+                          type="button"
+                          role="tab"
+                        >
+                          Asset History
+                        </button>
+                      </li>
                     </ul>
 
                     <div className="tab-content mt-3">
+                      {/* ===== Assets ===== */}
                       <div
                         className="tab-pane fade show active"
                         id="assets"
@@ -272,6 +344,7 @@ function RoomDetail() {
                         )}
                       </div>
 
+                      {/* ===== Requests ===== */}
                       <div
                         className="tab-pane fade"
                         id="requests"
@@ -306,6 +379,56 @@ function RoomDetail() {
                           <p className="text-muted">No requests found</p>
                         )}
                       </div>
+
+                      {/* 🆕 ===== Asset History ===== */}
+                      <div
+                        className="tab-pane fade"
+                        id="history"
+                        role="tabpanel"
+                      >
+                        {assetHistory.length > 0 ? (
+                          <table className="table table-striped text-nowrap">
+                            <thead>
+                              <tr>
+                                <th>Order</th>
+                                <th>Type</th>
+                                <th>Asset</th>
+                                <th>Reason</th>
+                                <th>Created</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {assetHistory.map((ev) => (
+                                <tr key={ev.eventId}>
+                                  <td>{ev.eventId}</td>
+                                  <td>
+                                    <span
+                                      className={`badge ${
+                                        ev.eventType === "added"
+                                          ? "bg-success"
+                                          : "bg-danger"
+                                      }`}
+                                    >
+                                      {ev.eventType}
+                                    </span>
+                                  </td>
+                                  <td>{ev.assetName}</td>
+                                  <td>{ev.reasonType || "-"}</td>
+                                  <td>
+                                    {ev.createdAt
+                                      ? new Date(ev.createdAt).toLocaleString()
+                                      : "-"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : (
+                          <p className="text-muted">
+                            No asset history found for this room.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -318,43 +441,9 @@ function RoomDetail() {
       {/* ===== Edit Modal ===== */}
       <Modal id="editRoomModal" title="Edit Room" icon="bi bi-pencil-square">
         <form
-          onSubmit={async (e) => {
+          onSubmit={(e) => {
             e.preventDefault();
-            try {
-              const selectedIds = form.allAssets
-                .filter((a) => a.checked && !a.isMock)
-                .map((a) => a.assetId);
-
-              // ✅ อัปเดต assets
-              await axios.put(`${apiPath}/room/${id}/assets`, selectedIds, {
-                withCredentials: true,
-              });
-
-              // ✅ อัปเดตข้อมูลห้อง
-              await axios.put(
-                `${apiPath}/room/${id}`,
-                {
-                  roomFloor: form.roomFloor,
-                  roomNumber: form.roomNumber,
-                  roomSize: form.roomSize,
-                  status: form.status,
-                },
-                { withCredentials: true }
-              );
-
-              // ✅ โหลดใหม่หลังบันทึก
-              const refreshed = await axios.get(
-                `${apiPath}/room/${id}/detail`,
-                { withCredentials: true }
-              );
-              setRoomData(refreshed.data);
-
-              showMessageSave("Room updated successfully!");
-              document.querySelector('[data-bs-dismiss="modal"]').click();
-            } catch (err) {
-              console.error("Error while updating room data", err);
-              showMessageError("Error while updating room data");
-            }
+            setShowReasonModal(true);
           }}
         >
           {/* Floor / Room / Size / Status */}
@@ -422,8 +511,8 @@ function RoomDetail() {
             >
               <option value="all">All Groups</option>
               {assetGroups.map((group) => (
-                <option key={group.assetGroupName} value={group.assetGroupName}>
-                  {group.assetGroupName}
+                <option key={group.id} value={group.id}>
+                  {group.name}
                 </option>
               ))}
             </select>
@@ -491,6 +580,84 @@ function RoomDetail() {
           </div>
         </form>
       </Modal>
+
+      {/* ===== 🆕 Reason Modal ===== */}
+      {showReasonModal && (
+        <div
+          className="modal fade show"
+          tabIndex="-1" // ✅ ปลดล็อก focus trap
+          onMouseDown={(e) => e.stopPropagation()} // ✅ ป้องกัน modal แรกดึง focus กลับ
+          onClick={(e) => e.stopPropagation()} // ✅ ป้องกัน backdrop modal แรกบัง event
+          style={{
+            display: "block",
+            background: "rgba(0,0,0,0.4)",
+            zIndex: 2000, // ✅ ให้อยู่บนสุด
+          }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content p-3">
+              <h5 className="modal-title mb-3">Select Reason for Update</h5>
+
+              <div className="form-check mb-2">
+                <input
+                  type="radio"
+                  className="form-check-input"
+                  id="addon"
+                  value="addon"
+                  checked={reasonType === "addon"}
+                  onChange={(e) => setReasonType(e.target.value)}
+                />
+                <label className="form-check-label" htmlFor="addon">
+                  Addon
+                </label>
+              </div>
+
+              <div className="form-check mb-2">
+                <input
+                  type="radio"
+                  className="form-check-input"
+                  id="damage"
+                  value="damage"
+                  checked={reasonType === "damage"}
+                  onChange={(e) => setReasonType(e.target.value)}
+                />
+                <label className="form-check-label" htmlFor="damage">
+                  Damage
+                </label>
+              </div>
+
+              <div className="form-check mb-3">
+                <input
+                  type="radio"
+                  className="form-check-input"
+                  id="free"
+                  value="free"
+                  checked={reasonType === "free"}
+                  onChange={(e) => setReasonType(e.target.value)}
+                />
+                <label className="form-check-label" htmlFor="free">
+                  Free Replacement
+                </label>
+              </div>
+
+              <div className="d-flex justify-content-end gap-2">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowReasonModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleSaveWithReason}
+                >
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

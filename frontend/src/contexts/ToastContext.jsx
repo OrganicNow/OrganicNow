@@ -51,7 +51,7 @@ export const ToastProvider = ({ children }) => {
 
     const showMaintenanceCreated = (schedule) => {
         showToast(
-            '✅ Maintenance Schedule Created',
+            'Maintenance Schedule Created',
             `New maintenance schedule "${schedule.scheduleTitle}" has been created successfully.`,
             'success',
             6000

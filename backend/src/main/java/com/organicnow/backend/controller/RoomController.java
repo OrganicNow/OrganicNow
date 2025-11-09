@@ -1,22 +1,21 @@
 package com.organicnow.backend.controller;
 
+import com.organicnow.backend.dto.AssetEventRequestDto;
 import com.organicnow.backend.dto.RoomDetailDto;
 import com.organicnow.backend.dto.RoomUpdateDto;
 import com.organicnow.backend.model.Room;
+import com.organicnow.backend.model.AssetEvent;
 import com.organicnow.backend.service.RoomService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.DeleteMapping;
-
-
 import java.util.List;
 
 @RestController
 @RequestMapping("/room")
 @RequiredArgsConstructor
 @CrossOrigin(
-        origins = {"http://localhost:5173", "http://localhost:3000"},
+        origins = {"http://localhost:5173", "http://localhost:3000", "http://app.localtest.me"},
         allowCredentials = "true",
         allowedHeaders = "*",
         methods = {
@@ -50,7 +49,6 @@ public class RoomController {
         return getAllRooms();
     }
 
-    // ✅ เพิ่มห้องใหม่
     @PostMapping
     public ResponseEntity<?> createRoom(@RequestBody RoomUpdateDto dto) {
         try {
@@ -62,10 +60,7 @@ public class RoomController {
     }
 
     @PostMapping("/{roomId}/assets/{assetId}")
-    public ResponseEntity<?> addAssetToRoom(
-            @PathVariable Long roomId,
-            @PathVariable Long assetId
-    ) {
+    public ResponseEntity<?> addAssetToRoom(@PathVariable Long roomId, @PathVariable Long assetId) {
         try {
             roomService.addAssetToRoom(roomId, assetId);
             return ResponseEntity.ok().body("Asset added successfully");
@@ -75,10 +70,7 @@ public class RoomController {
     }
 
     @DeleteMapping("/{roomId}/assets/{assetId}")
-    public ResponseEntity<?> removeAssetFromRoom(
-            @PathVariable Long roomId,
-            @PathVariable Long assetId
-    ) {
+    public ResponseEntity<?> removeAssetFromRoom(@PathVariable Long roomId, @PathVariable Long assetId) {
         try {
             roomService.removeAssetFromRoom(roomId, assetId);
             return ResponseEntity.ok().body("Asset removed successfully");
@@ -88,10 +80,7 @@ public class RoomController {
     }
 
     @PutMapping("/{roomId}/assets")
-    public ResponseEntity<?> updateRoomAssets(
-            @PathVariable Long roomId,
-            @RequestBody List<Long> assetIds
-    ) {
+    public ResponseEntity<?> updateRoomAssets(@PathVariable Long roomId, @RequestBody List<Long> assetIds) {
         try {
             roomService.updateRoomAssets(roomId, assetIds);
             return ResponseEntity.ok("Room assets updated successfully");
@@ -101,10 +90,7 @@ public class RoomController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateRoomInfo(
-            @PathVariable Long id,
-            @RequestBody RoomUpdateDto dto
-    ) {
+    public ResponseEntity<?> updateRoomInfo(@PathVariable Long id, @RequestBody RoomUpdateDto dto) {
         try {
             roomService.updateRoom(id, dto);
             return ResponseEntity.ok("Room info updated successfully");
@@ -112,6 +98,7 @@ public class RoomController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteRoom(@PathVariable Long id) {
         try {
@@ -123,6 +110,29 @@ public class RoomController {
             return ResponseEntity.internalServerError().body("Unexpected error: " + e.getMessage());
         }
     }
+
+    // 🆕 ✅ อัปเดต asset พร้อมเหตุผล
+    @PutMapping("/{roomId}/assets/event")
+    public ResponseEntity<?> updateRoomAssetsWithReason(
+            @PathVariable Long roomId,
+            @RequestBody AssetEventRequestDto request
+    ) {
+        try {
+            roomService.updateRoomAssetsWithReason(
+                    roomId,
+                    request.getAssetIds(),
+                    request.getReasonType(),
+                    request.getNote()
+            );
+            return ResponseEntity.ok("Room assets updated with reason logged");
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // 🆕 ✅ ดึงประวัติ event log ของห้อง
+    @GetMapping("/{roomId}/events")
+    public ResponseEntity<?> getRoomAssetEvents(@PathVariable Long roomId) {
+        return ResponseEntity.ok(roomService.getRoomAssetEvents(roomId));
+    }
 }
-
-
