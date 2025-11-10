@@ -440,16 +440,22 @@ public class InvoiceServiceImpl implements InvoiceService {
         BigDecimal totalPending = paymentRecordRepository.calculateTotalPendingAmount(invoice.getId()); // PENDING only
         BigDecimal totalReceived = paymentRecordRepository.calculateTotalReceivedAmount(invoice.getId()); // CONFIRMED + PENDING
         
-        // 🔧 แก้ไข: ใช้ netAmount ที่คำนวณจริง ไม่ใช่ค่าที่บันทึกไว้
-        int realSubTotal = invoice.getSubTotal() != null ? invoice.getSubTotal() : 0;
+        // 🔧 แก้ไข: คำนวณ SubTotal และ NetAmount จากส่วนประกอบจริง
+        int rent = invoice.getRequestedRent() != null ? invoice.getRequestedRent() : 
+                   (invoice.getContact() != null && invoice.getContact().getRentAmountSnapshot() != null ? 
+                    invoice.getContact().getRentAmountSnapshot().intValue() : 0);
+        int water = invoice.getRequestedWater() != null ? invoice.getRequestedWater() : 0;
+        int electricity = invoice.getRequestedElectricity() != null ? invoice.getRequestedElectricity() : 0;
+        int realSubTotal = rent + water + electricity;
         int realPenalty = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
         int realNetAmount = realSubTotal + realPenalty;
         
         BigDecimal invoiceAmount = BigDecimal.valueOf(realNetAmount);
         BigDecimal remainingAmount = invoiceAmount.subtract(totalReceived != null ? totalReceived : BigDecimal.ZERO);
         
-        System.out.println("💰 Invoice #" + invoice.getId() + " - SubTotal: " + realSubTotal + 
-                         ", Penalty: " + realPenalty + ", NetAmount: " + realNetAmount + 
+        System.out.println("💰 Invoice #" + invoice.getId() + 
+                         " - Rent: " + rent + ", Water: " + water + ", Electricity: " + electricity +
+                         " - SubTotal: " + realSubTotal + ", Penalty: " + realPenalty + ", NetAmount: " + realNetAmount + 
                          ", Paid: " + (totalReceived != null ? totalReceived.intValue() : 0) + 
                          ", Remaining: " + remainingAmount.intValue());
 
@@ -475,8 +481,13 @@ public class InvoiceServiceImpl implements InvoiceService {
                         BigDecimal otherReceived = paymentRecordRepository.calculateTotalReceivedAmount(otherInvoice.getId());
                         int otherReceivedAmount = otherReceived != null ? otherReceived.intValue() : 0;
                         
-                        // คำนวณ netAmount จริงของใบก่อนหน้า
-                        int otherSubTotal = otherInvoice.getSubTotal() != null ? otherInvoice.getSubTotal() : 0;
+                        // 🔧 คำนวณ netAmount จริงของใบก่อนหน้า - ใช้ส่วนประกอบเหมือนกัน
+                        int otherRent = otherInvoice.getRequestedRent() != null ? otherInvoice.getRequestedRent() : 
+                                       (otherInvoice.getContact() != null && otherInvoice.getContact().getRentAmountSnapshot() != null ? 
+                                        otherInvoice.getContact().getRentAmountSnapshot().intValue() : 0);
+                        int otherWater = otherInvoice.getRequestedWater() != null ? otherInvoice.getRequestedWater() : 0;
+                        int otherElectricity = otherInvoice.getRequestedElectricity() != null ? otherInvoice.getRequestedElectricity() : 0;
+                        int otherSubTotal = otherRent + otherWater + otherElectricity;
                         int otherPenalty = otherInvoice.getPenaltyTotal() != null ? otherInvoice.getPenaltyTotal() : 0;
                         int otherNetAmount = otherSubTotal + otherPenalty;
                         
@@ -484,10 +495,9 @@ public class InvoiceServiceImpl implements InvoiceService {
                         int otherRemaining = otherNetAmount - otherReceivedAmount;
                         
                         System.out.println("🔍 Previous Invoice #" + otherInvoice.getId() + 
-                                         " - SubTotal: " + otherSubTotal + 
-                                         ", Penalty: " + otherPenalty + 
-                                         ", NetAmount: " + otherNetAmount + 
-                                         ", Received: " + otherReceivedAmount + 
+                                         " - Rent: " + otherRent + ", Water: " + otherWater + ", Electricity: " + otherElectricity +
+                                         " - SubTotal: " + otherSubTotal + ", Penalty: " + otherPenalty + 
+                                         ", NetAmount: " + otherNetAmount + ", Received: " + otherReceivedAmount + 
                                          ", Remaining: " + otherRemaining);
                         
                         if (otherRemaining > 0) {
@@ -512,7 +522,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .invoiceStatus(invoice.getInvoiceStatus())
                 .payDate(invoice.getPayDate())
                 .payMethod(invoice.getPayMethod())
-                .subTotal(invoice.getSubTotal())
+                .subTotal(realSubTotal) // ✅ ใช้ค่าที่คำนวณจากส่วนประกอบ
                 .penaltyTotal(invoice.getPenaltyTotal())
                 .netAmount(realNetAmount) // ✅ ใช้ค่าที่คำนวณใหม่
                 .penaltyAppliedAt(invoice.getPenaltyAppliedAt())
@@ -546,23 +556,16 @@ public class InvoiceServiceImpl implements InvoiceService {
                         ? invoice.getRequestedRoom()
                         : (invoice.getContact() != null && invoice.getContact().getRoom() != null
                             ? invoice.getContact().getRoom().getRoomNumber() : "N/A"))
-                .rent(invoice.getRequestedRent() != null 
-                        ? invoice.getRequestedRent()
-                        : (invoice.getContact() != null && invoice.getContact().getRentAmountSnapshot() != null
-                            ? invoice.getContact().getRentAmountSnapshot().intValue() : 0))
-                // ใช้ค่าน้ำและค่าไฟจาก request ที่บันทึกไว้ หรือคำนวณจาก subTotal สำหรับข้อมูลเก่า
-                .water(invoice.getRequestedWater() != null && invoice.getRequestedWater() > 0 
-                        ? invoice.getRequestedWater() 
-                        : (invoice.getSubTotal() != null ? Math.round(invoice.getSubTotal() * 0.2f) : 0))
+                .rent(rent) // ✅ ใช้ค่าที่คำนวณแล้ว
+                // ใช้ค่าน้ำและค่าไฟจาก request ที่บันทึกไว้ พร้อมหน่วย
+                .water(water) // ✅ ใช้ค่าที่คำนวณแล้ว
                 .waterUnit(invoice.getRequestedWaterUnit() != null 
                         ? invoice.getRequestedWaterUnit() 
-                        : (invoice.getSubTotal() != null ? Math.round((invoice.getSubTotal() * 0.2f) / 30) : 0))
-                .electricity(invoice.getRequestedElectricity() != null && invoice.getRequestedElectricity() > 0 
-                        ? invoice.getRequestedElectricity() 
-                        : (invoice.getSubTotal() != null ? Math.round(invoice.getSubTotal() * 0.8f) : 0))
+                        : (water > 0 ? Math.round(water / 30.0f) : 0))
+                .electricity(electricity) // ✅ ใช้ค่าที่คำนวณแล้ว
                 .electricityUnit(invoice.getRequestedElectricityUnit() != null 
                         ? invoice.getRequestedElectricityUnit() 
-                        : (invoice.getSubTotal() != null ? Math.round((invoice.getSubTotal() * 0.8f) / 8) : 0))
+                        : (electricity > 0 ? Math.round(electricity / 8.0f) : 0))
                 // Penalty info
                 .penalty(invoice.getPenaltyTotal() != null && invoice.getPenaltyTotal() > 0 ? 1 : 0)
                 .penaltyDate(invoice.getPenaltyAppliedAt())

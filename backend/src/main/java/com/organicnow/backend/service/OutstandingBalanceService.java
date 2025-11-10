@@ -49,13 +49,19 @@ public class OutstandingBalanceService {
             int receivedAmount = totalReceived != null ? totalReceived.intValue() : 0;
             System.out.println("💰 Invoice ID: " + invoice.getId() + " - Received Amount: " + receivedAmount + " บาท");
             
-            // คำนวณยอดคงเหลือ - ใช้ subTotal + penalty ไม่ใช่ netAmount ที่บันทึกไว้ 🔧
-            int subTotal = invoice.getSubTotal() != null ? invoice.getSubTotal() : 0;
+            // 🔧 คำนวณ subTotal จริงจากส่วนประกอบเหมือนใน convertToDto
+            int rent = invoice.getRequestedRent() != null ? invoice.getRequestedRent() : 
+                      (invoice.getContact() != null && invoice.getContact().getRentAmountSnapshot() != null ? 
+                       invoice.getContact().getRentAmountSnapshot().intValue() : 0);
+            int water = invoice.getRequestedWater() != null ? invoice.getRequestedWater() : 0;
+            int electricity = invoice.getRequestedElectricity() != null ? invoice.getRequestedElectricity() : 0;
+            int subTotal = rent + water + electricity; // คำนวณจากส่วนประกอบจริง
             int penaltyTotal = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
             int actualNetAmount = subTotal + penaltyTotal; // คำนวณใหม่
             int remaining = actualNetAmount - receivedAmount;
             
             System.out.println("📊 Invoice ID: " + invoice.getId() + 
+                             " - Rent: " + rent + ", Water: " + water + ", Electricity: " + electricity +
                              " - SubTotal: " + subTotal + ", Penalty: " + penaltyTotal + 
                              ", ActualNet: " + actualNetAmount + ", Received: " + receivedAmount + 
                              ", Remaining: " + remaining + " บาท");
