@@ -1,10 +1,13 @@
 import { NavLink, useLocation } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import "primeicons/primeicons.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "../assets/css/sidebar.css";
 
 export default function SideBar() {
   const location = useLocation();
+  const { hasPermission } = useAuth();
+  
   const linkClass = ({ isActive }) =>
     "sidebar-link" + (isActive ? " active" : "");
 
@@ -72,20 +75,17 @@ export default function SideBar() {
           <i className="bi bi-alarm icon-lg" />
         </NavLink>
 
-        <NavLink
-          to="/packagemanagement"
-          className={linkClass}
-          data-tooltip="Package Management"
-        >
-          <i className="bi bi-sticky icon-lg" />
-        </NavLink>
+        {/* Package Management - Super Admin Only */}
+        {hasPermission('super_admin') && (
+          <NavLink
+            to="/packagemanagement"
+            className={linkClass}
+            data-tooltip="Package Management (Super Admin Only)"
+          >
+            <i className="bi bi-sticky icon-lg" />
+          </NavLink>
+        )}
       </nav>
-
-      {/* ปุ่ม logout อยู่ล่างสุด */}
-      <button className="sidebar-logout">
-        <i className="pi pi-sign-out icon-lg" />
-        <span className="logout-text">Logout</span>
-      </button>
     </aside>
   );
 }

@@ -1,4 +1,12 @@
 -- ========================
+-- Admin (ข้อมูลเริ่มต้น)
+-- ========================
+INSERT INTO admin (admin_username, admin_password, admin_role) VALUES
+                                                                   ('admin', 'admin123', 0),
+                                                                   ('superadmin', 'admin123', 1)
+    ON CONFLICT (admin_username) DO NOTHING;
+
+-- ========================
 -- Room (2 ชั้น × 12 ห้อง)
 -- ========================
 INSERT INTO room (room_floor, room_number, room_size) VALUES

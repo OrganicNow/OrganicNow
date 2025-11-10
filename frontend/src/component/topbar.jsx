@@ -5,6 +5,7 @@ import { Avatar } from "primereact/avatar";
 import { Menu } from "primereact/menu";
 import { profileMenuItems, settingsMenuItems } from "./menuitem";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import NotificationBell from "./NotificationBell";
 import useMessage from "./useMessage";
 
@@ -17,18 +18,19 @@ export default function Topbar({ title = "", icon = "" }) {
   const profileMenu = useRef(null);
   const settingsMenu = useRef(null);
   const navigate = useNavigate();
+  const { logout, user } = useAuth();
   const { showMessageConfirmProcess } = useMessage();
 
   const handleLogout = async () => {
-    // ✅ แจ้งเตือนก่อน logout ด้วย SweetAlert2
+    // แจ้งเตือนก่อน logout ด้วย SweetAlert2
     const result = await showMessageConfirmProcess("Are you sure you want to logout?");
     if (result.isConfirmed) {
-      // ไม่มี auth context แล้ว สามารถ navigate ไปหน้าอื่นได้เลย
-      navigate("/dashboard", { replace: true });
+      logout();
+      navigate("/login", { replace: true });
     }
   };
 
-  // ✅ Enhanced profile menu with logout
+  // Enhanced profile menu with logout
   const enhancedProfileMenuItems = [
     ...profileMenuItems.filter(item => item.label !== "Logout"), // กรอง Logout ออกจาก profileMenuItems
     { separator: true },
@@ -70,7 +72,14 @@ export default function Topbar({ title = "", icon = "" }) {
             onClick={(e) => profileMenu.current.toggle(e)}
           >
             <Avatar icon="pi pi-user" shape="circle" className="topbar-avatar" />
-            <span className="topbar-username">Admin User</span>
+            <span className="topbar-username">
+              {user ? user.adminUsername : "Admin User"}
+              {user && (
+                <small style={{ display: 'block', fontSize: '0.7rem', color: '#666' }}>
+                  {user.adminRole === 1 ? 'Super Admin' : 'Admin'}
+                </small>
+              )}
+            </span>
             <Menu model={enhancedProfileMenuItems} popup ref={profileMenu} appendTo={document.body} />
           </div>
         </div>
