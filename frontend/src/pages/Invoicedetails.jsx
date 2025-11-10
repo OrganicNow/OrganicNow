@@ -577,14 +577,6 @@ function InvoiceDetails() {
                           <p><span className="label">PromptPay ID:</span> <span className="value fw-bold">0123456789</span></p>
                           <p><span className="label">Account Name:</span> <span className="value">OrganicNow Property Management</span></p>
                         </div>
-                        <div className="col-md-6">
-                          <div className="bg-light p-3 rounded-3">
-                            <small className="text-muted">
-                              <i className="bi bi-lightbulb me-1"></i>
-                              <strong>Quick Payment:</strong> Use mobile banking apps to scan the QR code above for instant payment.
-                            </small>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   </div>

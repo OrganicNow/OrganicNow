@@ -184,6 +184,46 @@ function MaintenanceRequest() {
     }
   };
 
+  // ✅ Download Maintenance Report PDF
+  const handleDownloadPdf = async (maintain) => {
+    try {
+      showMessageSave(`กำลังสร้าง PDF สำหรับงานซ่อมบำรุง #${maintain.id}...`);
+      
+      const response = await fetch(`${API_BASE}/maintain/${maintain.id}/report-pdf`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // ตั้งชื่อไฟล์ตามข้อมูล Maintenance
+        const fileName = `Maintenance_Report_${maintain.id}_${maintain.issueTitle?.replace(/[^a-zA-Z0-9]/g, '_') || 'Report'}.pdf`;
+        link.download = fileName;
+        
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        
+        showMessageSave(`ดาวน์โหลดรายงานการซ่อมบำรุง #${maintain.id} สำเร็จ`);
+      } else {
+        console.error(`Failed to download PDF for maintain ${maintain.id}: ${response.status} ${response.statusText}`);
+        showMessageError(`Cannot generate PDF: ${response.status} ${response.statusText}`);
+      }
+      
+    } catch (error) {
+      console.error('Maintenance PDF Download Error:', error);
+      showMessageError(`ดาวน์โหลด PDF ล้มเหลว: ${error.message}`);
+    }
+  };
+
   // ---------------- Create Request (modal form) ----------------
   const [saving, setSaving] = useState(false);
 
@@ -449,6 +489,13 @@ function MaintenanceRequest() {
                                 title="View / Edit"
                               >
                                 <i className="bi bi-eye-fill" />
+                              </button>
+                              <button
+                                className="border-0 bg-transparent p-1 me-1"
+                                onClick={() => handleDownloadPdf(row)}
+                                title="Download Report PDF"
+                              >
+                                <i className="bi bi-file-earmark-pdf-fill" />
                               </button>
                               <button
                                 className="btn btn-sm form-Button-Del"

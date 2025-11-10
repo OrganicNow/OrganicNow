@@ -13,4 +13,7 @@ public interface MaintainService {
     MaintainDto create(CreateMaintainRequest req);
     MaintainDto update(Long id, UpdateMaintainRequest req);
     void delete(Long id);
+    
+    // ✅ เพิ่ม PDF generation
+    byte[] generateMaintenanceReportPdf(Long maintainId);
 }

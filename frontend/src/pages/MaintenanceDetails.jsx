@@ -346,6 +346,35 @@ function MaintenanceDetails() {
     }
   };
 
+  // ✅ PDF Download function
+  const handleDownloadPdf = async () => {
+    if (!maintainId) {
+      showMessageError("ไม่พบข้อมูลงานซ่อมบำรุง");
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE}/maintain/${maintainId}/report-pdf`, {
+        method: "GET",
+        credentials: "include",
+      });
+      
+      if (!res.ok) throw new Error("ไม่สามารถสร้างรายงาน PDF ได้");
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `maintenance-report-${maintainId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      showMessageError(`Download failed: ${e.message}`);
+    }
+  };
+
   // ✅ Quick action handlers for status changes
   const handleMarkComplete = async () => {
     const today = new Date().toISOString().slice(0, 10);
