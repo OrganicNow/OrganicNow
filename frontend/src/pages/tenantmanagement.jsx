@@ -40,6 +40,10 @@ function TenantManagement() {
   const [packageId, setPackageId] = useState("");
   const [selectedFloor, setSelectedFloor] = useState("");
   const [selectedRoomId, setSelectedRoomId] = useState("");
+  // 🧾 Modal: PDF Action (เลือกโหลดหรืออัปโหลด)
+  const [showPdfModal, setShowPdfModal] = useState(false);
+  const [selectedContractId, setSelectedContractId] = useState(null);
+  const [hasSignedPdf, setHasSignedPdf] = useState(false);
 
   // 🏢 Reference data
   const [rooms, setRooms] = useState([]);
@@ -275,6 +279,76 @@ function TenantManagement() {
     setPageSize(size);
     fetchData(1);
     setCurrentPage(1);
+  };
+
+  // 📥 ดาวน์โหลดสัญญาที่ยังไม่เซ็น
+  const handleDownloadUnsignedPdf = async (contractId) => {
+    try {
+      const res = await axios.get(`${apiPath}/tenant/${contractId}/pdf`, {
+        responseType: "blob",
+        withCredentials: true,
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `tenant_${contractId}_unsigned.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      console.error("Error downloading unsigned PDF:", err);
+      showError("❌ ไม่สามารถดาวน์โหลดสัญญาที่ยังไม่เซ็นได้");
+    }
+  };
+
+  // 📝 ดาวน์โหลดสัญญาที่เซ็นแล้ว
+  const handleDownloadSignedPdf = async (contractId) => {
+    try {
+      const res = await axios.get(
+        `${apiPath}/tenant/${contractId}/pdf/signed`,
+        {
+          responseType: "blob",
+          withCredentials: true,
+        }
+      );
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `tenant_${contractId}_signed.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      if (err.response && err.response.status === 404) {
+        showWarning("⚠️ ยังไม่มีไฟล์สัญญาที่เซ็นแล้วในระบบ");
+      } else {
+        console.error("Error downloading signed PDF:", err);
+        showError("❌ ไม่สามารถดาวน์โหลดสัญญาที่เซ็นแล้วได้");
+      }
+    }
+  };
+  // ⬆️ อัปโหลดไฟล์สัญญาที่เซ็นแล้ว
+  const handleUploadSignedPdf = async (contractId, file) => {
+    if (!file) {
+      showWarning("⚠️ กรุณาเลือกไฟล์ก่อนอัปโหลด");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      await axios.post(`${apiPath}/tenant/${contractId}/pdf/upload`, formData, {
+        withCredentials: true,
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      showSuccess("✅ อัปโหลดไฟล์เซ็นแล้วสำเร็จ!");
+      setHasSignedPdf(true);
+    } catch (err) {
+      console.error("Error uploading signed PDF:", err);
+      showError("❌ ไม่สามารถอัปโหลดไฟล์ได้");
+    }
   };
 
   // 🧾 Create Tenant
@@ -568,10 +642,10 @@ function TenantManagement() {
                       Package
                     </th>
                     <th className="text-center align-top header-color">Rent</th>
-                    <th className="text-start align-top header-color">
+                    <th className="text-center align-top header-color">
                       End date
                     </th>
-                    <th className="text-start align-top header-color">
+                    <th className="text-center align-top header-color">
                       Phone Number
                     </th>
                     <th className="text-center align-top header-color">
@@ -652,9 +726,11 @@ function TenantManagement() {
                               </button>
                               <button
                                 className="btn btn-sm form-Button-Edit"
-                                onClick={() =>
-                                  handleDownloadPdf(item.contractId)
-                                }
+                                onClick={() => {
+                                  setSelectedContractId(item.contractId);
+                                  setHasSignedPdf(item.hasSignedPdf || false);
+                                  setShowPdfModal(true);
+                                }}
                               >
                                 <i className="bi bi-file-earmark-pdf-fill"></i>
                               </button>
@@ -1082,6 +1158,67 @@ function TenantManagement() {
           </div>
         </div>
       </div>
+      {/* 🧾 Modal: PDF Options */}
+      {showPdfModal && (
+        <div
+          className="modal fade show"
+          style={{
+            display: "block",
+            background: "rgba(0,0,0,0.4)",
+            zIndex: 2000,
+          }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content p-3 rounded-4 shadow">
+              <h5 className="modal-title mb-3">Contract PDF Options</h5>
+
+              <div className="d-grid gap-2 mb-3">
+                <button
+                  className="btn btn-outline-primary"
+                  onClick={() => handleDownloadUnsignedPdf(selectedContractId)}
+                >
+                  <i className="bi bi-file-earmark-text me-2"></i>
+                  Download Unsigned PDF
+                </button>
+
+                <button
+                  className="btn btn-outline-success"
+                  disabled={!hasSignedPdf}
+                  onClick={() => handleDownloadSignedPdf(selectedContractId)}
+                >
+                  <i className="bi bi-pencil-square me-2"></i>
+                  Download Signed PDF
+                </button>
+
+                <label className="btn btn-outline-secondary mb-0">
+                  <i className="bi bi-upload me-2"></i>
+                  Upload Signed Contract
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    hidden
+                    onChange={(e) =>
+                      handleUploadSignedPdf(
+                        selectedContractId,
+                        e.target.files[0]
+                      )
+                    }
+                  />
+                </label>
+              </div>
+
+              <div className="text-end">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowPdfModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

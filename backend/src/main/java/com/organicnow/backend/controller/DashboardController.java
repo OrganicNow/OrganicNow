@@ -9,7 +9,7 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/dashboard")
-@CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:5173", "http://app.localtest.me"}, allowCredentials = "true")
 @RequiredArgsConstructor
 public class DashboardController {
 

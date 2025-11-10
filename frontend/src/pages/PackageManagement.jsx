@@ -311,6 +311,7 @@ function PackageManagement() {
     };
 
     /* ===== Filter + Search + Sort ===== */
+    // ----- Filter -----
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
         let rows = [...packages];
@@ -331,25 +332,33 @@ function PackageManagement() {
             return true;
         });
 
+        // ----- search -----
         if (q) {
-            rows = rows.filter(
-                (p) =>
-                    (p.contractTypeName || "").toLowerCase().includes(q) ||
-                    String(p.rent).includes(q) ||
-                    (p.createDate && p.createDate.includes(q)) ||
-                    String(p.roomSize).includes(q)
+            const inc = (v) => String(v ?? "").toLowerCase().includes(q);
+
+            rows = rows.filter((p) =>
+                inc(p.contractTypeName) ||          // ค้นชื่อแพ็กเกจ
+                inc(p.rent) ||                      // ค้นราคา
+                inc(p.createDate) ||                // ค้นวันที่
+                inc(p.roomSize) ||                  // ค้นเลข room size เช่น 1, 2, 3
+                inc(p.roomSizeName)                 // ค้นชื่อ room size เช่น Studio, Deluxe
             );
         }
 
-        // sort by createDate asc/desc
-        const key = (x) => (x.createDate === "-" ? "" : x.createDate);
-        rows.sort((a, b) => (sortAsc ? key(a).localeCompare(key(b)) : key(b).localeCompare(key(a))));
-
-        // เสริม: จัดเรียงให้สวย: contractTypeId → roomSize → rent
+        // ----- Sort: ตาม contract type อย่างเดียว -----
         rows.sort((a, b) => {
-            if (a.contractTypeId !== b.contractTypeId) return a.contractTypeId - b.contractTypeId;
-            if (a.roomSize !== b.roomSize) return a.roomSize - b.roomSize;
-            return a.rent - b.rent;
+            const an = String(a.contractTypeId || "").toLowerCase();
+            const bn = String(b.contractTypeId || "").toLowerCase();
+
+            let cmp = an.localeCompare(bn, undefined, { numeric: true, sensitivity: "base" });
+
+            if (cmp === 0) {
+                // tie-breakers เพื่อให้ลำดับนิ่ง
+                if (a.roomSize !== b.roomSize) return a.roomSize - b.roomSize;
+                return a.rent - b.rent;
+            }
+
+            return sortAsc ? cmp : -cmp;
         });
 
         return rows;
@@ -463,8 +472,12 @@ function PackageManagement() {
                                             {hasAnyFilter && <span className="badge bg-primary ms-2">●</span>}
                                         </button>
 
-                                        <button className="btn btn-link tm-link p-0" onClick={() => setSortAsc((s) => !s)}>
-                                            <i className="bi bi-arrow-down-up me-1"></i> Sort
+                                        <button
+                                            className="btn btn-link tm-link p-0"
+                                            onClick={() => setSortAsc((s) => !s)}
+                                        >
+                                            <i className="bi bi-arrow-down-up me-1"></i>
+                                            Sort
                                         </button>
 
                                         <div className="input-group tm-search">
@@ -569,7 +582,10 @@ function PackageManagement() {
             </div>
 
             {/* Create Package Modal */}
-            <Modal id="createPackageModal" title="Create Package" con="bi bi-sticky" size="modal-lg">
+            <Modal id="createPackageModal"
+                   title="Create Package"
+                   icon="bi bi-sticky"
+                   size="modal-lg">
                 <form
                     onSubmit={(e) => {
                         e.preventDefault();
@@ -674,7 +690,10 @@ function PackageManagement() {
                     <h5 id="packageFilterCanvasLabel" className="mb-0">
                         <i className="bi bi-filter me-2"></i>Filters
                     </h5>
-                    <button type="button" className="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+                    <button type="button"
+                            className="btn-close"
+                            data-bs-dismiss="offcanvas"
+                            aria-label="Close"></button>
                 </div>
 
                 <div className="offcanvas-body">
@@ -745,7 +764,7 @@ function PackageManagement() {
                             />
                         </div>
 
-                        <div className="col-12 d-flex justify-content-between mt-2">
+                        <div className="col-12 d-flex justify-content-between mt-3">
                             <button type="button" className="btn btn-outline-secondary" onClick={clearFilters}>
                                 Clear
                             </button>

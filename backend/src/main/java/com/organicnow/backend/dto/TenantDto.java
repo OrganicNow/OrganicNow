@@ -41,6 +41,9 @@ public class TenantDto {
     // 🔹 สถานะ (0=หมดอายุ, 1=ใช้งาน, 2=ยังไม่เริ่ม, 3=ยกเลิก)
     private Integer status;
 
+    // 🆕 เพิ่ม field สำหรับเช็กว่ามีไฟล์เซ็นแล้วไหม
+    private boolean hasSignedPdf;
+
     // ---------- Constructor สำหรับ JPQL ----------
     public TenantDto(
             Long contractId,
@@ -58,7 +61,7 @@ public class TenantDto {
             String email,
             String nationalId,
             Integer status,
-            BigDecimal rentAmountSnapshot  // ✅ เพิ่มพารามิเตอร์นี้
+            BigDecimal rentAmountSnapshot
     ) {
         this.contractId = contractId;
         this.firstName = firstName;
@@ -75,6 +78,7 @@ public class TenantDto {
         this.email = email;
         this.nationalId = nationalId;
         this.status = status;
-        this.rentAmountSnapshot = rentAmountSnapshot; // ✅ set ค่าได้จริง
+        this.rentAmountSnapshot = rentAmountSnapshot;
+        this.hasSignedPdf = false; // default false
     }
 }
