@@ -49,27 +49,16 @@ function Dashboard() {
     }
   };
 
-  // 👉 Chart: Finance overview
-  const financeHistoryData = {
-    labels: finances.map((f) => f.month),
-    datasets: [
-      {
-        label: "On Time",
-        data: finances.map((f) => f.onTime),
-        backgroundColor: "rgb(166,70,255)",
-      },
-      {
-        label: "Penalty",
-        data: finances.map((f) => f.penalty),
-        backgroundColor: "rgba(84,191,255)",
-      },
-      {
-        label: "Overdue",
-        data: finances.map((f) => f.overdue),
-        backgroundColor: "rgba(255,108,191)",
-      },
-    ],
-  });
+  const getRoomUsageData = (roomNumber) => ({
+  title: `Room ${roomNumber} - Usage`,
+  categories: ["Jan", "Feb", "Mar", "Apr"],
+  series: [
+    { name: "Electricity (kWh)", data: [20, 30, 25, 40] },
+    { name: "Water (m³)", data: [5, 8, 6, 7] },
+  ],
+  yTitle: "Usage",
+  csvCategoryName: "Month",
+});
 
   // ✅ Request Overview (รวม)
   const maintainCategories = maintains.map((m) => m.month);
