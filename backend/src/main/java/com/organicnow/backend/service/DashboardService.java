@@ -21,25 +21,16 @@ public class DashboardService {
     private final MaintainRepository maintainRepository;
     private final InvoiceRepository invoiceRepository;
 
-    // ✅ ห้องทั้งหมด (0=available, 1=unavailable, 2=repair)
+    /** ✅ ห้องทั้งหมด (0=available, 1=unavailable, 2=repair) */
     public List<Map<String, Object>> getRoomStatuses() {
         return roomRepository.findAll().stream().map(r -> {
             Map<String, Object> map = new HashMap<>();
+
+            // ✅ ดึงข้อมูลจาก Entity โดยตรง
             map.put("roomNumber", r.getRoomNumber());
+            map.put("room_floor", r.getRoomFloor()); // 👈 ใช้ค่าจริงจาก DB
 
-            // ✅ หา floor: ถ้ามี field ใน entity Room ให้ใช้ getFloor() ได้เลย
-            Integer floor = null;
-            try {
-                // ถ้า Room entity มี field floor อยู่แล้วให้เปิดบรรทัดนี้แทน
-                // floor = r.getFloor();
-
-                if (floor == null) {
-                    floor = deriveFloorFromRoomNumber(r.getRoomNumber());
-                }
-            } catch (Exception ignored) { /* ignore */ }
-
-            map.put("room_floor", floor); // 👈 เพิ่มคีย์ใหม่ส่งไป frontend
-
+            // ✅ ตรวจสอบสถานะห้อง
             boolean hasContract = contractRepository.existsActiveContractByRoomId(r.getId());
             boolean hasMaintain = maintainRepository.existsActiveMaintainByRoomId(r.getId());
 
@@ -50,37 +41,23 @@ public class DashboardService {
             } else {
                 map.put("status", 0); // ว่าง = available
             }
+
             return map;
         }).toList();
     }
 
-    /** 🧮 Helper: คำนวณชั้นจากหมายเลขห้อง เช่น "101" → 1, "212" → 2 */
-    private Integer deriveFloorFromRoomNumber(Object roomNumber) {
-        if (roomNumber == null) return null;
-        String s = String.valueOf(roomNumber).trim();
-
-        // ดึงเฉพาะตัวเลขนำหน้า เช่น "201A" -> "201"
-        StringBuilder digits = new StringBuilder();
-        for (char c : s.toCharArray()) {
-            if (Character.isDigit(c)) digits.append(c);
-            else break;
-        }
-
-        if (digits.length() == 0) return null;
-
-        // สมมติรูปแบบรหัสห้องคือ 1xx / 2xx / 3xx → ใช้เลขหลักแรกเป็นชั้น
-        return Character.getNumericValue(digits.charAt(0));
-    }
-
-    // ✅ ข้อมูลรีเควส 12 เดือนล่าสุด
+    /** ✅ ข้อมูลรีเควส 12 เดือนล่าสุด */
     public List<MaintainMonthlyDto> getMaintainRequests() {
         return maintainRepository.countRequestsLast12Months()
                 .stream()
-                .map(r -> new MaintainMonthlyDto((String) r[0], (Long) r[1]))
+                .map(r -> new MaintainMonthlyDto(
+                        (String) r[0],
+                        ((Number) r[1]).longValue()
+                ))
                 .toList();
     }
 
-    // ✅ การเงินย้อนหลัง 12 เดือน
+    /** ✅ การเงินย้อนหลัง 12 เดือน */
     public List<FinanceMonthlyDto> getFinanceStats() {
         return invoiceRepository.countFinanceLast12Months()
                 .stream()
@@ -93,7 +70,7 @@ public class DashboardService {
                 .toList();
     }
 
-    // ✅ รวม Dashboard ทั้งหมด
+    /** ✅ รวม Dashboard ทั้งหมด */
     public DashboardDto getDashboardData() {
         return new DashboardDto(
                 getRoomStatuses(),
