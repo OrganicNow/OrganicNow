@@ -55,7 +55,7 @@ export default function Topbar({ title = "", icon = "" }) {
         <div className="topbar-right">
           <NotificationBell />
 
-          <span>
+          {/* <span>
             <Button
               icon="pi pi-cog"
               className="p-button-rounded p-button-text topbar-btn"
@@ -65,7 +65,7 @@ export default function Topbar({ title = "", icon = "" }) {
               tooltipOptions={{ position: "bottom" }}
             />
             <Menu model={settingsMenuItems} popup ref={settingsMenu} appendTo={document.body} />
-          </span>
+          </span> */}
 
           <div
             className="topbar-profile"

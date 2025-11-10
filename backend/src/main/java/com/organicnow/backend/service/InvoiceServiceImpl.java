@@ -862,7 +862,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             PdfStyleService.addCompanyHeader(document, titleFont, headerFont);
             
             // หัวข้อใบแจ้งหนี้
-            Paragraph invoiceTitle = new Paragraph("ใบแจ้งหนี้ค่าบริการ", titleFont);
+            Paragraph invoiceTitle = new Paragraph("SERVICE INVOICE", titleFont);
             invoiceTitle.setAlignment(Element.ALIGN_CENTER);
             invoiceTitle.setSpacingAfter(5);
             document.add(invoiceTitle);
@@ -886,19 +886,19 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoiceInfoCell.setPadding(10);
             invoiceInfoCell.setBackgroundColor(PdfStyleService.LIGHT_GRAY);
             
-            invoiceInfoCell.addElement(new Paragraph("เลขที่ใบแจ้งหนี้", labelFont));
+            invoiceInfoCell.addElement(new Paragraph("Invoice Number", labelFont));
             invoiceInfoCell.addElement(new Paragraph("INV-" + String.format("%06d", invoice.getId()), titleFont));
             invoiceInfoCell.addElement(new Paragraph(" ", normalFont)); // spacer
-            invoiceInfoCell.addElement(new Paragraph("วันที่ออกบิล: " + 
-                (invoice.getCreateDate() != null ? invoice.getCreateDate().toLocalDate() : "ไม่ระบุ"), normalFont));
-            invoiceInfoCell.addElement(new Paragraph("วันครบกำหนด: " + 
-                (invoice.getDueDate() != null ? invoice.getDueDate().toLocalDate() : "ไม่ระบุ"), normalFont));
+            invoiceInfoCell.addElement(new Paragraph("Issue Date: " + 
+                (invoice.getCreateDate() != null ? invoice.getCreateDate().toLocalDate() : "N/A"), normalFont));
+            invoiceInfoCell.addElement(new Paragraph("Due Date: " + 
+                (invoice.getDueDate() != null ? invoice.getDueDate().toLocalDate() : "N/A"), normalFont));
             
             invoiceHeaderTable.addCell(invoiceInfoCell);
             document.add(invoiceHeaderTable);
             
             // ===== ข้อมูลผู้เช่า =====
-            Paragraph customerHeader = new Paragraph("ข้อมูลลูกค้า", headerFont);
+            Paragraph customerHeader = new Paragraph("Customer Information", headerFont);
             customerHeader.setSpacingAfter(10);
             document.add(customerHeader);
             
@@ -907,26 +907,26 @@ public class InvoiceServiceImpl implements InvoiceService {
             customerTable.setWidths(new float[]{1, 2});
             customerTable.setSpacingAfter(20);
             
-            customerTable.addCell(PdfStyleService.createLabelCell("ชื่อ-นามสกุล:", labelFont));
+            customerTable.addCell(PdfStyleService.createLabelCell("Name:", labelFont));
             customerTable.addCell(PdfStyleService.createValueCell(
                 PdfStyleService.nvl(tenant.getFirstName()) + " " + PdfStyleService.nvl(tenant.getLastName()), normalFont));
             
-            customerTable.addCell(PdfStyleService.createLabelCell("เลขประจำตัวประชาชน:", labelFont));
+            customerTable.addCell(PdfStyleService.createLabelCell("ID Number:", labelFont));
             customerTable.addCell(PdfStyleService.createValueCell(PdfStyleService.nvl(tenant.getNationalId()), normalFont));
             
-            customerTable.addCell(PdfStyleService.createLabelCell("เบอร์โทรศัพท์:", labelFont));
+            customerTable.addCell(PdfStyleService.createLabelCell("Phone Number:", labelFont));
             customerTable.addCell(PdfStyleService.createValueCell(PdfStyleService.nvl(tenant.getPhoneNumber()), normalFont));
             
-            customerTable.addCell(PdfStyleService.createLabelCell("หมายเลขห้อง:", labelFont));
+            customerTable.addCell(PdfStyleService.createLabelCell("Room Number:", labelFont));
             customerTable.addCell(PdfStyleService.createValueCell(roomDisplay, normalFont));
             
-            customerTable.addCell(PdfStyleService.createLabelCell("แพ็คเกจ:", labelFont));
+            customerTable.addCell(PdfStyleService.createLabelCell("Package:", labelFont));
             customerTable.addCell(PdfStyleService.createValueCell(packageName, normalFont));
             
             document.add(customerTable);
             
             // ===== รายการค่าใช้จ่าย =====
-            Paragraph expenseHeader = new Paragraph("รายการค่าใช้จ่าย", headerFont);
+            Paragraph expenseHeader = new Paragraph("Service Charges", headerFont);
             expenseHeader.setSpacingAfter(10);
             document.add(expenseHeader);
             
@@ -936,24 +936,24 @@ public class InvoiceServiceImpl implements InvoiceService {
             expenseTable.setSpacingAfter(15);
             
             // Header ของตาราง
-            expenseTable.addCell(PdfStyleService.createHeaderCell("รายการ", labelFont));
-            expenseTable.addCell(PdfStyleService.createHeaderCell("จำนวน/หน่วย", labelFont));
-            expenseTable.addCell(PdfStyleService.createHeaderCell("อัตรา (บาท)", labelFont));
-            expenseTable.addCell(PdfStyleService.createHeaderCell("จำนวนเงิน (บาท)", labelFont));
+            expenseTable.addCell(PdfStyleService.createHeaderCell("Description", labelFont));
+            expenseTable.addCell(PdfStyleService.createHeaderCell("Qty/Unit", labelFont));
+            expenseTable.addCell(PdfStyleService.createHeaderCell("Rate (THB)", labelFont));
+            expenseTable.addCell(PdfStyleService.createHeaderCell("Amount (THB)", labelFont));
             
             // ยอดค้างจากเดือนก่อน (ถ้ามี)
             int previousBalance = invoice.getPreviousBalance() != null ? invoice.getPreviousBalance() : 0;
             if (previousBalance > 0) {
-                expenseTable.addCell(PdfStyleService.createDataCell("ยอดค้างจากเดือนก่อน", normalFont));
-                expenseTable.addCell(PdfStyleService.createDataCell("1 รายการ", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell("Outstanding Balance from Previous Month", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell("1 item", normalFont));
                 expenseTable.addCell(PdfStyleService.createDataCell("-", normalFont));
                 expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(previousBalance), normalFont));
             }
             
             // ค่าเช่า
             int rentAmount = invoice.getRequestedRent() != null ? invoice.getRequestedRent() : 0;
-            expenseTable.addCell(PdfStyleService.createDataCell("ค่าเช่าห้องพัก", normalFont));
-            expenseTable.addCell(PdfStyleService.createDataCell("1 เดือน", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell("Room Rental", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell("1 month", normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(rentAmount), normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(rentAmount), normalFont));
             
@@ -962,8 +962,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             int waterAmount = invoice.getRequestedWater() != null ? invoice.getRequestedWater() : 0;
             int waterRate = (waterUnit > 0 && waterAmount > 0) ? (waterAmount / waterUnit) : 30;
             
-            expenseTable.addCell(PdfStyleService.createDataCell("ค่าน้ำประปา", normalFont));
-            expenseTable.addCell(PdfStyleService.createDataCell(waterUnit + " หน่วย", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell("Water Supply", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell(waterUnit + " units", normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(String.valueOf(waterRate), normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(waterAmount), normalFont));
             
@@ -972,16 +972,16 @@ public class InvoiceServiceImpl implements InvoiceService {
             int elecAmount = invoice.getRequestedElectricity() != null ? invoice.getRequestedElectricity() : 0;
             int elecRate = (elecUnit > 0 && elecAmount > 0) ? (elecAmount / elecUnit) : 8;
             
-            expenseTable.addCell(PdfStyleService.createDataCell("ค่าไฟฟ้า", normalFont));
-            expenseTable.addCell(PdfStyleService.createDataCell(elecUnit + " หน่วย", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell("Electricity", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell(elecUnit + " units", normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(String.valueOf(elecRate), normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(elecAmount), normalFont));
             
             // ค่าปรับ (ถ้ามี)
             int penaltyAmount = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
             if (penaltyAmount > 0) {
-                expenseTable.addCell(PdfStyleService.createDataCell("ค่าปรับล่าช้า", normalFont));
-                expenseTable.addCell(PdfStyleService.createDataCell("1 รายการ", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell("Late Payment Penalty", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell("1 item", normalFont));
                 expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(penaltyAmount), normalFont));
                 expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(penaltyAmount), normalFont));
             }
@@ -1002,16 +1002,16 @@ public class InvoiceServiceImpl implements InvoiceService {
             
             // แสดงยอดค้างจากเดือนก่อน (ถ้ามี)
             if (previousBalanceAmount > 0) {
-                summaryTable.addCell(PdfStyleService.createSummaryLabelCell("ยอดค้างจากเดือนก่อน:", labelFont));
-                summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(previousBalanceAmount) + " บาท", normalFont));
+                summaryTable.addCell(PdfStyleService.createSummaryLabelCell("Outstanding from Previous Month:", labelFont));
+                summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(previousBalanceAmount) + " THB", normalFont));
             }
             
-            summaryTable.addCell(PdfStyleService.createSummaryLabelCell("ยอดรวมค่าบริการเดือนนี้:", labelFont));
-            summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(subTotal) + " บาท", normalFont));
+            summaryTable.addCell(PdfStyleService.createSummaryLabelCell("Current Month Charges:", labelFont));
+            summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(subTotal) + " THB", normalFont));
             
             if (penaltyTotalAmount > 0) {
-                summaryTable.addCell(PdfStyleService.createSummaryLabelCell("ค่าปรับล่าช้า:", labelFont));
-                summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(penaltyTotalAmount) + " บาท", normalFont));
+                summaryTable.addCell(PdfStyleService.createSummaryLabelCell("Late Payment Penalty:", labelFont));
+                summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(penaltyTotalAmount) + " THB", normalFont));
             }
             
             // เส้นแบ่ง
@@ -1024,13 +1024,13 @@ public class InvoiceServiceImpl implements InvoiceService {
             lineCell2.setFixedHeight(10);
             summaryTable.addCell(lineCell2);
             
-            summaryTable.addCell(PdfStyleService.createSummaryLabelCell("ยอดรวมสุทธิ:", titleFont));
-            summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(netAmount) + " บาท", titleFont));
+            summaryTable.addCell(PdfStyleService.createSummaryLabelCell("Total Amount:", titleFont));
+            summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(netAmount) + " THB", titleFont));
             
             document.add(summaryTable);
             
             // ===== สถานะการชำระเงิน =====
-            Paragraph statusHeader = new Paragraph("สถานะการชำระเงิน", headerFont);
+            Paragraph statusHeader = new Paragraph("Payment Status", headerFont);
             statusHeader.setSpacingAfter(10);
             document.add(statusHeader);
             
@@ -1043,19 +1043,19 @@ public class InvoiceServiceImpl implements InvoiceService {
             
             switch (status) {
                 case 0:
-                    statusText = "สถานะ: ยังไม่ชำระเงิน";
+                    statusText = "Status: Unpaid";
                     break;
                 case 1:
-                    statusText = "สถานะ: ชำระเงินเรียบร้อยแล้ว";
+                    statusText = "Status: Paid";
                     if (invoice.getPayDate() != null) {
-                        statusText += "\nวันที่ชำระ: " + invoice.getPayDate().toLocalDate();
+                        statusText += "\nPayment Date: " + invoice.getPayDate().toLocalDate();
                     }
                     break;
                 case 2:
-                    statusText = "สถานะ: ยกเลิกแล้ว";
+                    statusText = "Status: Cancelled";
                     break;
                 default:
-                    statusText = "สถานะ: ไม่ระบุ";
+                    statusText = "Status: Unknown";
                     break;
             }
             
@@ -1065,20 +1065,20 @@ public class InvoiceServiceImpl implements InvoiceService {
             
             // ===== หมายเหตุ =====
             if (status == 0) { // ยังไม่ชำระ
-                Paragraph noteHeader = new Paragraph("หมายเหตุ", headerFont);
+                Paragraph noteHeader = new Paragraph("Notes", headerFont);
                 noteHeader.setSpacingAfter(5);
                 document.add(noteHeader);
                 
                 Paragraph note = new Paragraph();
-                note.add(new Phrase("• กรุณาชำระเงินภายในวันครบกำหนดที่ระบุข้างต้น\n", normalFont));
-                note.add(new Phrase("• หากชำระเงินล่าช้าจะมีค่าปรับ 10% ของยอดค่าเช่า\n", normalFont));
-                note.add(new Phrase("• สำหรับการโอนเงิน กรุณาแจ้งสลิปการชำระเงิน\n", normalFont));
-                note.add(new Phrase("• ติดต่อสอบถาม: โทร 02-123-4567\n", normalFont));
+                note.add(new Phrase("• Please pay by the due date specified above\n", normalFont));
+                note.add(new Phrase("• Late payment penalty: 10% of rental amount\n", normalFont));
+                note.add(new Phrase("• For bank transfers, please provide payment slip\n", normalFont));
+                note.add(new Phrase("• Contact: Phone 02-123-4567\n", normalFont));
                 note.setSpacingAfter(20);
                 document.add(note);
                 
                 // ===== ข้อมูลการชำระเงิน =====
-                Paragraph paymentHeader = new Paragraph("ข้อมูลการชำระเงิน / Payment Information", headerFont);
+                Paragraph paymentHeader = new Paragraph("Payment Information / ข้อมูลการชำระเงิน", headerFont);
                 paymentHeader.setSpacingAfter(10);
                 document.add(paymentHeader);
                 
@@ -1094,10 +1094,10 @@ public class InvoiceServiceImpl implements InvoiceService {
                 bankInfoCell.setPadding(10);
                 bankInfoCell.setBackgroundColor(PdfStyleService.LIGHT_GRAY);
                 
-                bankInfoCell.addElement(new Paragraph("ธนาคารกรุงเทพ (Bangkok Bank)", labelFont));
-                bankInfoCell.addElement(new Paragraph("ชื่อบัญชี: OrganicNow Property Management", normalFont));
-                bankInfoCell.addElement(new Paragraph("เลขที่บัญชี: 123-4-56789-0", normalFont));
-                bankInfoCell.addElement(new Paragraph("สาขา: Central Plaza Branch", normalFont));
+                bankInfoCell.addElement(new Paragraph("Bangkok Bank", labelFont));
+                bankInfoCell.addElement(new Paragraph("Account Name: OrganicNow Property Management", normalFont));
+                bankInfoCell.addElement(new Paragraph("Account Number: 123-4-56789-0", normalFont));
+                bankInfoCell.addElement(new Paragraph("Branch: Central Plaza Branch", normalFont));
                 bankInfoCell.addElement(new Paragraph("SWIFT Code: BKKBTHBK", normalFont));
                 bankInfoCell.addElement(new Paragraph("PromptPay ID: 0123456789", normalFont));
                 
@@ -1214,15 +1214,15 @@ public class InvoiceServiceImpl implements InvoiceService {
                 }
                 
                 // คำแนะนำการชำระเงิน
-                Paragraph paymentInstructions = new Paragraph("วิธีการชำระเงิน / Payment Instructions", labelFont);
+                Paragraph paymentInstructions = new Paragraph("Payment Instructions", labelFont);
                 paymentInstructions.setSpacingAfter(5);
                 document.add(paymentInstructions);
                 
                 Paragraph instructions = new Paragraph();
-                instructions.add(new Phrase("1. โอนเงินตามจำนวนที่ระบุ: " + PdfStyleService.formatMoney(netAmount) + " บาท\n", normalFont));
-                instructions.add(new Phrase("2. ใส่รหัสอ้างอิง: INV-" + String.format("%06d", invoice.getId()) + "\n", normalFont));
-                instructions.add(new Phrase("3. บันทึกหลักฐานการโอนเงินและส่งให้เจ้าหน้าที่\n", normalFont));
-                instructions.add(new Phrase("4. การชำระเงินจะได้รับการตรวจสอบภายใน 1-2 วันทำการ\n", normalFont));
+                instructions.add(new Phrase("1. Transfer the specified amount: " + PdfStyleService.formatMoney(netAmount) + " THB\n", normalFont));
+                instructions.add(new Phrase("2. Reference Number: INV-" + String.format("%06d", invoice.getId()) + "\n", normalFont));
+                instructions.add(new Phrase("3. Save transfer receipt and send to staff\n", normalFont));
+                instructions.add(new Phrase("4. Payment verification within 1-2 business days\n", normalFont));
                 instructions.setSpacingAfter(20);
                 document.add(instructions);
             }
@@ -1231,8 +1231,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             Paragraph footer = new Paragraph();
             footer.setSpacingBefore(10);
             footer.setAlignment(Element.ALIGN_CENTER);
-            footer.add(new Phrase("ขอบคุณที่ใช้บริการหอพัก ORGANIC NOW\n", normalFont));
-            footer.add(new Phrase("สอบถามเพิ่มเติม: โทร 02-123-4567 หรือ LINE: @organicnow", smallFont));
+            footer.add(new Phrase("Thank you for using ORGANIC NOW Apartment Services\n", normalFont));
+            footer.add(new Phrase("Contact us: Tel 02-123-4567 or LINE: @organicnow", smallFont));
             document.add(footer);
             
             document.close();

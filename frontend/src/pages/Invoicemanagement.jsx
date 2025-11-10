@@ -11,6 +11,22 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 
 const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
 
+// ✅ เพิ่ม CSS เพื่อป้องกันการ auto-scroll
+const preventScrollCSS = `
+  html, body {
+    scroll-behavior: auto !important;
+  }
+  
+  .invoice-management-container {
+    scroll-behavior: auto !important;
+  }
+  
+  /* ป้องกันการ focus ที่ทำให้ scroll */
+  input, select, textarea, button {
+    scroll-margin-top: 0 !important;
+  }
+`;
+
 function InvoiceManagement() {
   const navigate = useNavigate();
   const { showMessageError, showMessageSave, showMessageConfirmDelete, showMessageAdjust } = useMessage();
@@ -106,9 +122,81 @@ function InvoiceManagement() {
   };
 
   // map backend InvoiceDto -> row ใช้ในตาราง
+  // ✅ คำนวณ Previous Balance แบบ real-time
+  const calculateRealPreviousBalance = (currentInvoice, allInvoices) => {
+    const currentDate = new Date(currentInvoice.createDate);
+    const contractId = currentInvoice.contractId;
+    
+    // หาใบแจ้งหนี้ก่อนหน้าทั้งหมดของ contract เดียวกัน
+    const previousInvoices = allInvoices.filter(invoice => 
+      invoice.contractId === contractId && 
+      new Date(invoice.createDate) < currentDate
+    );
+    
+    // เรียงตามวันที่
+    previousInvoices.sort((a, b) => new Date(a.createDate) - new Date(b.createDate));
+    
+    let cumulativeOutstanding = 0;
+    
+    previousInvoices.forEach(prevInvoice => {
+      // คำนวณ NET amount จริงของ invoice ก่อนหน้า
+      const prevRent = Number(prevInvoice.rent || 0);
+      const prevWater = Number(prevInvoice.water || 0);  
+      const prevElectricity = Number(prevInvoice.electricity || 0);
+      const prevPenalty = Number(prevInvoice.penaltyTotal || 0);
+      const prevPaid = Number(prevInvoice.paidAmount || 0);
+      
+      const prevNetAmount = prevRent + prevWater + prevElectricity + prevPenalty;
+      const prevOutstanding = Math.max(0, prevNetAmount - prevPaid);
+      
+      cumulativeOutstanding += prevOutstanding;
+    });
+    
+    return cumulativeOutstanding;
+  };
+
   const mapDto = (it) => {
+    // แยกเก็บส่วนประกอบแต่ละตัว
+    const rentAmount = Number(it.rent ?? 0);
+    const waterAmount = Number(it.water ?? 0);
+    const electricityAmount = Number(it.electricity ?? 0);
+    const penaltyAmount = Number(it.penaltyTotal ?? 0);
+    const paidAmount = Number(it.paidAmount ?? 0);
+    
+    // ✅ คำนวณ NET amount จริงเหมือนกับ Invoice Details
+    const calculatedNetAmount = rentAmount + waterAmount + electricityAmount + penaltyAmount;
+    
+    // ใช้ค่าที่คำนวณเองแทน backend เพราะ backend ส่งผิด
+    const correctNetAmount = calculatedNetAmount;
+    
+    // ✅ คำนวณ Previous Balance แบบ real-time (จะคำนวณหลังจาก data โหลดเสร็จ)
+    // สำหรับตอนนี้ใช้ค่าจาก backend ก่อน แล้วจะมาปรับหลังจาก data โหลดครบ
+    const realPreviousBalance = Number(it.previousBalance ?? 0);
+    
+    // ✅ คำนวณ Outstanding Balance = Previous Balance + Current Outstanding
+    const currentOutstanding = Math.max(0, correctNetAmount - paidAmount);
+    const totalOutstandingBalance = realPreviousBalance + currentOutstanding;
+    
+    // 🔍 Debug log เพื่อดูค่าจาก backend และการแก้ไข
+    console.log(`🔍 Invoice #${it.id} - Fixed Calculation:`, {
+      backendNetAmount: it.netAmount,
+      backendAmount: it.amount,
+      backendOutstanding: it.outstandingBalance,
+      components: { rent: rentAmount, water: waterAmount, electricity: electricityAmount, penalty: penaltyAmount },
+      calculated: calculatedNetAmount,
+      finalDisplay: correctNetAmount,
+      paidAmount: paidAmount,
+      realPreviousBalance: realPreviousBalance,
+      currentOutstanding: currentOutstanding,
+      totalOutstandingBalance: totalOutstandingBalance,
+      difference: correctNetAmount - (it.netAmount ?? it.amount ?? 0),
+      useCumulativeOutstanding: true
+    });
+    
+    
     return {
       id: it.id,
+      contractId: it.contractId || it.contact?.id,
       createDate: d2str(it.createDate),
       firstName: it.firstName ?? "",
       lastName: it.lastName ?? "",
@@ -124,44 +212,259 @@ function InvoiceManagement() {
       floor: it.floor ?? "",
       room: it.room ?? "",
 
-      amount: Number(it.amount ?? it.netAmount ?? 0),
-      rent: Number(it.rent ?? 0),
-      water: Number(it.water ?? 0),
+      amount: correctNetAmount, // ✅ ใช้ค่าที่คำนวณถูกต้องจากส่วนประกอบ
+      rent: rentAmount,
+      water: waterAmount,
       waterUnit: Number(it.waterUnit ?? 0),
-      electricity: Number(it.electricity ?? 0),
+      electricity: electricityAmount,
       electricityUnit: Number(it.electricityUnit ?? 0),
 
       status: (it.status ?? it.statusText ?? "").trim() || "Unknown",
       payDate: d2str(it.payDate),
       penalty: Number(it.penalty ?? ((it.penaltyTotal ?? 0) > 0 ? 1 : 0)),
       penaltyDate: d2str(it.penaltyAppliedAt),
+      penaltyTotal: penaltyAmount,
       
-      // Outstanding Balance fields
-      previousBalance: Number(it.previousBalance ?? 0),
-      paidAmount: Number(it.paidAmount ?? 0),
-      outstandingBalance: Number(it.outstandingBalance ?? 0),
-      hasOutstandingBalance: Boolean(it.hasOutstandingBalance),
+      // Outstanding Balance fields - ใช้การคำนวณใหม่ที่ถูกต้อง
+      previousBalance: realPreviousBalance,
+      paidAmount: paidAmount,
+      outstandingBalance: totalOutstandingBalance,
+      hasOutstandingBalance: totalOutstandingBalance > 0,
     };
   };
 
   useEffect(() => {
+    // ✅ เพิ่ม CSS เพื่อป้องกันการ auto-scroll
+    const styleElement = document.createElement('style');
+    styleElement.textContent = preventScrollCSS;
+    document.head.appendChild(styleElement);
+
     fetchData();
     fetchRooms();
     fetchContracts();
     fetchTenants();
     fetchPackages();
+    
+    // ✅ คืนตำแหน่ง scroll เมื่อกลับมาจากหน้า InvoiceDetails
+    const restoreScrollPosition = () => {
+      const savedScrollPosition = sessionStorage.getItem('invoiceManagementScrollPosition');
+      if (savedScrollPosition) {
+        // รอให้ DOM load เสร็จก่อน
+        setTimeout(() => {
+          window.scrollTo(0, parseInt(savedScrollPosition));
+          // ลบตำแหน่งที่บันทึกไว้
+          sessionStorage.removeItem('invoiceManagementScrollPosition');
+        }, 100);
+      }
+    };
+
+    restoreScrollPosition();
+    
+    // Cleanup
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+    
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ✅ ป้องกันการ auto-scroll แบบสมบูรณ์ - วิธีที่แข็งแกร่งที่สุด
+  useEffect(() => {
+    // ✅ สร้าง CSS ที่บังคับให้หยุด scroll ทั้งหมด
+    const antiScrollCSS = document.createElement('style');
+    antiScrollCSS.textContent = `
+      /* ✅ ป้องกันการ scroll ของ html, body */
+      html, body {
+        scroll-behavior: auto !important;
+        overflow-x: hidden !important;
+      }
+      
+      /* ✅ ป้องกันการ smooth scroll และ auto-scroll */
+      * {
+        scroll-behavior: auto !important;
+      }
+      
+      /* ✅ ป้องกันการ focus-scroll */
+      *:focus {
+        scroll-margin: 0 !important;
+        scroll-padding: 0 !important;
+      }
+      
+      /* ✅ ป้องกันการ scroll ของ table */
+      .table-responsive {
+        overflow: visible !important;
+      }
+      
+      .table-responsive:focus-within {
+        overflow: visible !important;
+      }
+      
+      /* ✅ ป้องกันการ auto-scroll ของ Bootstrap */
+      .modal-open {
+        overflow: hidden !important;
+      }
+      
+      /* ✅ ป้องกันการ scroll jump */
+      .container, .container-fluid {
+        overflow-anchor: none !important;
+      }
+    `;
+    document.head.appendChild(antiScrollCSS);
+    
+    // ✅ ป้องกันการ scroll ด้วย JavaScript แบบเข้มข้น
+    const preventAllScroll = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return false;
+    };
+
+    const blockScrollEvents = (e) => {
+      // บล็อคทุก event ที่เกี่ยวข้องกับการ scroll
+      if (e.type === 'scroll' || e.type === 'wheel' || e.type === 'touchmove') {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+
+    // ✅ Prevent focus-induced scrolling แบบเข้มข้น
+    const preventFocusScroll = (e) => {
+      const currentY = window.scrollY;
+      const currentX = window.scrollX;
+      
+      setTimeout(() => {
+        if (window.scrollY !== currentY || window.scrollX !== currentX) {
+          window.scrollTo(currentX, currentY);
+        }
+      }, 0);
+      
+      setTimeout(() => {
+        if (window.scrollY !== currentY || window.scrollX !== currentX) {
+          window.scrollTo(currentX, currentY);
+        }
+      }, 1);
+    };
+
+    // ✅ เพิ่ม event listeners สำหรับป้องกันการ scroll
+    document.addEventListener('focus', preventFocusScroll, true);
+    document.addEventListener('focusin', preventFocusScroll, true);
+    document.addEventListener('focusout', preventFocusScroll, true);
+    window.addEventListener('scroll', blockScrollEvents, { passive: false });
+    document.addEventListener('wheel', blockScrollEvents, { passive: false });
+    document.addEventListener('touchmove', blockScrollEvents, { passive: false });
+
+    // ✅ ป้องกันการ scroll ผ่าน keyboard
+    const preventKeyboardScroll = (e) => {
+      const scrollKeys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'Space'];
+      if (scrollKeys.includes(e.key)) {
+        e.preventDefault();
+        return false;
+      }
+    };
+    document.addEventListener('keydown', preventKeyboardScroll, true);
+
+    // Cleanup
+    return () => {
+      if (antiScrollCSS && antiScrollCSS.parentNode) {
+        antiScrollCSS.parentNode.removeChild(antiScrollCSS);
+      }
+      document.removeEventListener('focus', preventFocusScroll, true);
+      document.removeEventListener('focusin', preventFocusScroll, true);
+      document.removeEventListener('focusout', preventFocusScroll, true);
+      window.removeEventListener('scroll', blockScrollEvents);
+      document.removeEventListener('wheel', blockScrollEvents);
+      document.removeEventListener('touchmove', blockScrollEvents);
+      document.removeEventListener('keydown', preventKeyboardScroll, true);
+    };
+  }, []);
+
+  // ✅ ป้องกันการ scroll เมื่อ modal เปิด/ปิด และการ auto-scroll ทั่วไป
+  useEffect(() => {
+    // ✅ Bootstrap modal event handlers
+    const handleBootstrapModalShow = () => {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+    };
+
+    const handleBootstrapModalHide = () => {
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      }
+    };
+
+    // ✅ ป้องกันการ auto-scroll ทั้งหมด
+    const preventAutoScroll = (e) => {
+      // ป้องกันการ scroll ที่เกิดจาก focus, form submission, etc.
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON')) {
+        e.preventDefault();
+        return false;
+      }
+    };
+
+    const handleModalScrollLock = () => {
+      if (showPaymentModal || showCsvModal) {
+        // บันทึกตำแหน่ง scroll ปัจจุบัน
+        const scrollY = window.scrollY;
+        // ล็อคการ scroll ของ body
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.width = '100%';
+        document.body.style.overflow = 'hidden';
+      } else {
+        // คืนค่าการ scroll เดิม
+        const scrollY = document.body.style.top;
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        if (scrollY) {
+          window.scrollTo(0, parseInt(scrollY || '0') * -1);
+        }
+      }
+    };
+
+    handleModalScrollLock();
+
+    // เพิ่ม event listeners สำหรับ Bootstrap modal
+    document.addEventListener('show.bs.modal', handleBootstrapModalShow);
+    document.addEventListener('hide.bs.modal', handleBootstrapModalHide);
+    
+    // ✅ ป้องกันการ focus ที่ทำให้ scroll
+    document.addEventListener('focus', preventAutoScroll, true);
+    document.addEventListener('scroll', (e) => {
+      // บล็อกการ scroll ที่ไม่ต้องการ
+      if (showPaymentModal || showCsvModal) {
+        e.preventDefault();
+        return false;
+      }
+    }, { passive: false });
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('show.bs.modal', handleBootstrapModalShow);
+      document.removeEventListener('hide.bs.modal', handleBootstrapModalHide);
+      document.removeEventListener('focus', preventAutoScroll, true);
+    };
+  }, [showPaymentModal, showCsvModal]);
 
   // ✅ Refresh ข้อมูลเมื่อ page กลับมา visible (เช่น จาก tenant management)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        // หน้าจอ visible แล้ว - refresh ข้อมูล
+        // หน้าจอ visible แล้ว - refresh ข้อมูลแต่รักษาตำแหน่ง scroll
         fetchRooms();
         fetchContracts();
         fetchTenants();
-        fetchData(); // รวมถึง invoice list ด้วย
+        fetchData(true); // ✅ รักษาตำแหน่ง scroll
       }
     };
 
@@ -173,8 +476,11 @@ function InvoiceManagement() {
     };
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (preserveScrollPosition = false) => {
     try {
+      // ✅ บันทึกตำแหน่ง scroll ก่อน refresh ถ้าต้องการรักษาไว้
+      const currentScrollPosition = preserveScrollPosition ? window.scrollY : null;
+      
       setLoading(true);
       setErr("");
       const res = await fetch(`${API_BASE}/invoice/list`, {
@@ -184,11 +490,71 @@ function InvoiceManagement() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json(); // List<InvoiceDto>
       
+      // 🔍 Debug log ข้อมูลดิบจาก API
+      console.log(`🔍 Raw API Data (first 2 invoices):`, json.slice(0, 2));
+      
       const rows = Array.isArray(json) ? json.map(mapDto) : [];
-      setData(rows);
-      setTotalRecords(rows.length);
-      setTotalPages(Math.max(1, Math.ceil(rows.length / pageSize)));
+      
+      // ✅ คำนวณ Previous Balance แบบ real-time หลังจากได้ข้อมูลครบ
+      const correctedRows = rows.map(row => {
+        const realPreviousBalance = calculateRealPreviousBalance(row, rows);
+        const currentOutstanding = Math.max(0, row.amount - row.paidAmount);
+        const correctedOutstandingBalance = realPreviousBalance + currentOutstanding;
+        
+        console.log(`🔧 Invoice #${row.id} - Real-time Correction:`, {
+          originalPreviousBalance: row.previousBalance,
+          realPreviousBalance: realPreviousBalance,
+          currentOutstanding: currentOutstanding,
+          correctedOutstandingBalance: correctedOutstandingBalance
+        });
+        
+        return {
+          ...row,
+          previousBalance: realPreviousBalance,
+          outstandingBalance: correctedOutstandingBalance,
+          hasOutstandingBalance: correctedOutstandingBalance > 0
+        };
+      });
+      
+      // ✅ เรียงลำดับข้อมูลตาม createDate และ id เพื่อให้แสดงผลสม่ำเสมอ
+      correctedRows.sort((a, b) => {
+        // เรียงตาม createDate ก่อน (ข้อมูลเก่าอยู่บน ข้อมูลใหม่อยู่ล่าง)
+        if (a.createDate && b.createDate) {
+          const dateA = new Date(a.createDate);
+          const dateB = new Date(b.createDate);
+          if (dateA.getTime() !== dateB.getTime()) {
+            return dateA.getTime() - dateB.getTime();
+          }
+        }
+        // ถ้าวันที่เท่ากัน เรียงตาม id
+        return a.id - b.id;
+      });
+      
+      // ✅ เรียงลำดับข้อมูลตาม id หรือ createDate เพื่อให้แสดงผลสม่ำเสมอ
+      rows.sort((a, b) => {
+        // เรียงตาม createDate ก่อน (ข้อมูลเก่าอยู่บน ข้อมูลใหม่อยู่ล่าง)
+        if (a.createDate && b.createDate) {
+          const dateA = new Date(a.createDate);
+          const dateB = new Date(b.createDate);
+          if (dateA.getTime() !== dateB.getTime()) {
+            return dateA.getTime() - dateB.getTime();
+          }
+        }
+        // ถ้าวันที่เท่ากัน เรียงตาม id
+        return a.id - b.id;
+      });
+      
+      setData(correctedRows);
+      setTotalRecords(correctedRows.length);
+      setTotalPages(Math.max(1, Math.ceil(correctedRows.length / pageSize)));
       setCurrentPage(1);
+      
+      // ✅ คืนตำแหน่ง scroll หลัง refresh ถ้าต้องการ
+      if (preserveScrollPosition && currentScrollPosition !== null) {
+        setTimeout(() => {
+          window.scrollTo(0, currentScrollPosition);
+        }, 50);
+      }
     } catch (e) {
       setErr("Failed to load invoices.");
       console.error(e);
@@ -762,6 +1128,16 @@ function InvoiceManagement() {
 
   // เปิด Payment Management Modal
   const handlePaymentManagement = async (invoice) => {
+    // 🔍 Debug log เพื่อดูค่า invoice ที่ส่งเข้ามา
+    console.log(`🔍 Payment Management - Selected Invoice:`, {
+      id: invoice.id,
+      amount: invoice.amount,
+      rent: invoice.rent,
+      water: invoice.water,
+      electricity: invoice.electricity,
+      penalty: invoice.penalty
+    });
+    
     setSelectedInvoice(invoice);
     setShowPaymentModal(true);
     await loadPaymentRecords(invoice.id);
@@ -1169,6 +1545,9 @@ function InvoiceManagement() {
   };
 
   const handleViewInvoice = (invoice) => {
+    // ✅ บันทึกตำแหน่ง scroll ก่อนไปหน้า InvoiceDetails
+    sessionStorage.setItem('invoiceManagementScrollPosition', window.scrollY.toString());
+    
     navigate("/InvoiceDetails", {
       state: {
         invoice: invoice,
@@ -1458,7 +1837,7 @@ function InvoiceManagement() {
 
                   {/* Right cluster: Create / Refresh */}
                   <div className="d-flex align-items-center gap-2">
-                    <button
+                    {/* <button
                       type="button"
                       className="btn btn-outline-primary btn-sm"
                       onClick={() => {
@@ -1470,7 +1849,7 @@ function InvoiceManagement() {
                       title="Refresh data"
                     >
                       <i className="bi bi-arrow-clockwise me-1"></i> Refresh
-                    </button>
+                    </button> */}
                     
                     <button
                       type="button"
@@ -1545,7 +1924,7 @@ function InvoiceManagement() {
                     <th className="text-start align-middle header-color">NET</th>
                     <th className="text-start align-middle header-color">Status</th>
                     <th className="text-start align-middle header-color">Pay date</th>
-                    <th className="text-start align-middle header-color">Penalty</th>
+                    {/* <th className="text-start align-middle header-color">Penalty</th> */}
                     <th className="text-start align-middle header-color">Outstanding</th>
                     <th className="text-center align-middle header-color">Actions</th>
                   </tr>
@@ -1579,7 +1958,7 @@ function InvoiceManagement() {
                         <td className="align-middle text-start">{item.rent.toLocaleString()}</td>
                         <td className="align-middle text-start">{item.water.toLocaleString()}</td>
                         <td className="align-middle text-start">{item.electricity.toLocaleString()}</td>
-                        <td className="align-middle text-start ">{item.amount.toLocaleString()}</td>
+                        <td className="align-middle text-start ">{item.amount.toLocaleString()} THB</td>
                         <td className="align-middle text-start">
                           <span
                             className={`badge ${
@@ -1588,18 +1967,17 @@ function InvoiceManagement() {
                                 : "bg-warning text-dark"
                             }`}
                           >
-                            <i className="bi bi-circle-fill me-1"></i>
                             {item.status === "Complete" ? "Complete" : "Incomplete"}
                           </span>
                         </td>
                         <td className="align-middle text-start">{item.payDate}</td>
-                        <td className="align-middle text-center">
+                        {/* <td className="align-middle text-center">
                           <i
                             className={`bi bi-circle-fill ${
                               item.penalty > 0 ? "text-danger" : "text-secondary"
                             }`}
                           ></i>
-                        </td>
+                        </td> */}
                         <td className="align-middle text-start">
                           {item.hasOutstandingBalance ? (
                             <span className="text-danger fw-bold">
@@ -1609,7 +1987,6 @@ function InvoiceManagement() {
                           ) : (
                             <span className="text-success">
                               <i className="bi bi-check-circle-fill me-1"></i>
-                              None
                             </span>
                           )}
                         </td>
@@ -1623,7 +2000,7 @@ function InvoiceManagement() {
                             <i className="bi bi-eye-fill"></i>
                           </button>
                           <button
-                            className="btn btn-sm btn-success me-1"
+                            className="border-0 bg-transparent p-1 me-1"
                             onClick={() => handlePaymentManagement(item)}
                             aria-label="Manage payments"
                             title="Manage payments"

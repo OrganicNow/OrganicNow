@@ -2,7 +2,7 @@
 -- Admin (ข้อมูลเริ่มต้น)
 -- ========================
 INSERT INTO admin (admin_username, admin_password, admin_role) VALUES
-                                                                   ('admin', 'admin123', 0),
+                                                                   ('alex', 'admin123', 0),
                                                                    ('superadmin', 'admin123', 1)
     ON CONFLICT (admin_username) DO NOTHING;
 

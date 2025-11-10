@@ -200,7 +200,7 @@ public class MaintainServiceImpl implements MaintainService {
             PdfStyleService.addCompanyHeader(document, titleFont, headerFont);
             
             // Title
-            Paragraph title = new Paragraph("รายงานการบำรุงรักษา", titleFont);
+            Paragraph title = new Paragraph("MAINTENANCE REPORT", titleFont);
             title.setAlignment(Element.ALIGN_CENTER);
             title.setSpacingAfter(10);
             title.setSpacingBefore(10);
@@ -222,19 +222,19 @@ public class MaintainServiceImpl implements MaintainService {
             workInfoTable.setWidthPercentage(100);
             workInfoTable.setWidths(new float[]{40, 60});
             
-            workInfoTable.addCell(PdfStyleService.createLabelCell("เลขที่งาน:", labelFont));
+            workInfoTable.addCell(PdfStyleService.createLabelCell("Job Number:", labelFont));
             workInfoTable.addCell(PdfStyleService.createValueCell("MT-" + String.format("%06d", maintain.getId()), normalFont));
             
-            workInfoTable.addCell(PdfStyleService.createLabelCell("วันที่แจ้ง:", labelFont));
+            workInfoTable.addCell(PdfStyleService.createLabelCell("Report Date:", labelFont));
             workInfoTable.addCell(PdfStyleService.createValueCell(
                 maintain.getCreateDate() != null ? maintain.getCreateDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")) : "-", 
                 normalFont));
             
-            workInfoTable.addCell(PdfStyleService.createLabelCell("สถานะ:", labelFont));
+            workInfoTable.addCell(PdfStyleService.createLabelCell("Status:", labelFont));
             String status = getMaintenanceStatus(maintain);
             workInfoTable.addCell(PdfStyleService.createValueCell(status, normalFont));
             
-            workInfoTable.addCell(PdfStyleService.createLabelCell("ประเภทการซ่อม:", labelFont));
+            workInfoTable.addCell(PdfStyleService.createLabelCell("Maintenance Type:", labelFont));
             workInfoTable.addCell(PdfStyleService.createValueCell(
                 PdfStyleService.nvl(maintain.getMaintainType()), normalFont));
             
@@ -250,20 +250,20 @@ public class MaintainServiceImpl implements MaintainService {
             locationTable.setWidthPercentage(100);
             locationTable.setWidths(new float[]{40, 60});
             
-            locationTable.addCell(PdfStyleService.createLabelCell("ห้อง:", labelFont));
+            locationTable.addCell(PdfStyleService.createLabelCell("Room:", labelFont));
             locationTable.addCell(PdfStyleService.createValueCell(
-                "ชั้น " + room.getRoomFloor() + " ห้อง " + room.getRoomNumber(), normalFont));
+                "Floor " + room.getRoomFloor() + " Room " + room.getRoomNumber(), normalFont));
             
-            locationTable.addCell(PdfStyleService.createLabelCell("ประเภทงาน:", labelFont));
-            String targetType = maintain.getTargetType() == 0 ? "ซ่อมของในห้อง" : "ซ่อมห้องทั้งห้อง";
+            locationTable.addCell(PdfStyleService.createLabelCell("Work Type:", labelFont));
+            String targetType = maintain.getTargetType() == 0 ? "Item Repair" : "Room Repair";
             locationTable.addCell(PdfStyleService.createValueCell(targetType, normalFont));
             
             if (roomAsset != null && roomAsset.getAsset() != null) {
-                locationTable.addCell(PdfStyleService.createLabelCell("ทรัพย์สิน:", labelFont));
+                locationTable.addCell(PdfStyleService.createLabelCell("Asset:", labelFont));
                 locationTable.addCell(PdfStyleService.createValueCell(roomAsset.getAsset().getAssetName(), normalFont));
             }
             
-            locationTable.addCell(PdfStyleService.createLabelCell("หมวดหมู่ปัญหา:", labelFont));
+            locationTable.addCell(PdfStyleService.createLabelCell("Issue Category:", labelFont));
             locationTable.addCell(PdfStyleService.createValueCell(getIssueCategoryText(maintain.getIssueCategory()), normalFont));
             
             rightCell.addElement(locationTable);
@@ -272,26 +272,26 @@ public class MaintainServiceImpl implements MaintainService {
             document.add(mainTable);
             
             // รายละเอียดปัญหา
-            document.add(new Paragraph("รายละเอียดปัญหา", headerFont));
+            document.add(new Paragraph("Issue Details", headerFont));
             document.add(Chunk.NEWLINE);
             
             PdfPTable problemTable = new PdfPTable(1);
             problemTable.setWidthPercentage(100);
             problemTable.setSpacingAfter(15);
             
-            problemTable.addCell(PdfStyleService.createLabelCell("หัวข้อปัญหา:", labelFont));
+            problemTable.addCell(PdfStyleService.createLabelCell("Issue Title:", labelFont));
             problemTable.addCell(PdfStyleService.createValueCell(PdfStyleService.nvl(maintain.getIssueTitle()), normalFont));
             
-            problemTable.addCell(PdfStyleService.createLabelCell("รายละเอียด:", labelFont));
+            problemTable.addCell(PdfStyleService.createLabelCell("Description:", labelFont));
             PdfPCell descCell = PdfStyleService.createValueCell(PdfStyleService.nvl(maintain.getIssueDescription()), normalFont);
             descCell.setMinimumHeight(60);
             problemTable.addCell(descCell);
             
             document.add(problemTable);
             
-            // ข้อมูลช่างและกำหนดการ
+            // Technician & Schedule Information
             if (maintain.getTechnicianName() != null || maintain.getScheduledDate() != null || maintain.getFinishDate() != null) {
-                document.add(new Paragraph("ข้อมูลช่างและกำหนดการ", headerFont));
+                document.add(new Paragraph("Technician & Schedule Information", headerFont));
                 document.add(Chunk.NEWLINE);
                 
                 PdfPTable techTable = new PdfPTable(2);
@@ -300,23 +300,23 @@ public class MaintainServiceImpl implements MaintainService {
                 techTable.setSpacingAfter(15);
                 
                 if (maintain.getTechnicianName() != null) {
-                    techTable.addCell(PdfStyleService.createLabelCell("ชื่อช่าง:", labelFont));
+                    techTable.addCell(PdfStyleService.createLabelCell("Technician Name:", labelFont));
                     techTable.addCell(PdfStyleService.createValueCell(maintain.getTechnicianName(), normalFont));
                 }
                 
                 if (maintain.getTechnicianPhone() != null) {
-                    techTable.addCell(PdfStyleService.createLabelCell("เบอร์โทรช่าง:", labelFont));
+                    techTable.addCell(PdfStyleService.createLabelCell("Technician Phone:", labelFont));
                     techTable.addCell(PdfStyleService.createValueCell(maintain.getTechnicianPhone(), normalFont));
                 }
                 
                 if (maintain.getScheduledDate() != null) {
-                    techTable.addCell(PdfStyleService.createLabelCell("วันที่นัดเข้าทำ:", labelFont));
+                    techTable.addCell(PdfStyleService.createLabelCell("Scheduled Date:", labelFont));
                     techTable.addCell(PdfStyleService.createValueCell(
                         maintain.getScheduledDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")), normalFont));
                 }
                 
                 if (maintain.getFinishDate() != null) {
-                    techTable.addCell(PdfStyleService.createLabelCell("วันที่เสร็จงาน:", labelFont));
+                    techTable.addCell(PdfStyleService.createLabelCell("Completion Date:", labelFont));
                     techTable.addCell(PdfStyleService.createValueCell(
                         maintain.getFinishDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")), normalFont));
                 }
@@ -329,7 +329,7 @@ public class MaintainServiceImpl implements MaintainService {
             document.add(Chunk.NEWLINE);
             
             Paragraph footer = new Paragraph(
-                "รายงานนี้สร้างโดยระบบ OrganicNow เมื่อ " + 
+                "This report was generated by OrganicNow System on " + 
                 LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")), 
                 smallFont
             );
@@ -347,24 +347,24 @@ public class MaintainServiceImpl implements MaintainService {
     
     private String getMaintenanceStatus(Maintain maintain) {
         if (maintain.getFinishDate() != null) {
-            return "เสร็จแล้ว";
+            return "Completed";
         } else if (maintain.getScheduledDate() != null) {
-            return "กำลังดำเนินการ";
+            return "In Progress";
         } else {
-            return "ยังไม่เริ่มงาน";
+            return "Pending";
         }
     }
     
     private String getIssueCategoryText(Integer category) {
         if (category == null) return "-";
         switch (category) {
-            case 0: return "โครงสร้าง";
-            case 1: return "ไฟฟ้า";
-            case 2: return "ประปา";
-            case 3: return "เครื่องใช้/เฟอร์นิเจอร์";
-            case 4: return "ความปลอดภัย";
-            case 5: return "อื่นๆ";
-            default: return "ไม่ระบุ";
+            case 0: return "Structure";
+            case 1: return "Electrical";
+            case 2: return "Plumbing";
+            case 3: return "Appliances/Furniture";
+            case 4: return "Security";
+            case 5: return "Others";
+            default: return "Not Specified";
         }
     }
 }

@@ -96,25 +96,50 @@ function InvoiceDetails() {
           console.log("🔍 Water Unit from API:", apiData.waterUnit);
           console.log("🔍 Electricity Unit from API:", apiData.electricityUnit);
           
+            // ✅ คำนวณ NET amount ที่ถูกต้องเหมือน Invoice Management
+            const rentAmount = Number(apiData.rent) || 0;
+            const waterAmount = Number(apiData.water) || 0;
+            const electricityAmount = Number(apiData.electricity) || 0;
+            const penaltyAmount = Number(apiData.penaltyTotal) || 0;
+            const correctNetAmount = rentAmount + waterAmount + electricityAmount + penaltyAmount;
+            const paidAmount = Number(apiData.paidAmount) || 0;
+            
+            // ✅ ใช้การคำนวณ Outstanding แบบเดียวกับ Invoice Management (ทบยอดจากเดือนก่อน)
+            const correctOutstanding = Number(apiData.outstandingBalance ?? 0) > 0 ? 
+              // ถ้า backend มีการทบยอดแล้ว ให้ปรับตามส่วนต่างของ NET ที่ถูกต้อง
+              Number(apiData.outstandingBalance) + (correctNetAmount - (apiData.netAmount ?? apiData.amount ?? 0)) :
+              // ถ้าไม่มีการทบยอด ใช้ NET ลบยอดที่จ่าย  
+              correctNetAmount - paidAmount;
+            
+            console.log("🔍 Invoice Details - Corrected Calculation:", {
+              components: { rent: rentAmount, water: waterAmount, electricity: electricityAmount, penalty: penaltyAmount },
+              correctNetAmount,
+              paidAmount,
+              backendOutstanding: Number(apiData.outstandingBalance),
+              correctOutstanding,
+              useCumulativeOutstanding: Number(apiData.outstandingBalance ?? 0) > 0,
+              difference: correctNetAmount - (apiData.netAmount ?? apiData.amount ?? 0)
+            });
+          
           const updateData = {
-            rent: Number(apiData.rent) || initial.rent,
-            water: Number(apiData.water) || initial.water,
-            electricity: Number(apiData.electricity) || initial.electricity,
+            rent: rentAmount,
+            water: waterAmount,
+            electricity: electricityAmount,
             // ใช้ค่าจาก backend ถ้ามี ไม่ใช้ fallback ที่อาจผิด
             waterUnit: apiData.waterUnit !== undefined ? Number(apiData.waterUnit) : initial.waterUnit,
             electricityUnit: apiData.electricityUnit !== undefined ? Number(apiData.electricityUnit) : initial.electricityUnit,
-            amount: Number(apiData.netAmount || apiData.amount) || initial.amount,
-            penalty: Number(apiData.penaltyTotal || apiData.penalty) || initial.penalty,
+            amount: correctNetAmount, // ✅ ใช้ค่า NET ที่คำนวณถูกต้อง
+            penalty: penaltyAmount,
             status: (apiData.invoiceStatus === 1 ? "complete" : 
                     apiData.invoiceStatus === 2 ? "cancelled" : "pending"),
             createDate: apiData.createDate ? d2str(apiData.createDate) : initial.createDate, // 🔥 เพิ่ม createDate
             payDate: apiData.payDate ? d2str(apiData.payDate) : initial.payDate,
             penaltyDate: apiData.penaltyAppliedAt ? d2str(apiData.penaltyAppliedAt) : initial.penaltyDate,
-            // Outstanding Balance fields - แก้ไขการแมปให้ถูกต้อง 🔥
+            // Outstanding Balance fields - ใช้ค่าที่คำนวณถูกต้อง ✅
             previousBalance: Number(apiData.previousBalance) || 0,
-            paidAmount: Number(apiData.paidAmount) || 0, // ใช้ paidAmount (ยอดที่ได้รับทั้งหมด)
-            outstandingBalance: Number(apiData.outstandingBalance) || 0, // ใช้ outstandingBalance (ยอดคงเหลือ)
-            hasOutstandingBalance: Boolean(apiData.hasOutstandingBalance), // ใช้ hasOutstandingBalance
+            paidAmount: paidAmount,
+            outstandingBalance: correctOutstanding, // ✅ ใช้ค่าที่คำนวณถูกต้อง
+            hasOutstandingBalance: correctOutstanding > 0,
           };
           
           console.log("🔍 Update Data:", updateData);
@@ -166,14 +191,31 @@ function InvoiceDetails() {
 
   // ✅ คำนวณ water และ electricity bill อัตโนมัติเมื่อ unit เปลี่ยน
   useEffect(() => {
+    // ✅ คำนวณใหม่เสมอเมื่อ units เปลี่ยน (ให้ผู้ใช้ควบคุมได้)
     const waterBill = round(toNumber(invoiceForm.waterUnit) * RATE_WATER_PER_UNIT);
     const elecBill = round(toNumber(invoiceForm.electricityUnit) * RATE_ELEC_PER_UNIT);
+    
     const rent = toNumber(invoiceForm.rent);
     const penalty = toNumber(invoiceForm.penalty);
     
     const subtotal = round(rent + waterBill + elecBill + SERVICE_FEE);
     const net = subtotal + penalty;
 
+    // 🔍 Debug log เพื่อดูการคำนวณใน Invoice Details
+    console.log(`🔍 Invoice Details #${invoiceForm.id} - Calculation:`, {
+      rent,
+      waterUnit: invoiceForm.waterUnit,
+      waterBill,
+      electricityUnit: invoiceForm.electricityUnit,
+      elecBill,
+      penalty,
+      subtotal,
+      finalNet: net,
+      rates: { water: RATE_WATER_PER_UNIT, electricity: RATE_ELEC_PER_UNIT },
+      source: 'calculated_from_units'
+    });
+
+    // ✅ อัพเดทค่าใหม่เสมอเมื่อ units เปลี่ยน
     setInvoiceForm((p) => ({
       ...p,
       water: waterBill,
