@@ -96,7 +96,7 @@ spec:
       terminationGracePeriodSeconds: 20
       containers:
         - name: backend
-          image: organicnow-backend:v2025-11-07   # ⬅️ เปลี่ยนให้ตรง tag ที่ build
+          image: organicnow-backend:v2025-11-08-01   # ⬅️ เปลี่ยนให้ตรง tag ที่ build
           imagePullPolicy: IfNotPresent
           ports: [ { containerPort: 8080 } ]
           env:
@@ -155,12 +155,14 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: organicnow-frontend:v2025-11-07     # ⬅️ เปลี่ยนให้ตรง tag ที่ build
-          imagePullPolicy: IfNotPresent
+          image: organicnow-frontend:v2025-11-08-01     # ⬅️ เปลี่ยนให้ตรง tag ที่ build
+          imagePullPolicy: Always
           ports: [ { containerPort: 80 } ]
           readinessProbe:
+            exec:
+              command: ["sh","-c","pg_isready -U $POSTGRES_USER -d $POSTGRES_DB -h 127.0.0.1"]
             httpGet: { path: "/", port: 80 }
-            initialDelaySeconds: 5
+            initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 6
           livenessProbe:

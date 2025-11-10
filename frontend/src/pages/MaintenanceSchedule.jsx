@@ -93,7 +93,6 @@ function fromApi(item) {
     const cycle = Number(item.cycleMonth ?? 0);
     const backendNextIso = item.nextDueDate ? String(item.nextDueDate).slice(0, 10) : "";
 
-    // คำนวณ next ถ้า backend ไม่ให้มา
     const nextIso = backendNextIso || (lastIso && cycle ? addMonthsISO(lastIso, cycle) : "");
 
     const title = item.scheduleTitle ?? "-";
@@ -101,13 +100,13 @@ function fromApi(item) {
 
     return {
         id: item.id,
-        scope, // "Asset" | "Building"
+        scope,
         title,
         description,
         cycle,
         notify: Number(item.notifyBeforeDate ?? 0),
-        lastDate: isoToDmy(lastIso), // << dd/mm/yyyy
-        nextDate: isoToDmy(nextIso), // << dd/mm/yyyy
+        lastDate: isoToDmy(lastIso),
+        nextDate: isoToDmy(nextIso),
         assetGroupId: item.assetGroupId ?? null,
         assetGroupName: item.assetGroupName ?? null,
     };
@@ -115,19 +114,19 @@ function fromApi(item) {
 
 // ===== Mapping: ฟอร์ม -> payload (ส่งเป็น ISO ให้ backend) =====
 function toCreatePayload(f) {
-    const scopeNum = Number(f.scope); // "0"/"1" -> 0/1
+    const scopeNum = Number(f.scope);
     const cycleNum = Number(f.cycle);
     const notifyNum = Number(f.notify);
 
-    const lastIso = dmyToIso(f.lastDate || ""); // << แปลงจาก dd/mm/yyyy เป็น ISO
+    const lastIso = dmyToIso(f.lastDate || "");
     const nextIso = lastIso && cycleNum ? addMonthsISO(lastIso, cycleNum) : "";
 
     return {
         scheduleScope: scopeNum, // 0=Asset, 1=Building
         assetGroupId: scopeNum === 0 ? (Number(f.assetGroupId) || null) : null,
         cycleMonth: cycleNum,
-        lastDoneDate: d2ldt(lastIso), // "YYYY-MM-DDT00:00:00"
-        nextDueDate: nextIso ? d2ldt(nextIso) : null, // "YYYY-MM-DDT00:00:00"
+        lastDoneDate: d2ldt(lastIso),
+        nextDueDate: nextIso ? d2ldt(nextIso) : null,
         notifyBeforeDate: notifyNum,
         scheduleTitle: (f.title || "").trim(),
         scheduleDescription: f.description ?? "",
@@ -135,16 +134,18 @@ function toCreatePayload(f) {
 }
 
 function MaintenanceSchedule() {
-    // --------- DATA (จาก backend) ----------
     const [schedules, setSchedules] = useState([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
-    // notification context สำหรับ refresh
     const { refreshNotifications } = useNotifications();
-    const { showMessageSave, showMessageError, showMessageConfirmDelete } = useMessage();
+    const {
+        showMessageSave,
+        showMessageError,
+        showMessageConfirmDelete,
+        showMaintenanceCreated,
+    } = useMessage();
 
-    // assetGroupDropdown (จาก /schedules)
     const [assetOptions, setAssetOptions] = useState([]);
     const [assetLoading] = useState(false);
     const [assetError] = useState(null);
@@ -185,7 +186,7 @@ function MaintenanceSchedule() {
 
     // --------- TABLE CONTROLS ----------
     const [search, setSearch] = useState("");
-    const [sortAsc, setSortAsc] = useState(true); // sort ตาม lastDate
+    const [sortAsc, setSortAsc] = useState(true);
 
     const [filters, setFilters] = useState({
         scope: "ALL",
@@ -193,30 +194,30 @@ function MaintenanceSchedule() {
         cycleMax: "",
         notifyMin: "",
         notifyMax: "",
-        dateFrom: "", // dd/mm/yyyy
-        dateTo: "", // dd/mm/yyyy
-        nextFrom: "", // dd/mm/yyyy
-        nextTo: "", // dd/mm/yyyy
+        dateFrom: "",
+        dateTo: "",
+        nextFrom: "",
+        nextTo: "",
         assetGroupId: "",
     });
 
     // ===== สร้างรายการ (POST /schedules) =====
     const [saving, setSaving] = useState(false);
     const [newSch, setNewSch] = useState({
-        scope: "", // "0" | "1"
-        assetGroupId: "", // เมื่อ scope=0 (Asset)
-        cycle: "", // cycleMonth
-        lastDate: todayDmy(), // << dd/mm/yyyy
-        notify: "", // notifyBeforeDate
-        title: "", // scheduleTitle
-        description: "", // scheduleDescription
+        scope: "",
+        assetGroupId: "",
+        cycle: "",
+        lastDate: todayDmy(),
+        notify: "",
+        title: "",
+        description: "",
     });
 
-    // ====== VIEW MODAL (รายละเอียดอีเวนต์) ======
+    // ====== VIEW MODAL ======
     const [viewEvent, setViewEvent] = useState(null);
 
     const openViewModal = (data) => {
-        setViewEvent(data); // data ต้องมี scheduleId
+        setViewEvent(data);
         const el = document.getElementById("viewScheduleModal");
         if (el) (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el)).show();
     };
@@ -229,13 +230,12 @@ function MaintenanceSchedule() {
 
     const handleDeleteFromView = async () => {
         if (!viewEvent?.scheduleId) return;
-        await deleteRow(viewEvent.scheduleId); // ลบด้วย scheduleId (ทั้งซีรีส์)
+        await deleteRow(viewEvent.scheduleId);
         closeViewModal();
         setViewEvent(null);
     };
 
     useEffect(() => {
-        // ทุกครั้งที่ scope เปลี่ยน รีค่า assetGroupId
         setNewSch((prev) => ({
             ...prev,
             assetGroupId: "",
@@ -249,34 +249,58 @@ function MaintenanceSchedule() {
         if (!newSch.cycle || Number(newSch.cycle) < 1) return "Cycle ต้อง ≥ 1";
         if (newSch.notify === "" || Number(newSch.notify) < 0) return "Notify ต้อง ≥ 0";
         if (!newSch.lastDate) return "กรุณาเลือก Last date";
-        // ตรวจรูปแบบ dd/mm/yyyy ง่าย ๆ
         if (!/^\d{2}\/\d{2}\/\d{4}$/.test(newSch.lastDate)) return "รูปแบบวันที่ต้องเป็น dd/mm/yyyy";
         return null;
     };
 
+    // ⬇️ ปรับให้ error จาก fetch/HTTP เท่านั้นที่ถูกโยนออกไป
     const addSchedule = async () => {
         const payload = toCreatePayload(newSch);
-        const res = await fetch(SCHEDULE_API.CREATE, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-        });
-        if (!res.ok) {
-            const msg = await res.text().catch(() => "");
-            throw new Error(`HTTP ${res.status} ${msg || ""}`.trim());
+
+        let res;
+        try {
+            res = await fetch(SCHEDULE_API.CREATE, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+        } catch (e) {
+            console.error("Network error while creating schedule", e);
+            throw e; // ให้ onSubmit โชว์ "บันทึกไม่สำเร็จ" ถูกต้อง
         }
 
-        await res.json();
-        await loadSchedules();
+        if (!res.ok) {
+            const msg = await res.text().catch(() => "");
+            const err = new Error(`HTTP ${res.status} ${msg || ""}`.trim());
+            console.error("Create schedule failed", err);
+            throw err;
+        }
 
-        // 🎯 toast
-        showMaintenanceCreated({ scheduleTitle: newSch.title });
+        // จากนี้ไปถือว่าสร้างสำเร็จแล้ว ถ้าพังจะไม่โยน error ออกไปอีก
+        try {
+            await loadSchedules();
+        } catch (e) {
+            console.error("Reload schedules failed (แต่สร้างสำเร็จแล้ว)", e);
+        }
 
-        // 🔔 refresh notifications
-        setTimeout(() => {
-            refreshNotifications();
-        }, 1000);
+        try {
+            if (typeof showMaintenanceCreated === "function") {
+                showMaintenanceCreated({ scheduleTitle: newSch.title });
+            } else if (typeof showMessageSave === "function") {
+                showMessageSave();
+            }
+        } catch (e) {
+            console.error("Show toast failed (แต่สร้างสำเร็จแล้ว)", e);
+        }
+
+        try {
+            if (typeof refreshNotifications === "function") {
+                refreshNotifications();
+            }
+        } catch (e) {
+            console.error("Refresh notifications failed (แต่สร้างสำเร็จแล้ว)", e);
+        }
     };
 
     const filtered = useMemo(() => {
@@ -293,7 +317,6 @@ function MaintenanceSchedule() {
             if (filters.notifyMin !== "" && r.notify < Number(filters.notifyMin)) return false;
             if (filters.notifyMax !== "" && r.notify > Number(filters.notifyMax)) return false;
 
-            // เปรียบเทียบช่วงวันที่ ด้วยการแปลง dd/mm/yyyy -> ISO แล้วเปรียบเทียบ string
             const lastIso = dmyToIso(r.lastDate);
             const nextIso = dmyToIso(r.nextDate);
             const fromIso = dmyToIso(filters.dateFrom);
@@ -322,7 +345,6 @@ function MaintenanceSchedule() {
             );
         }
 
-        // sort โดยใช้ ISO เพื่อให้ถูกต้องตามลำดับเวลา
         rows.sort((a, b) => {
             const ai = dmyToIso(a.lastDate) || "";
             const bi = dmyToIso(b.lastDate) || "";
@@ -332,11 +354,9 @@ function MaintenanceSchedule() {
         return rows;
     }, [schedules, filters, search, sortAsc]);
 
-    // ===== สร้างอีเวนต์เฉพาะช่วงเวลาที่ FullCalendar ขอ (ไม่จำกัดปี) =====
     function buildEventsInRange(viewStart, viewEnd, rows) {
         const evs = [];
 
-        // helper: เพิ่มเดือนแบบคืน Date ใหม่
         const addMonthsDate = (date, months) => {
             const d = new Date(date);
             d.setMonth(d.getMonth() + months);
@@ -353,18 +373,15 @@ function MaintenanceSchedule() {
             const isAsset = r.scope === "Asset";
             const title = r.title + (r.assetGroupName ? ` · ${r.assetGroupName}` : "");
 
-            // 🎨 สีคงที่ต่อชุด (เหมือนเดิม)
             const baseColor = isAsset
-                ? `hsl(${(r.id * 47 % 60) + 0}, 80%, 65%)`    // โทนร้อน 0–60°
-                : `hsl(${(r.id * 67 % 100) + 200}, 80%, 65%)`; // โทนเย็น 200–300°
+                ? `hsl(${(r.id * 47) % 60 + 0}, 80%, 65%)`
+                : `hsl(${(r.id * 67) % 100 + 200}, 80%, 65%)`;
 
-            // คำนวณ occurrence ตัวแรกที่อยู่ใน (หรือก่อน)ช่วงที่ขอ
             const firstDate = new Date(baseIso);
 
             if (cycle <= 0) {
-                // ไม่มี cycle → แสดงแค่ครั้งเดียวถ้าอยู่ในช่วง
                 if (firstDate <= viewEnd && firstDate >= viewStart) {
-                    const nextDmy = ""; // ไม่มี next
+                    const nextDmy = "";
                     evs.push({
                         id: `${r.id}-single`,
                         title,
@@ -374,7 +391,7 @@ function MaintenanceSchedule() {
                             kind: "single",
                             scheduleId: r.id,
                             scope: r.scope,
-                            occurrenceDate: r.lastDate, // dmy
+                            occurrenceDate: r.lastDate,
                             nextDate: nextDmy,
                             description: r.description,
                             assetGroupName: r.assetGroupName,
@@ -387,27 +404,19 @@ function MaintenanceSchedule() {
                 continue;
             }
 
-            // มี cycle (เดือน)
-            // กระโดดข้ามให้ถึง occurrence แรกที่ไม่ก่อน viewStart
             let cur = new Date(firstDate);
 
             if (cur < viewStart) {
-                // คำนวณจำนวนเดือนต่าง (approx) เพื่อกระโดดทีเดียว
                 const monthsDiff =
                     (viewStart.getFullYear() - cur.getFullYear()) * 12 +
                     (viewStart.getMonth() - cur.getMonth());
-
-                // หา step ที่คร่อม viewStart
                 const step = Math.max(0, Math.floor(monthsDiff / cycle));
                 cur = addMonthsDate(cur, step * cycle);
-
-                // ถ้ายังน้อยกว่า viewStart ให้ขยับอีกหนึ่งรอบ
                 while (cur < viewStart) {
                     cur = addMonthsDate(cur, cycle);
                 }
             }
 
-            // ไล่สร้าง occurrence ไปจนพ้นช่วง viewEnd
             while (cur <= viewEnd) {
                 const yyyy = cur.getFullYear();
                 const mm = pad2(cur.getMonth() + 1);
@@ -446,7 +455,7 @@ function MaintenanceSchedule() {
     const deleteRow = async (rowId) => {
         const result = await showMessageConfirmDelete(`รายการ #${rowId}`);
         if (!result.isConfirmed) return;
-        
+
         try {
             const res = await fetch(SCHEDULE_API.DELETE(rowId), {
                 method: "DELETE",
@@ -462,30 +471,25 @@ function MaintenanceSchedule() {
     };
 
     const calendarRef = useRef(null);
-
-    // === Handle deep-link from NotificationBell (?scheduleId=...&due=YYYY-MM-DD) ===
     const location = useLocation();
 
     useEffect(() => {
-        // ต้องมีทั้ง scheduleId และ due (รูปแบบ YYYY-MM-DD)
         const params = new URLSearchParams(location.search || "");
         const sid = params.get("scheduleId");
-        const dueIso = params.get("due"); // e.g. 2025-11-09
+        const dueIso = params.get("due");
 
         if (!sid || !dueIso || !schedules?.length) return;
 
         const row = schedules.find((r) => String(r.id) === String(sid));
         if (!row) return;
 
-        // เลื่อนไปยังวันที่ due
         const cal = calendarRef.current?.getApi();
         const dueDateObj = new Date(dueIso);
         if (cal && !isNaN(dueDateObj)) {
             cal.gotoDate(dueDateObj);
         }
 
-        // เตรียมข้อมูลเปิดโมดัล เหมือน eventClick
-        const occDmy = isoToDmy(dueIso);                          // dd/mm/yyyy
+        const occDmy = isoToDmy(dueIso);
         const nextDmy = row.cycle ? addMonthsDMY(occDmy, row.cycle) : "";
 
         openViewModal({
@@ -538,7 +542,6 @@ function MaintenanceSchedule() {
 
                         <div className="table-wrapper mt-3 p-4">
                             {error && <div className="alert alert-danger">{error}</div>}
-                            {/* Calendar */}
                             <div className="custom-calendar mt-3">
                                 <FullCalendar
                                     ref={calendarRef}
@@ -555,16 +558,15 @@ function MaintenanceSchedule() {
                                     height="auto"
                                     dayMaxEventRows={3}
                                     eventOrder="start,-duration,allDay,title"
-                                    // 👇 สร้างอีเวนต์เฉพาะช่วงที่ FullCalendar ขอ (อนันต์ตามการเลื่อน)
                                     events={(fetchInfo, successCallback) => {
-                                        const start = fetchInfo.start; // Date
-                                        const end = fetchInfo.end;     // Date (exclusive บาง view)
+                                        const start = fetchInfo.start;
+                                        const end = fetchInfo.end;
                                         const evs = buildEventsInRange(start, end, filtered);
                                         successCallback(evs);
                                     }}
                                     eventContent={(arg) => {
                                         const { title, start } = arg.event;
-                                        const dayIndex = start ? new Date(start).getDay() : 0; // 0=Sun..6=Sat
+                                        const dayIndex = start ? new Date(start).getDay() : 0;
                                         const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
                                         const dayClass = `fc-event-card fc-event-${dayNames[dayIndex]}`;
                                         return {
@@ -579,7 +581,8 @@ function MaintenanceSchedule() {
                                         setNewSch((p) => ({ ...p, lastDate: isoToDmy(arg.dateStr) }));
                                         const modalEl = document.getElementById("createScheduleModal");
                                         if (modalEl) {
-                                            (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl)).show();
+                                            (bootstrap.Modal.getInstance(modalEl) ||
+                                                new bootstrap.Modal(modalEl)).show();
                                         }
                                     }}
                                     eventClick={(info) => {
@@ -590,8 +593,8 @@ function MaintenanceSchedule() {
                                             eventId: ev.id,
                                             title: ev.title,
                                             scope: xp.scope || "-",
-                                            lastDate: xp.occurrenceDate || "-", // dmy
-                                            nextDate: xp.nextDate || "-",       // dmy
+                                            lastDate: xp.occurrenceDate || "-",
+                                            nextDate: xp.nextDate || "-",
                                             assetGroupName: xp.assetGroupName || "-",
                                             description: xp.description || "",
                                             cycle: xp.cycle ?? "-",
@@ -616,56 +619,57 @@ function MaintenanceSchedule() {
                 {viewEvent ? (
                     <form>
                         <div className="row g-3">
-                            {/* Scope */}
                             <div className="col-md-6">
                                 <label className="form-label">Scope</label>
                                 <input type="text" className="form-control" value={viewEvent.scope || "-"} disabled />
                             </div>
-
-                            {/* Asset Group */}
                             <div className="col-md-6">
                                 <label className="form-label">Asset Group</label>
                                 <input
                                     type="text"
                                     className="form-control"
-                                    value={viewEvent.assetGroupName && viewEvent.assetGroupName !== "-" ? viewEvent.assetGroupName : "-"}
+                                    value={
+                                        viewEvent.assetGroupName && viewEvent.assetGroupName !== "-"
+                                            ? viewEvent.assetGroupName
+                                            : "-"
+                                    }
                                     disabled
                                 />
                             </div>
-
-                            {/* Last date */}
                             <div className="col-md-6">
                                 <label className="form-label">Last date</label>
                                 <input type="text" className="form-control" value={viewEvent.lastDate || "-"} disabled />
                             </div>
-
-                            {/* Next date */}
                             <div className="col-md-6">
                                 <label className="form-label">Next date</label>
                                 <input type="text" className="form-control" value={viewEvent.nextDate || "-"} disabled />
                             </div>
-
-                            {/* Cycle */}
                             <div className="col-md-6">
                                 <label className="form-label">Cycle</label>
-                                <input type="text" className="form-control" value={viewEvent.cycle
-                                    ? `every ${viewEvent.cycle} month${viewEvent.cycle > 1 ? "s" : ""}`
-                                    : "-"} disabled />
+                                <input
+                                    type="text"
+                                    className="form-control"
+                                    value={
+                                        viewEvent.cycle
+                                            ? `every ${viewEvent.cycle} month${viewEvent.cycle > 1 ? "s" : ""}`
+                                            : "-"
+                                    }
+                                    disabled
+                                />
                             </div>
-
-                            {/* Title */}
                             <div className="col-md-12">
                                 <label className="form-label">Title</label>
                                 <input type="text" className="form-control" value={viewEvent.title || "-"} disabled />
                             </div>
-
-                            {/* Description */}
                             <div className="col-md-12">
                                 <label className="form-label">Description</label>
-                                <textarea className="form-control" rows={3} value={viewEvent.description || "-"} disabled />
+                                <textarea
+                                    className="form-control"
+                                    rows={3}
+                                    value={viewEvent.description || "-"}
+                                    disabled
+                                />
                             </div>
-
-                            {/* Footer Buttons */}
                             <div className="col-12 d-flex justify-content-between pt-3">
                                 <button type="button" className="btn btn-outline-secondary" onClick={closeViewModal}>
                                     Close
@@ -693,11 +697,12 @@ function MaintenanceSchedule() {
                         }
                         try {
                             setSaving(true);
-                            await addSchedule(); // POST ไป backend + reload ตาราง
+                            await addSchedule();
 
                             const modalEl = document.getElementById("createScheduleModal");
                             if (modalEl) {
-                                const inst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                                const inst =
+                                    bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
                                 inst.hide();
                             }
                             cleanupBackdrops();
@@ -720,7 +725,6 @@ function MaintenanceSchedule() {
                     }}
                 >
                     <div className="row g-3">
-                        {/* 1) scheduleScope */}
                         <div className="col-md-6">
                             <label className="form-label">Scope</label>
                             <select
@@ -735,7 +739,6 @@ function MaintenanceSchedule() {
                             </select>
                         </div>
 
-                        {/* 2) assetGroupId (เฉพาะเมื่อ scope=0) */}
                         <div className="col-md-6">
                             <label className="form-label">Asset Group</label>
                             <select
@@ -745,7 +748,9 @@ function MaintenanceSchedule() {
                                 disabled={newSch.scope !== "0"}
                                 required={newSch.scope === "0"}
                             >
-                                <option value="">{newSch.scope === "0" ? "Select Asset Group" : " "}</option>
+                                <option value="">
+                                    {newSch.scope === "0" ? "Select Asset Group" : " "}
+                                </option>
                                 {assetOptions.map((a) => (
                                     <option key={a.id} value={a.id}>
                                         {a.name}
@@ -754,7 +759,6 @@ function MaintenanceSchedule() {
                             </select>
                         </div>
 
-                        {/* 3) cycleMonth */}
                         <div className="col-md-4">
                             <label className="form-label">Cycle (months)</label>
                             <input
@@ -763,40 +767,42 @@ function MaintenanceSchedule() {
                                 placeholder="e.g. 6"
                                 value={newSch.cycle}
                                 min={1}
-                                onChange={(e) => setNewSch((p) => ({ ...p, cycle: Number(e.target.value) }))}
+                                onChange={(e) =>
+                                    setNewSch((p) => ({ ...p, cycle: Number(e.target.value) }))
+                                }
                                 required
                             />
                         </div>
 
-                        {/* 4) Last date (dd/mm/yyyy) */}
                         <div className="col-md-4">
                             <label className="form-label">Last date</label>
                             <input
                                 type="date"
                                 className="form-control"
-                                value={dmyToIso(newSch.lastDate) || ""}   // แปลง dd/mm/yyyy -> ISO ให้ input=date
+                                value={dmyToIso(newSch.lastDate) || ""}
                                 onChange={(e) => {
-                                    // รับค่าจาก calendar เป็น ISO แล้วแปลงกลับไปเก็บเป็น dd/mm/yyyy
-                                    const iso = e.target.value;             // yyyy-MM-dd หรือ ""
+                                    const iso = e.target.value;
                                     setNewSch((p) => ({ ...p, lastDate: iso ? isoToDmy(iso) : "" }));
                                 }}
                                 required
                             />
                         </div>
 
-                        {/* 5) nextDueDate (auto + disabled) */}
                         <div className="col-md-4">
                             <label className="form-label">Next date (auto)</label>
                             <input
                                 type="text"
                                 className="form-control"
-                                value={newSch.lastDate && newSch.cycle ? addMonthsDMY(newSch.lastDate, newSch.cycle) : ""}
+                                value={
+                                    newSch.lastDate && newSch.cycle
+                                        ? addMonthsDMY(newSch.lastDate, newSch.cycle)
+                                        : ""
+                                }
                                 disabled
                                 readOnly
                             />
                         </div>
 
-                        {/* 6) notifyBeforeDate */}
                         <div className="col-md-4">
                             <label className="form-label">Notify (days)</label>
                             <input
@@ -805,12 +811,13 @@ function MaintenanceSchedule() {
                                 placeholder="e.g. 7"
                                 value={newSch.notify}
                                 min={0}
-                                onChange={(e) => setNewSch((p) => ({ ...p, notify: Number(e.target.value) }))}
+                                onChange={(e) =>
+                                    setNewSch((p) => ({ ...p, notify: Number(e.target.value) }))
+                                }
                                 required
                             />
                         </div>
 
-                        {/* 7) scheduleTitle */}
                         <div className="col-md-8">
                             <label className="form-label">Title</label>
                             <input
@@ -823,7 +830,6 @@ function MaintenanceSchedule() {
                             />
                         </div>
 
-                        {/* 8) scheduleDescription */}
                         <div className="col-md-12">
                             <label className="form-label">Description</label>
                             <textarea
@@ -831,18 +837,28 @@ function MaintenanceSchedule() {
                                 rows={3}
                                 placeholder="รายละเอียดงานตรวจ/ซ่อม"
                                 value={newSch.description}
-                                onChange={(e) => setNewSch((p) => ({ ...p, description: e.target.value }))}
+                                onChange={(e) =>
+                                    setNewSch((p) => ({ ...p, description: e.target.value }))
+                                }
                             />
                         </div>
 
                         <div className="col-12 d-flex justify-content-center gap-3 pt-3 pb-3">
-                            <button type="button" className="btn btn-outline-secondary" data-bs-dismiss="modal">
+                            <button
+                                type="button"
+                                className="btn btn-outline-secondary"
+                                data-bs-dismiss="modal"
+                            >
                                 Cancel
                             </button>
                             <button type="submit" className="btn btn-primary" disabled={saving}>
                                 {saving ? (
                                     <>
-                                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                        <span
+                                            className="spinner-border spinner-border-sm me-2"
+                                            role="status"
+                                            aria-hidden="true"
+                                        ></span>
                                         Saving...
                                     </>
                                 ) : (
