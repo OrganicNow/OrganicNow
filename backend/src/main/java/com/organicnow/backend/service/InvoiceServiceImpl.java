@@ -27,15 +27,21 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final ContractRepository contractRepository;
     private final RoomRepository roomRepository;
     private final PaymentRecordRepository paymentRecordRepository;
+    private final OutstandingBalanceService outstandingBalanceService;
+    private final QRCodeService qrCodeService;
 
     public InvoiceServiceImpl(InvoiceRepository invoiceRepository,
                               ContractRepository contractRepository,
                               RoomRepository roomRepository,
-                              PaymentRecordRepository paymentRecordRepository) {
+                              PaymentRecordRepository paymentRecordRepository,
+                              OutstandingBalanceService outstandingBalanceService,
+                              QRCodeService qrCodeService) {
         this.invoiceRepository = invoiceRepository;
         this.contractRepository = contractRepository;
         this.roomRepository = roomRepository;
         this.paymentRecordRepository = paymentRecordRepository;
+        this.outstandingBalanceService = outstandingBalanceService;
+        this.qrCodeService = qrCodeService;
     }
 
     // ===== CRUD =====
@@ -57,6 +63,46 @@ public class InvoiceServiceImpl implements InvoiceService {
     @Override
     public InvoiceDto createInvoice(CreateInvoiceRequest request) {
         System.out.println("🚀 Received request: " + request);
+        
+        // ✅ ตรวจสอบว่าต้องการสร้างใบแจ้งหนี้แบบรวมยอดค้างหรือไม่
+        if (request.getContractId() != null && request.getIncludeOutstandingBalance() != null && request.getIncludeOutstandingBalance()) {
+            return createInvoiceWithOutstandingBalance(request);
+        }
+        
+        // ✅ วิธีเดิม - สร้างใบแจ้งหนี้ปกติ
+        return createRegularInvoice(request);
+    }
+
+    /**
+     * สร้างใบแจ้งหนี้แบบรวมยอดค้างชำระ
+     */
+    private InvoiceDto createInvoiceWithOutstandingBalance(CreateInvoiceRequest request) {
+        System.out.println("💰 Creating invoice with outstanding balance for contract: " + request.getContractId());
+        
+        // คำนวณค่าใช้จ่ายเดือนปัจจุบัน
+        int rent = nullSafeInt(request.getRentAmount());
+        int waterAmount = nullSafeInt(request.getWater());
+        int electricityAmount = nullSafeInt(request.getElectricity());
+        int currentMonthCharges = rent + waterAmount + electricityAmount;
+        
+        // ใช้ OutstandingBalanceService สร้างใบแจ้งหนี้
+        Invoice invoice = outstandingBalanceService.createInvoiceWithOutstandingBalance(
+            request.getContractId(), 
+            currentMonthCharges
+        );
+        
+        // เพิ่มข้อมูลเพิ่มเติมจาก request
+        populateInvoiceFromRequest(invoice, request);
+        invoice = invoiceRepository.save(invoice);
+        
+        System.out.println("✅ Invoice created with outstanding balance - Total: " + invoice.getNetAmount());
+        return convertToDto(invoice);
+    }
+
+    /**
+     * สร้างใบแจ้งหนี้ปกติ (วิธีเดิม)
+     */
+    private InvoiceDto createRegularInvoice(CreateInvoiceRequest request) {
         System.out.println("📋 Package ID: " + request.getPackageId() + ", Floor: " + request.getFloor() + ", Room: " + request.getRoom());
         System.out.println("💰 Rent: " + request.getRentAmount() + ", Water Unit: " + request.getWaterUnit() + ", Elec Unit: " + request.getElectricityUnit());
         System.out.println("🔧 Water Bill: " + request.getWater() + ", Electricity Bill: " + request.getElectricity());
@@ -139,30 +185,9 @@ public class InvoiceServiceImpl implements InvoiceService {
         
         inv.setContact(contract);
 
-        // ✅ เก็บข้อมูลจาก request สำหรับการแสดงผล
-        inv.setPackageId(request.getPackageId());
+        // เพิ่มข้อมูลเพิ่มเติมจาก request
+        populateInvoiceFromRequest(inv, request);
         
-        // แปลง floor จาก String เป็น Integer
-        Integer floorNum = null;
-        try {
-            if (request.getFloor() != null && !request.getFloor().trim().isEmpty()) {
-                floorNum = Integer.parseInt(request.getFloor().trim());
-            }
-        } catch (NumberFormatException e) {
-            System.out.println("⚠️ Invalid floor format: " + request.getFloor());
-        }
-        inv.setRequestedFloor(floorNum);
-        inv.setRequestedRoom(request.getRoom());
-        inv.setRequestedRent(rent);
-        
-        // เก็บค่าน้ำและค่าไฟจาก request
-        inv.setRequestedWater(waterAmount);
-        inv.setRequestedWaterUnit(waterUnit);
-        inv.setRequestedElectricity(electricityAmount);
-        inv.setRequestedElectricityUnit(electricityUnit);
-        
-        System.out.println("💾 Saving to DB - Water: " + waterAmount + " (" + waterUnit + " units), Electricity: " + electricityAmount + " (" + electricityUnit + " units)");
-
         Invoice saved = invoiceRepository.save(inv);
         
         // ✅ สร้าง DTO response โดยใช้ข้อมูลจาก request แทนข้อมูลจาก contract
@@ -191,11 +216,57 @@ public class InvoiceServiceImpl implements InvoiceService {
         return result;
     }
 
+    /**
+     * Helper method สำหรับเพิ่มข้อมูลจาก request ลงใน invoice
+     */
+    private void populateInvoiceFromRequest(Invoice invoice, CreateInvoiceRequest request) {
+        // ✅ เก็บข้อมูลจาก request สำหรับการแสดงผล
+        invoice.setPackageId(request.getPackageId());
+        
+        // แปลง floor จาก String เป็น Integer
+        Integer floorNum = null;
+        try {
+            if (request.getFloor() != null && !request.getFloor().trim().isEmpty()) {
+                floorNum = Integer.parseInt(request.getFloor().trim());
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("⚠️ Invalid floor format: " + request.getFloor());
+        }
+        invoice.setRequestedFloor(floorNum);
+        invoice.setRequestedRoom(request.getRoom());
+        
+        // คำนวณและเก็บข้อมูลจาก request
+        int rent = nullSafeInt(request.getRentAmount());
+        Integer uiElecUnit = request.getElecUnit();
+        int waterUnit = request.getWaterUnit() != null ? request.getWaterUnit() : 0;
+        int waterRate = request.getWaterRate() != null ? request.getWaterRate() : 30;
+        int electricityUnit = request.getElectricityUnit() != null ? request.getElectricityUnit()
+                : (uiElecUnit != null ? uiElecUnit : 0);
+
+        Integer waterAmountFromUi = request.getWater();
+        Integer elecAmountFromUi = request.getElectricity();
+        int waterAmount = (waterAmountFromUi != null) ? waterAmountFromUi : waterUnit * waterRate;
+        int electricityAmount = (elecAmountFromUi != null) ? elecAmountFromUi : electricityUnit * 8;
+
+        invoice.setRequestedRent(rent);
+        invoice.setRequestedWater(waterAmount);
+        invoice.setRequestedWaterUnit(waterUnit);
+        invoice.setRequestedElectricity(electricityAmount);
+        invoice.setRequestedElectricityUnit(electricityUnit);
+        
+        System.out.println("💾 Populating from request - Water: " + waterAmount + " (" + waterUnit + " units), Electricity: " + electricityAmount + " (" + electricityUnit + " units)");
+    }
+
     @Override
     @Transactional
     public InvoiceDto updateInvoice(Long id, UpdateInvoiceRequest request) {
         Invoice inv = invoiceRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Invoice not found: " + id));
+
+        // ===== วันที่สร้าง (สำหรับทดสอบ) =====
+        if (request.getCreateDate() != null) {
+            inv.setCreateDate(request.getCreateDate());
+        }
 
         // ===== วันที่ครบกำหนด =====
         if (request.getDueDate() != null) {
@@ -264,9 +335,27 @@ public class InvoiceServiceImpl implements InvoiceService {
     }
 
     @Override
+    @Transactional
     public void deleteInvoice(Long id) {
-        if (invoiceRepository.existsById(id)) {
+        try {
+            if (!invoiceRepository.existsById(id)) {
+                throw new RuntimeException("Invoice not found: " + id);
+            }
+            
+            System.out.println("🗑️ Starting delete process for Invoice ID: " + id);
+            
+            // 1. ลบ PaymentRecord ที่เกี่ยวข้องก่อน
+            paymentRecordRepository.deleteByInvoiceId(id);
+            System.out.println("✅ Deleted PaymentRecords for Invoice ID: " + id);
+            
+            // 2. แล้วค่อยลบ Invoice
             invoiceRepository.deleteById(id);
+            System.out.println("✅ Deleted Invoice ID: " + id);
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error deleting Invoice ID: " + id + " - " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("ไม่สามารถลบใบแจ้งหนี้ได้: " + e.getMessage(), e);
         }
     }
 
@@ -346,11 +435,74 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .map(PaymentRecordDto::fromEntity)
                 .toList();
         
-        // คำนวณยอดเงินการชำระ
-        BigDecimal totalPaid = paymentRecordRepository.calculateTotalPaidAmount(invoice.getId());
-        BigDecimal totalPending = paymentRecordRepository.calculateTotalPendingAmount(invoice.getId());
-        BigDecimal invoiceAmount = BigDecimal.valueOf(invoice.getNetAmount());
-        BigDecimal remainingAmount = invoiceAmount.subtract(totalPaid);
+        // คำนวณยอดเงินการชำระ - แก้ไขให้ถูกต้อง 🔥
+        BigDecimal totalPaid = paymentRecordRepository.calculateTotalPaidAmount(invoice.getId()); // CONFIRMED only
+        BigDecimal totalPending = paymentRecordRepository.calculateTotalPendingAmount(invoice.getId()); // PENDING only
+        BigDecimal totalReceived = paymentRecordRepository.calculateTotalReceivedAmount(invoice.getId()); // CONFIRMED + PENDING
+        
+        // 🔧 แก้ไข: ใช้ netAmount ที่คำนวณจริง ไม่ใช่ค่าที่บันทึกไว้
+        int realSubTotal = invoice.getSubTotal() != null ? invoice.getSubTotal() : 0;
+        int realPenalty = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
+        int realNetAmount = realSubTotal + realPenalty;
+        
+        BigDecimal invoiceAmount = BigDecimal.valueOf(realNetAmount);
+        BigDecimal remainingAmount = invoiceAmount.subtract(totalReceived != null ? totalReceived : BigDecimal.ZERO);
+        
+        System.out.println("💰 Invoice #" + invoice.getId() + " - SubTotal: " + realSubTotal + 
+                         ", Penalty: " + realPenalty + ", NetAmount: " + realNetAmount + 
+                         ", Paid: " + (totalReceived != null ? totalReceived.intValue() : 0) + 
+                         ", Remaining: " + remainingAmount.intValue());
+
+        // 🔥 Outstanding Balance Logic - แยกระหว่างยอดค้างของ Invoice นี้ กับยอดค้างจากใบอื่น
+        int contractId = invoice.getContact() != null ? invoice.getContact().getId().intValue() : 0;
+        int outstandingFromOtherInvoices = 0; // ยอดค้างจากใบแจ้งหนี้อื่น
+        boolean hasOutstandingFromOthers = false;
+        
+        // คำนวณยอดคงเหลือของ Invoice นี้
+        int currentInvoiceRemaining = remainingAmount.intValue(); // ยอดคงเหลือของใบนี้
+        boolean hasCurrentRemaining = currentInvoiceRemaining > 0;
+        
+        try {
+            if (contractId > 0) {
+                // 🔧 แก้ไข: คำนวณยอดค้างจากใบแจ้งหนี้ที่สร้างก่อนหน้านี้เท่านั้น (ใช้ createDate)
+                List<Invoice> earlierUnpaidInvoices = invoiceRepository.findByContact_IdAndInvoiceStatusOrderByCreateDateAsc(Long.valueOf(contractId), 0);
+                for (Invoice otherInvoice : earlierUnpaidInvoices) {
+                    // ✅ เฉพาะใบที่สร้างก่อนหน้า และไม่ใช่ใบปัจจุบัน
+                    if (!otherInvoice.getId().equals(invoice.getId()) && 
+                        otherInvoice.getCreateDate().isBefore(invoice.getCreateDate())) {
+                        
+                        // 🔧 คำนวณยอดคงเหลือจริงของใบก่อนหน้า
+                        BigDecimal otherReceived = paymentRecordRepository.calculateTotalReceivedAmount(otherInvoice.getId());
+                        int otherReceivedAmount = otherReceived != null ? otherReceived.intValue() : 0;
+                        
+                        // คำนวณ netAmount จริงของใบก่อนหน้า
+                        int otherSubTotal = otherInvoice.getSubTotal() != null ? otherInvoice.getSubTotal() : 0;
+                        int otherPenalty = otherInvoice.getPenaltyTotal() != null ? otherInvoice.getPenaltyTotal() : 0;
+                        int otherNetAmount = otherSubTotal + otherPenalty;
+                        
+                        // ยอดคงเหลือ = NetAmount - ยอดที่ได้รับ (รวม pending)
+                        int otherRemaining = otherNetAmount - otherReceivedAmount;
+                        
+                        System.out.println("🔍 Previous Invoice #" + otherInvoice.getId() + 
+                                         " - SubTotal: " + otherSubTotal + 
+                                         ", Penalty: " + otherPenalty + 
+                                         ", NetAmount: " + otherNetAmount + 
+                                         ", Received: " + otherReceivedAmount + 
+                                         ", Remaining: " + otherRemaining);
+                        
+                        if (otherRemaining > 0) {
+                            outstandingFromOtherInvoices += otherRemaining;
+                        }
+                    }
+                }
+                hasOutstandingFromOthers = outstandingFromOtherInvoices > 0;
+                System.out.println("🔍 Invoice #" + invoice.getId() + " (Created: " + invoice.getCreateDate() + 
+                                 ") Current Remaining: " + currentInvoiceRemaining + 
+                                 " บาท, Outstanding from Earlier Invoices: " + outstandingFromOtherInvoices + " บาท");
+            }
+        } catch (Exception e) {
+            System.err.println("❌ Error calculating outstanding balance for Invoice #" + invoice.getId() + ": " + e.getMessage());
+        }
 
         return InvoiceDto.builder()
                 .id(invoice.getId())
@@ -362,13 +514,18 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .payMethod(invoice.getPayMethod())
                 .subTotal(invoice.getSubTotal())
                 .penaltyTotal(invoice.getPenaltyTotal())
-                .netAmount(invoice.getSubTotal() + invoice.getPenaltyTotal()) // ✅ คำนวณ real-time
+                .netAmount(realNetAmount) // ✅ ใช้ค่าที่คำนวณใหม่
                 .penaltyAppliedAt(invoice.getPenaltyAppliedAt())
                 // Payment Information
                 .paymentRecords(paymentRecordDtos)
                 .totalPaidAmount(totalPaid)
                 .totalPendingAmount(totalPending)
-                .remainingAmount(remainingAmount)
+                .remainingAmount(remainingAmount) // ✅ ใช้ค่าที่คำนวณใหม่
+                // Outstanding Balance Information - แสดงยอดคงเหลือของใบนี้และยอดค้างจากใบอื่น 🔥
+                .previousBalance(outstandingFromOtherInvoices) // ยอดค้างจากใบแจ้งหนี้อื่น
+                .paidAmount(totalReceived.intValue()) // ยอดที่ชำระแล้วของใบนี้
+                .outstandingBalance(currentInvoiceRemaining + outstandingFromOtherInvoices) // ยอดคงเหลือรวมทั้งหมด
+                .hasOutstandingBalance(hasOutstandingFromOthers || hasCurrentRemaining) // มียอดค้างรวมหรือไม่
                 // ✅ ใช้ข้อมูล tenant ปัจจุบัน
                 .firstName(currentFirstName)
                 .lastName(currentLastName)
@@ -672,8 +829,6 @@ public class InvoiceServiceImpl implements InvoiceService {
             throw new RuntimeException("Contract not found for invoice: " + invoiceId);
         }
         
-        // FIX 2: ดึงข้อมูลจาก Invoice entity (requested... fields) และ contract ที่เกี่ยวข้อง
-        // ข้อมูล Tenant ยังคงดึงจาก contract ที่ผูกกับ invoice
         Tenant tenant = contract.getTenant();
         if (tenant == null) {
             throw new RuntimeException("Tenant not found for contract: " + contract.getId());
@@ -695,24 +850,29 @@ public class InvoiceServiceImpl implements InvoiceService {
             PdfWriter.getInstance(document, baos);
             document.open();
             
-            // กำหนด fonts - ใช้ default fonts แทนไฟล์ฟอนต์ไทยที่ไม่มี
-            Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 20, Color.BLACK);
-            Font headerFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14, Color.BLACK);
-            Font labelFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, Color.BLACK);
-            Font normalFont = FontFactory.getFont(FontFactory.HELVETICA, 11, Color.BLACK);
-            Font smallFont = FontFactory.getFont(FontFactory.HELVETICA, 9, Color.GRAY);
+            // สร้างฟอนต์ที่ใช้ในระบบ (อ้างอิงจาก TenantContract)
+            Font[] fonts = PdfStyleService.createInvoiceFonts();
+            Font titleFont = fonts[0];
+            Font headerFont = fonts[1];
+            Font labelFont = fonts[2];
+            Font normalFont = fonts[3];
+            Font smallFont = fonts[4];
             
-            // ===== หัวกระดาษ =====
-            // ชื่อบริษัท
-            Paragraph companyTitle = new Paragraph("ORGANIC NOW", titleFont);
-            companyTitle.setAlignment(Element.ALIGN_CENTER);
-            companyTitle.setSpacingAfter(5);
-            document.add(companyTitle);
+            // เพิ่ม Company Header
+            PdfStyleService.addCompanyHeader(document, titleFont, headerFont);
             
-            Paragraph companySubtitle = new Paragraph("หอพักออร์แกนิคเนาว์", headerFont);
-            companySubtitle.setAlignment(Element.ALIGN_CENTER);
-            companySubtitle.setSpacingAfter(20);
-            document.add(companySubtitle);
+            // หัวข้อใบแจ้งหนี้
+            Paragraph invoiceTitle = new Paragraph("ใบแจ้งหนี้ค่าบริการ", titleFont);
+            invoiceTitle.setAlignment(Element.ALIGN_CENTER);
+            invoiceTitle.setSpacingAfter(5);
+            document.add(invoiceTitle);
+            
+            Paragraph invoiceSubtitle = new Paragraph("INVOICE", headerFont);
+            invoiceSubtitle.setAlignment(Element.ALIGN_CENTER);
+            invoiceSubtitle.setSpacingAfter(20);
+            document.add(invoiceSubtitle);
+            
+            PdfStyleService.addSeparatorLine(document);
             
             // ===== ข้อมูลใบแจ้งหนี้ =====
             PdfPTable invoiceHeaderTable = new PdfPTable(2);
@@ -720,27 +880,19 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoiceHeaderTable.setWidths(new float[]{1, 1});
             invoiceHeaderTable.setSpacingAfter(20);
             
-            // ข้อมูลบริษัท
-            PdfPCell companyCell = new PdfPCell();
-            companyCell.setBorder(Rectangle.NO_BORDER);
-            companyCell.addElement(new Paragraph("ที่อยู่:", labelFont));
-            companyCell.addElement(new Paragraph("123/45 ถนนราชดำเนิน", normalFont));
-            companyCell.addElement(new Paragraph("กรุงเทพมหานคร 10200", normalFont));
-            companyCell.addElement(new Paragraph("โทรศัพท์: 02-123-4567", normalFont));
-            invoiceHeaderTable.addCell(companyCell);
-            
             // ข้อมูลใบแจ้งหนี้
             PdfPCell invoiceInfoCell = new PdfPCell();
             invoiceInfoCell.setBorder(Rectangle.BOX);
             invoiceInfoCell.setPadding(10);
-            invoiceInfoCell.setBackgroundColor(new Color(245, 245, 245));
+            invoiceInfoCell.setBackgroundColor(PdfStyleService.LIGHT_GRAY);
             
-            invoiceInfoCell.addElement(new Paragraph("ใบแจ้งหนี้เลขที่", labelFont));
+            invoiceInfoCell.addElement(new Paragraph("เลขที่ใบแจ้งหนี้", labelFont));
             invoiceInfoCell.addElement(new Paragraph("INV-" + String.format("%06d", invoice.getId()), titleFont));
             invoiceInfoCell.addElement(new Paragraph(" ", normalFont)); // spacer
-            invoiceInfoCell.addElement(new Paragraph("วันที่ออกบิล: " + invoice.getCreateDate().toLocalDate(), normalFont));
-            invoiceInfoCell.addElement(new Paragraph("วันครบกำหนด: " + (invoice.getDueDate() != null ? 
-                    invoice.getDueDate().toLocalDate() : "ไม่ระบุ"), normalFont));
+            invoiceInfoCell.addElement(new Paragraph("วันที่ออกบิล: " + 
+                (invoice.getCreateDate() != null ? invoice.getCreateDate().toLocalDate() : "ไม่ระบุ"), normalFont));
+            invoiceInfoCell.addElement(new Paragraph("วันครบกำหนด: " + 
+                (invoice.getDueDate() != null ? invoice.getDueDate().toLocalDate() : "ไม่ระบุ"), normalFont));
             
             invoiceHeaderTable.addCell(invoiceInfoCell);
             document.add(invoiceHeaderTable);
@@ -755,23 +907,21 @@ public class InvoiceServiceImpl implements InvoiceService {
             customerTable.setWidths(new float[]{1, 2});
             customerTable.setSpacingAfter(20);
             
-            customerTable.addCell(makeStyledLabelCell("ชื่อ-นามสกุล:", labelFont));
-            customerTable.addCell(makeStyledValueCell((tenant.getFirstName() != null ? tenant.getFirstName() : "") + 
-                    " " + (tenant.getLastName() != null ? tenant.getLastName() : ""), normalFont));
+            customerTable.addCell(PdfStyleService.createLabelCell("ชื่อ-นามสกุล:", labelFont));
+            customerTable.addCell(PdfStyleService.createValueCell(
+                PdfStyleService.nvl(tenant.getFirstName()) + " " + PdfStyleService.nvl(tenant.getLastName()), normalFont));
             
-            customerTable.addCell(makeStyledLabelCell("เลขประจำตัวประชาชน:", labelFont));
-            customerTable.addCell(makeStyledValueCell(tenant.getNationalId() != null ? tenant.getNationalId() : "ไม่ระบุ", normalFont));
+            customerTable.addCell(PdfStyleService.createLabelCell("เลขประจำตัวประชาชน:", labelFont));
+            customerTable.addCell(PdfStyleService.createValueCell(PdfStyleService.nvl(tenant.getNationalId()), normalFont));
             
-            customerTable.addCell(makeStyledLabelCell("เบอร์โทรศัพท์:", labelFont));
-            customerTable.addCell(makeStyledValueCell(tenant.getPhoneNumber() != null ? tenant.getPhoneNumber() : "ไม่ระบุ", normalFont));
+            customerTable.addCell(PdfStyleService.createLabelCell("เบอร์โทรศัพท์:", labelFont));
+            customerTable.addCell(PdfStyleService.createValueCell(PdfStyleService.nvl(tenant.getPhoneNumber()), normalFont));
             
-            // FIX 2: ใช้ข้อมูลห้องจากตัว invoice (roomDisplay)
-            customerTable.addCell(makeStyledLabelCell("หมายเลขห้อง:", labelFont));
-            customerTable.addCell(makeStyledValueCell(roomDisplay, normalFont));
+            customerTable.addCell(PdfStyleService.createLabelCell("หมายเลขห้อง:", labelFont));
+            customerTable.addCell(PdfStyleService.createValueCell(roomDisplay, normalFont));
             
-            // FIX 2: ใช้ข้อมูลแพ็คเกจจากตัวแปร (packageName)
-            customerTable.addCell(makeStyledLabelCell("แพ็คเกจ:", labelFont));
-            customerTable.addCell(makeStyledValueCell(packageName, normalFont));
+            customerTable.addCell(PdfStyleService.createLabelCell("แพ็คเกจ:", labelFont));
+            customerTable.addCell(PdfStyleService.createValueCell(packageName, normalFont));
             
             document.add(customerTable);
             
@@ -786,49 +936,54 @@ public class InvoiceServiceImpl implements InvoiceService {
             expenseTable.setSpacingAfter(15);
             
             // Header ของตาราง
-            expenseTable.addCell(makeStyledHeaderCell("รายการ", labelFont));
-            expenseTable.addCell(makeStyledHeaderCell("จำนวน/หน่วย", labelFont));
-            expenseTable.addCell(makeStyledHeaderCell("อัตรา (บาท)", labelFont));
-            expenseTable.addCell(makeStyledHeaderCell("จำนวนเงิน (บาท)", labelFont));
+            expenseTable.addCell(PdfStyleService.createHeaderCell("รายการ", labelFont));
+            expenseTable.addCell(PdfStyleService.createHeaderCell("จำนวน/หน่วย", labelFont));
+            expenseTable.addCell(PdfStyleService.createHeaderCell("อัตรา (บาท)", labelFont));
+            expenseTable.addCell(PdfStyleService.createHeaderCell("จำนวนเงิน (บาท)", labelFont));
+            
+            // ยอดค้างจากเดือนก่อน (ถ้ามี)
+            int previousBalance = invoice.getPreviousBalance() != null ? invoice.getPreviousBalance() : 0;
+            if (previousBalance > 0) {
+                expenseTable.addCell(PdfStyleService.createDataCell("ยอดค้างจากเดือนก่อน", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell("1 รายการ", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell("-", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(previousBalance), normalFont));
+            }
             
             // ค่าเช่า
-            // (โค้ดส่วนนี้ถูกต้องอยู่แล้ว ใช้ requestedRent)
             int rentAmount = invoice.getRequestedRent() != null ? invoice.getRequestedRent() : 0;
-            expenseTable.addCell(makeStyledDataCell("ค่าเช่าห้องพัก", normalFont));
-            expenseTable.addCell(makeStyledDataCell("1 เดือน", normalFont));
-            expenseTable.addCell(makeStyledDataCell(String.format("%,d", rentAmount), normalFont));
-            expenseTable.addCell(makeStyledDataCell(String.format("%,d", rentAmount), normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell("ค่าเช่าห้องพัก", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell("1 เดือน", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(rentAmount), normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(rentAmount), normalFont));
             
             // ค่าน้ำ
-            // (โค้ดส่วนนี้ถูกต้องอยู่แล้ว ใช้ requestedWater/Unit)
             int waterUnit = invoice.getRequestedWaterUnit() != null ? invoice.getRequestedWaterUnit() : 0;
             int waterAmount = invoice.getRequestedWater() != null ? invoice.getRequestedWater() : 0;
-            // FIX 2b: เปลี่ยน default rate ให้ตรงกับ createInvoice (30)
             int waterRate = (waterUnit > 0 && waterAmount > 0) ? (waterAmount / waterUnit) : 30;
             
-            expenseTable.addCell(makeStyledDataCell("ค่าน้ำประปา", normalFont));
-            expenseTable.addCell(makeStyledDataCell(waterUnit + " หน่วย", normalFont));
-            expenseTable.addCell(makeStyledDataCell(String.format("%d", waterRate), normalFont));
-            expenseTable.addCell(makeStyledDataCell(String.format("%,d", waterAmount), normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell("ค่าน้ำประปา", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell(waterUnit + " หน่วย", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell(String.valueOf(waterRate), normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(waterAmount), normalFont));
             
             // ค่าไฟ
-            // (โค้ดส่วนนี้ถูกต้องอยู่แล้ว ใช้ requestedElectricity/Unit)
             int elecUnit = invoice.getRequestedElectricityUnit() != null ? invoice.getRequestedElectricityUnit() : 0;
             int elecAmount = invoice.getRequestedElectricity() != null ? invoice.getRequestedElectricity() : 0;
             int elecRate = (elecUnit > 0 && elecAmount > 0) ? (elecAmount / elecUnit) : 8;
             
-            expenseTable.addCell(makeStyledDataCell("ค่าไฟฟ้า", normalFont));
-            expenseTable.addCell(makeStyledDataCell(elecUnit + " หน่วย", normalFont));
-            expenseTable.addCell(makeStyledDataCell(String.format("%d", elecRate), normalFont));
-            expenseTable.addCell(makeStyledDataCell(String.format("%,d", elecAmount), normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell("ค่าไฟฟ้า", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell(elecUnit + " หน่วย", normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell(String.valueOf(elecRate), normalFont));
+            expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(elecAmount), normalFont));
             
             // ค่าปรับ (ถ้ามี)
             int penaltyAmount = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
             if (penaltyAmount > 0) {
-                expenseTable.addCell(makeStyledDataCell("ค่าปรับล่าช้า", normalFont));
-                expenseTable.addCell(makeStyledDataCell("1 รายการ", normalFont));
-                expenseTable.addCell(makeStyledDataCell(String.format("%,d", penaltyAmount), normalFont));
-                expenseTable.addCell(makeStyledDataCell(String.format("%,d", penaltyAmount), normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell("ค่าปรับล่าช้า", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell("1 รายการ", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(penaltyAmount), normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(penaltyAmount), normalFont));
             }
             
             document.add(expenseTable);
@@ -841,15 +996,22 @@ public class InvoiceServiceImpl implements InvoiceService {
             summaryTable.setSpacingAfter(20);
             
             int subTotal = invoice.getSubTotal() != null ? invoice.getSubTotal() : 0;
-            // FIX: ใช้ netAmount จาก invoice entity ที่คำนวณไว้แล้ว
-            int netAmount = invoice.getNetAmount() != null ? invoice.getNetAmount() : (subTotal + penaltyAmount);
+            int previousBalanceAmount = invoice.getPreviousBalance() != null ? invoice.getPreviousBalance() : 0;
+            int penaltyTotalAmount = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
+            int netAmount = invoice.getNetAmount() != null ? invoice.getNetAmount() : (subTotal + previousBalanceAmount + penaltyTotalAmount);
             
-            summaryTable.addCell(makeStyledSummaryLabelCell("ยอดรวมค่าบริการ:", labelFont));
-            summaryTable.addCell(makeStyledSummaryValueCell(String.format("%,d บาท", subTotal), normalFont));
+            // แสดงยอดค้างจากเดือนก่อน (ถ้ามี)
+            if (previousBalanceAmount > 0) {
+                summaryTable.addCell(PdfStyleService.createSummaryLabelCell("ยอดค้างจากเดือนก่อน:", labelFont));
+                summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(previousBalanceAmount) + " บาท", normalFont));
+            }
             
-            if (penaltyAmount > 0) {
-                summaryTable.addCell(makeStyledSummaryLabelCell("ค่าปรับล่าช้า:", labelFont));
-                summaryTable.addCell(makeStyledSummaryValueCell(String.format("%,d บาท", penaltyAmount), normalFont));
+            summaryTable.addCell(PdfStyleService.createSummaryLabelCell("ยอดรวมค่าบริการเดือนนี้:", labelFont));
+            summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(subTotal) + " บาท", normalFont));
+            
+            if (penaltyTotalAmount > 0) {
+                summaryTable.addCell(PdfStyleService.createSummaryLabelCell("ค่าปรับล่าช้า:", labelFont));
+                summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(penaltyTotalAmount) + " บาท", normalFont));
             }
             
             // เส้นแบ่ง
@@ -862,8 +1024,8 @@ public class InvoiceServiceImpl implements InvoiceService {
             lineCell2.setFixedHeight(10);
             summaryTable.addCell(lineCell2);
             
-            summaryTable.addCell(makeStyledSummaryLabelCell("ยอดรวมสุทธิ:", titleFont));
-            summaryTable.addCell(makeStyledSummaryValueCell(String.format("%,d บาท", netAmount), titleFont));
+            summaryTable.addCell(PdfStyleService.createSummaryLabelCell("ยอดรวมสุทธิ:", titleFont));
+            summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(netAmount) + " บาท", titleFont));
             
             document.add(summaryTable);
             
@@ -876,54 +1038,193 @@ public class InvoiceServiceImpl implements InvoiceService {
             statusTable.setWidthPercentage(100);
             statusTable.setSpacingAfter(20);
             
-            PdfPCell statusCell = new PdfPCell();
-            statusCell.setBorder(Rectangle.BOX);
-            statusCell.setPadding(15);
-            
             String statusText = "";
-            if (invoice.getInvoiceStatus() != null) {
-                switch (invoice.getInvoiceStatus()) {
-                    case 0:
-                        statusText = "สถานะ: ยังไม่ชำระเงิน";
-                        statusCell.setBackgroundColor(new Color(255, 235, 235)); // Light red
-                        break;
-                    case 1:
-                        statusText = "สถานะ: ชำระเงินเรียบร้อยแล้ว";
-                        statusCell.setBackgroundColor(new Color(235, 255, 235)); // Light green
-                        if (invoice.getPayDate() != null) {
-                            statusText += "\nวันที่ชำระ: " + invoice.getPayDate().toLocalDate();
-                        }
-                        break;
-                    case 2:
-                        statusText = "สถานะ: ยกเลิกแล้ว";
-                        statusCell.setBackgroundColor(new Color(245, 245, 245)); // Light gray
-                        break;
-                    default:
-                        statusText = "สถานะ: ไม่ระบุ";
-                        break;
-                }
-            } else {
-                statusText = "สถานะ: ไม่ระบุ";
+            int status = invoice.getInvoiceStatus() != null ? invoice.getInvoiceStatus() : 0;
+            
+            switch (status) {
+                case 0:
+                    statusText = "สถานะ: ยังไม่ชำระเงิน";
+                    break;
+                case 1:
+                    statusText = "สถานะ: ชำระเงินเรียบร้อยแล้ว";
+                    if (invoice.getPayDate() != null) {
+                        statusText += "\nวันที่ชำระ: " + invoice.getPayDate().toLocalDate();
+                    }
+                    break;
+                case 2:
+                    statusText = "สถานะ: ยกเลิกแล้ว";
+                    break;
+                default:
+                    statusText = "สถานะ: ไม่ระบุ";
+                    break;
             }
             
-            statusCell.addElement(new Paragraph(statusText, labelFont));
+            PdfPCell statusCell = PdfStyleService.createStatusCell(statusText, status, labelFont);
             statusTable.addCell(statusCell);
             document.add(statusTable);
             
             // ===== หมายเหตุ =====
-            if (invoice.getInvoiceStatus() == null || invoice.getInvoiceStatus() == 0) { // ยังไม่ชำระ
+            if (status == 0) { // ยังไม่ชำระ
                 Paragraph noteHeader = new Paragraph("หมายเหตุ", headerFont);
                 noteHeader.setSpacingAfter(5);
                 document.add(noteHeader);
                 
                 Paragraph note = new Paragraph();
                 note.add(new Phrase("• กรุณาชำระเงินภายในวันครบกำหนดที่ระบุข้างต้น\n", normalFont));
-                // FIX 3: เปลี่ยนข้อความค่าปรับให้ตรงกับ logic (10% ของค่าเช่า)
                 note.add(new Phrase("• หากชำระเงินล่าช้าจะมีค่าปรับ 10% ของยอดค่าเช่า\n", normalFont));
                 note.add(new Phrase("• สำหรับการโอนเงิน กรุณาแจ้งสลิปการชำระเงิน\n", normalFont));
                 note.add(new Phrase("• ติดต่อสอบถาม: โทร 02-123-4567\n", normalFont));
                 note.setSpacingAfter(20);
                 document.add(note);
+                
+                // ===== ข้อมูลการชำระเงิน =====
+                Paragraph paymentHeader = new Paragraph("ข้อมูลการชำระเงิน / Payment Information", headerFont);
+                paymentHeader.setSpacingAfter(10);
+                document.add(paymentHeader);
+                
+                // ตารางข้อมูลธนาคาร
+                PdfPTable paymentTable = new PdfPTable(2);
+                paymentTable.setWidthPercentage(100);
+                paymentTable.setWidths(new float[]{1, 1});
+                paymentTable.setSpacingAfter(15);
+                
+                // ข้อมูลธนาคาร
+                PdfPCell bankInfoCell = new PdfPCell();
+                bankInfoCell.setBorder(Rectangle.BOX);
+                bankInfoCell.setPadding(10);
+                bankInfoCell.setBackgroundColor(PdfStyleService.LIGHT_GRAY);
+                
+                bankInfoCell.addElement(new Paragraph("ธนาคารกรุงเทพ (Bangkok Bank)", labelFont));
+                bankInfoCell.addElement(new Paragraph("ชื่อบัญชี: OrganicNow Property Management", normalFont));
+                bankInfoCell.addElement(new Paragraph("เลขที่บัญชี: 123-4-56789-0", normalFont));
+                bankInfoCell.addElement(new Paragraph("สาขา: Central Plaza Branch", normalFont));
+                bankInfoCell.addElement(new Paragraph("SWIFT Code: BKKBTHBK", normalFont));
+                bankInfoCell.addElement(new Paragraph("PromptPay ID: 0123456789", normalFont));
+                
+                paymentTable.addCell(bankInfoCell);
+                
+                // QR Code สำหรับชำระเงิน (แสดงข้อความใน table)
+                PdfPCell qrCodeCell = new PdfPCell();
+                qrCodeCell.setBorder(Rectangle.BOX);
+                qrCodeCell.setPadding(10);
+                qrCodeCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                qrCodeCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+                qrCodeCell.setMinimumHeight(120);
+                
+                qrCodeCell.addElement(new Paragraph("QR Code สำหรับชำระเงิน", labelFont));
+                qrCodeCell.addElement(new Paragraph("Scan to Pay", normalFont));
+                qrCodeCell.addElement(new Paragraph("จำนวนเงิน: " + PdfStyleService.formatMoney(netAmount) + " บาท", normalFont));
+                qrCodeCell.addElement(new Paragraph("รหัสอ้างอิง: INV-" + String.format("%06d", invoice.getId()), smallFont));
+                qrCodeCell.addElement(new Paragraph("QR Code แสดงด้านล่าง", smallFont));
+                
+                paymentTable.addCell(qrCodeCell);
+                document.add(paymentTable);
+                
+                // เพิ่ม QR Code จริงหลัง payment table
+                try {
+                    Paragraph qrHeader = new Paragraph("QR Code สำหรับชำระเงิน", headerFont);
+                    qrHeader.setAlignment(Element.ALIGN_CENTER);
+                    qrHeader.setSpacingAfter(10);
+                    document.add(qrHeader);
+                    
+                    // สร้าง QR Code placeholder ที่สวยงาม
+                    PdfPTable qrTable = new PdfPTable(1);
+                    qrTable.setWidthPercentage(40);
+                    qrTable.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    qrTable.setSpacingAfter(10);
+                    
+                    PdfPCell qrCell = new PdfPCell();
+                    qrCell.setBorder(Rectangle.BOX);
+                    qrCell.setPadding(15);
+                    qrCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    qrCell.setMinimumHeight(120);
+                    qrCell.setBackgroundColor(new Color(250, 250, 250));
+                    
+                    // ASCII QR Code pattern
+                    qrCell.addElement(new Paragraph("█ █ █ █ █ █ █", new Font(Font.COURIER, 10, Font.NORMAL)));
+                    qrCell.addElement(new Paragraph("█       █   █", new Font(Font.COURIER, 10, Font.NORMAL)));
+                    qrCell.addElement(new Paragraph("█ █ █ █ █ █ █", new Font(Font.COURIER, 10, Font.NORMAL)));
+                    qrCell.addElement(new Paragraph("█   █   █   █", new Font(Font.COURIER, 10, Font.NORMAL)));
+                    qrCell.addElement(new Paragraph("█ █ █ █ █ █ █", new Font(Font.COURIER, 10, Font.NORMAL)));
+                    qrCell.addElement(new Paragraph(" ", normalFont));
+                    qrCell.addElement(new Paragraph("Scan to Pay", normalFont));
+                    
+                    qrTable.addCell(qrCell);
+                    document.add(qrTable);
+                    
+                    // ข้อมูลการชำระเงิน
+                    double amountValue = (double) netAmount;
+                    Paragraph qrInfo = new Paragraph("จำนวนเงิน: " + PdfStyleService.formatMoney(netAmount) + " บาท", normalFont);
+                    qrInfo.setAlignment(Element.ALIGN_CENTER);
+                    qrInfo.setSpacingAfter(5);
+                    document.add(qrInfo);
+                    
+                    Paragraph qrRef = new Paragraph("รหัสอ้างอิง: INV-" + String.format("%06d", invoice.getId()), normalFont);
+                    qrRef.setAlignment(Element.ALIGN_CENTER);
+                    qrRef.setSpacingAfter(5);
+                    document.add(qrRef);
+                    
+                    Paragraph promptPayInfo = new Paragraph("PromptPay ID: 0123456789", normalFont);
+                    promptPayInfo.setAlignment(Element.ALIGN_CENTER);
+                    promptPayInfo.setSpacingAfter(10);
+                    document.add(promptPayInfo);
+                    
+                    Paragraph urlInfo = new Paragraph("URL: https://promptpay.io/0123456789/" + String.format("%.2f", amountValue), smallFont);
+                    urlInfo.setAlignment(Element.ALIGN_CENTER);
+                    urlInfo.setSpacingAfter(20);
+                    document.add(urlInfo);
+                    
+                } catch (Exception e) {
+                    System.err.println("Error adding QR Code to PDF: " + e.getMessage());
+                    e.printStackTrace();
+                    
+                    // ถ้าสร้าง QR Code ไม่ได้ ให้ใช้ placeholder แทน
+                    PdfPTable qrPlaceholderTable = new PdfPTable(1);
+                    qrPlaceholderTable.setWidthPercentage(50);
+                    qrPlaceholderTable.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    qrPlaceholderTable.setSpacingAfter(10);
+                    
+                    PdfPCell placeholderCell = new PdfPCell();
+                    placeholderCell.setBorder(Rectangle.BOX);
+                    placeholderCell.setPadding(20);
+                    placeholderCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+                    placeholderCell.setMinimumHeight(80);
+                    placeholderCell.setBackgroundColor(PdfStyleService.LIGHT_GRAY);
+                    
+                    placeholderCell.addElement(new Paragraph("[ QR CODE ]", titleFont));
+                    placeholderCell.addElement(new Paragraph("Scan with mobile app", normalFont));
+                    qrPlaceholderTable.addCell(placeholderCell);
+                    
+                    document.add(qrPlaceholderTable);
+                    
+                    Paragraph qrInfo = new Paragraph("Scan to Pay - จำนวนเงิน: " + PdfStyleService.formatMoney(netAmount) + " บาท", normalFont);
+                    qrInfo.setAlignment(Element.ALIGN_CENTER);
+                    qrInfo.setSpacingAfter(5);
+                    document.add(qrInfo);
+                    
+                    Paragraph qrRef = new Paragraph("รหัสอ้างอิง: INV-" + String.format("%06d", invoice.getId()), normalFont);
+                    qrRef.setAlignment(Element.ALIGN_CENTER);
+                    qrRef.setSpacingAfter(10);
+                    document.add(qrRef);
+                    
+                    Paragraph promptPayInfo = new Paragraph("PromptPay ID: 0123456789", normalFont);
+                    promptPayInfo.setAlignment(Element.ALIGN_CENTER);
+                    promptPayInfo.setSpacingAfter(20);
+                    document.add(promptPayInfo);
+                }
+                
+                // คำแนะนำการชำระเงิน
+                Paragraph paymentInstructions = new Paragraph("วิธีการชำระเงิน / Payment Instructions", labelFont);
+                paymentInstructions.setSpacingAfter(5);
+                document.add(paymentInstructions);
+                
+                Paragraph instructions = new Paragraph();
+                instructions.add(new Phrase("1. โอนเงินตามจำนวนที่ระบุ: " + PdfStyleService.formatMoney(netAmount) + " บาท\n", normalFont));
+                instructions.add(new Phrase("2. ใส่รหัสอ้างอิง: INV-" + String.format("%06d", invoice.getId()) + "\n", normalFont));
+                instructions.add(new Phrase("3. บันทึกหลักฐานการโอนเงินและส่งให้เจ้าหน้าที่\n", normalFont));
+                instructions.add(new Phrase("4. การชำระเงินจะได้รับการตรวจสอบภายใน 1-2 วันทำการ\n", normalFont));
+                instructions.setSpacingAfter(20);
+                document.add(instructions);
             }
             
             // ===== Footer =====
@@ -944,113 +1245,5 @@ public class InvoiceServiceImpl implements InvoiceService {
             e.printStackTrace();
             throw new RuntimeException("Error generating PDF: " + e.getMessage());
         }
-    }
-    
-    private PdfPCell makeCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setPadding(5);
-        return cell;
-    }
-    
-    // ===== Helper Methods for PDF Cell Styling =====
-    
-    private PdfPCell makeStyledLabelCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.BOX);
-        cell.setPadding(8);
-        cell.setBackgroundColor(new Color(240, 240, 240));
-        cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        return cell;
-    }
-    
-    private PdfPCell makeStyledValueCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.BOX);
-        cell.setPadding(8);
-        cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        return cell;
-    }
-    
-    private PdfPCell makeStyledHeaderCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.BOX);
-        cell.setPadding(10);
-        cell.setBackgroundColor(new Color(220, 220, 220));
-        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        return cell;
-    }
-    
-    private PdfPCell makeStyledDataCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.BOX);
-        cell.setPadding(8);
-        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        return cell;
-    }
-    
-    private PdfPCell makeStyledSummaryLabelCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setPadding(5);
-        cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        return cell;
-    }
-    
-    private PdfPCell makeStyledSummaryValueCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setPadding(5);
-        cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        return cell;
-    }
-    
-    // Legacy methods (kept for compatibility)
-    private PdfPCell makeLabelCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setPadding(5);
-        cell.setBackgroundColor(new Color(240, 240, 240)); // Light gray
-        return cell;
-    }
-    
-    private PdfPCell makeValueCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setPadding(5);
-        return cell;
-    }
-    
-    private PdfPCell makeHeaderCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.BOX);
-        cell.setPadding(8);
-        cell.setBackgroundColor(new Color(200, 200, 200)); // Dark gray
-        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        return cell;
-    }
-    
-    private PdfPCell makeDataCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.BOX);
-        cell.setPadding(6);
-        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
-        return cell;
-    }
-    
-    private PdfPCell makeTotalLabelCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setPadding(5);
-        cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        return cell;
-    }
-    
-    private PdfPCell makeTotalValueCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
-        cell.setBorder(Rectangle.NO_BORDER);
-        cell.setPadding(5);
-        cell.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        return cell;
     }
 }

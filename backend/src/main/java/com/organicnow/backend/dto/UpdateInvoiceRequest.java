@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class UpdateInvoiceRequest {
 
+    private LocalDateTime createDate;       // วันที่สร้างใบแจ้งหนี้ (สำหรับทดสอบ)
     private LocalDateTime dueDate;          // วันครบกำหนดชำระ
     private Integer invoiceStatus;          // 0=ยังไม่ชำระ, 1=ชำระแล้ว, 2=ยกเลิก
     private LocalDateTime payDate;          // วันที่ชำระจริง

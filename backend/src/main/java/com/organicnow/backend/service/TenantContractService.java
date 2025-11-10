@@ -155,12 +155,8 @@ public class TenantContractService {
             invoiceRepository.deleteAll(invoices);
         }
         
-        // ลบ invoices ที่เกี่ยวข้องก่อน
-        List<Invoice> invoices = invoiceRepository.findByContact_IdOrderByIdDesc(contractId);
-        if (!invoices.isEmpty()) {
-            invoiceRepository.deleteAll(invoices);
-        }
         
+            
         // จากนั้นลบ contract
         contractRepository.deleteById(contractId);
     }

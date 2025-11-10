@@ -33,4 +33,18 @@ public class ContractController {
         return contractService.getOccupiedRoomIds();
     }
 
+    // ✅ API สำหรับหา Contract จาก Floor และ Room - สำหรับ Outstanding Balance
+    @GetMapping("/by-room")
+    public TenantDto getContractByRoom(@RequestParam Integer floor, @RequestParam String room) {
+        System.out.println("🔍 API /contract/by-room called with Floor: " + floor + ", Room: " + room);
+        try {
+            TenantDto result = contractService.findContractByFloorAndRoom(floor, room);
+            System.out.println("✅ Found Contract ID: " + result.getContractId());
+            return result;
+        } catch (Exception e) {
+            System.err.println("❌ Error in /contract/by-room: " + e.getMessage());
+            throw e;
+        }
+    }
+
 }

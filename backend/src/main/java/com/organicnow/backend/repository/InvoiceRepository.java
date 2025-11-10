@@ -65,4 +65,15 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     Optional<Invoice> findByContractAndDateRange(@Param("contractId") Long contractId, 
                                                @Param("startDate") LocalDateTime startDate, 
                                                @Param("endDate") LocalDateTime endDate);
+
+    // ✅ สำหรับ Outstanding Balance Service
+    List<Invoice> findByContact_IdAndInvoiceStatusOrderByCreateDateAsc(Long contractId, Integer invoiceStatus);
+    
+    List<Invoice> findByContact_IdAndRemainingBalanceGreaterThanOrderByCreateDateAsc(Long contractId, Integer remainingBalance);
+    
+    // ✅ ดึง invoice ที่เลยวันครบกำหนดแล้ว
+    @Query("SELECT i FROM Invoice i WHERE i.contact.id = :contractId " +
+           "AND i.invoiceStatus = 0 AND i.dueDate < :currentDate")
+    List<Invoice> findOverdueInvoicesByContract(@Param("contractId") Long contractId, 
+                                              @Param("currentDate") LocalDateTime currentDate);
 }

@@ -33,7 +33,7 @@ class CreateTenantContractRequestTest {
     void testAllArgsConstructor() {
         // Arrange
         String expectedFirstName = "John";
-        String expectedLastName = "Doe";wa
+        String expectedLastName = "Doe";
         String expectedEmail = "john.doe@example.com";
         String expectedPhoneNumber = "1234567890";
         String expectedNationalId = "1234567890123";

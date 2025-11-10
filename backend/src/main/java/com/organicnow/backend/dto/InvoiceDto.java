@@ -27,6 +27,12 @@ public class InvoiceDto {
     private Integer netAmount;
     private LocalDateTime penaltyAppliedAt;
     
+    // ✅ Outstanding Balance fields
+    private Integer previousBalance; // ยอดค้างจากเดือนก่อน
+    private Integer paidAmount; // ยอดที่ชำระแล้ว
+    private Integer outstandingBalance; // ยอดคงเหลือ
+    private Boolean hasOutstandingBalance; // มียอดค้างหรือไม่
+    
     // Payment Information
     private List<PaymentRecordDto> paymentRecords;
     private BigDecimal totalPaidAmount;

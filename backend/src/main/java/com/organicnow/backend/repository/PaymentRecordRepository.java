@@ -37,13 +37,25 @@ public interface PaymentRecordRepository extends JpaRepository<PaymentRecord, Lo
     );
 
     /**
-     * คำนวณยอดรวมที่ชำระแล้วของ Invoice (เฉพาะสถานะ CONFIRMED)
+     * คำนวณยอดรวมที่ชำระแล้วของ Invoice (เฉพาะสถานะ CONFIRMED) - สำหรับ Invoice Status
      */
     @Query("SELECT COALESCE(SUM(pr.paymentAmount), 0) FROM PaymentRecord pr WHERE pr.invoice.id = :invoiceId AND pr.paymentStatus = 'CONFIRMED'")
     BigDecimal calculateTotalPaidAmount(@Param("invoiceId") Long invoiceId);
 
     /**
-     * คำนวณยอดรวมที่รอการยืนยัน
+     * คำนวณยอดรวมทั้งหมดที่ได้รับ (CONFIRMED + PENDING) - สำหรับ Outstanding Balance
+     */
+    @Query("SELECT COALESCE(SUM(pr.paymentAmount), 0) FROM PaymentRecord pr WHERE pr.invoice.id = :invoiceId AND pr.paymentStatus IN ('CONFIRMED', 'PENDING')")
+    BigDecimal calculateTotalReceivedAmount(@Param("invoiceId") Long invoiceId);
+
+    /**
+     * ✅ สำหรับ OutstandingBalanceService - ใช้ชื่อเมธอดที่ตรงกัน
+     */
+    @Query("SELECT COALESCE(SUM(pr.paymentAmount), 0) FROM PaymentRecord pr WHERE pr.invoice.id = :invoiceId AND pr.paymentStatus = 'CONFIRMED'")
+    BigDecimal findTotalPaidAmountByInvoiceId(@Param("invoiceId") Long invoiceId);
+
+    /**
+     * คำนวณยอดรวมที่รอการยืนยัน (เฉพาะ PENDING)
      */
     @Query("SELECT COALESCE(SUM(pr.paymentAmount), 0) FROM PaymentRecord pr WHERE pr.invoice.id = :invoiceId AND pr.paymentStatus = 'PENDING'")
     BigDecimal calculateTotalPendingAmount(@Param("invoiceId") Long invoiceId);

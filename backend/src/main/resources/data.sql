@@ -59,18 +59,19 @@ INSERT INTO contract (room_id, tenant_id, package_id, sign_date, start_date, end
     ON CONFLICT (contract_id) DO NOTHING;
 
 -- ========================
--- Invoice
+-- Invoice (แค่ 3 บิลสำหรับทดสอบ Outstanding Balance)
 -- ========================
-INSERT INTO invoice (contract_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount) VALUES
-                                                                                                                                         (1, '2025-10-01', '2025-10-05', 1, '2025-10-03', 1,  8000, 0,  8000),
-                                                                                                                                         (1, '2025-11-01', '2025-11-05', 0, NULL, NULL,  8000, 0,  8000),
-                                                                                                                                         (1, '2025-12-01', '2025-12-05', 0, NULL, NULL,  8000, 0,  8000),
-                                                                                                                                         (2, '2025-10-01', '2025-10-05', 1, '2025-10-02', 2, 15000, 0, 15000),
-                                                                                                                                         (2, '2025-11-01', '2025-11-05', 0, NULL, NULL, 15000, 0, 15000),
-                                                                                                                                         (2, '2025-12-01', '2025-12-05', 0, NULL, NULL, 15000, 0, 15000),
-                                                                                                                                         (3, '2025-10-01', '2025-10-05', 1, '2025-10-04', 1, 21000, 0, 21000),
-                                                                                                                                         (3, '2025-11-01', '2025-11-05', 0, NULL, NULL, 21000, 0, 21000),
-                                                                                                                                         (3, '2025-12-01', '2025-12-05', 0, NULL, NULL, 21000, 0, 21000)
+INSERT INTO invoice (contract_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount, penalty_applied_at,
+                    requested_floor, requested_room, requested_rent, requested_water, requested_water_unit, requested_electricity, requested_electricity_unit) VALUES
+-- บิล 1: ตุลาคม 2025 - มี penalty เพราะค้างจ่าย (ยังไม่จ่าย)
+(1, '2025-10-08', '2025-11-08', 0, NULL, NULL, 7000, 700, 7700, '2025-11-08',
+ 1, '101', 7000, 30, 1, 7, 1),
+-- บิล 2: พฤศจิกายน 2025 - ใหม่ ยังไม่จ่าย (ไม่มี penalty ยัง)
+(1, '2025-11-09', '2025-12-09', 0, NULL, NULL, 7000, 0, 7000, NULL,
+ 1, '101', 7000, 30, 1, 8, 1),
+-- บิล 3: ธันวาคม 2025 - ในอนาคต สำหรับทดสอบ (ยังไม่ถึงเวลา)
+(1, '2025-12-01', '2026-01-01', 0, NULL, NULL, 7000, 0, 7000, NULL,
+ 1, '101', 7000, 30, 1, 6, 1)
     ON CONFLICT (invoice_id) DO NOTHING;
 
 -- ========================

@@ -106,35 +106,43 @@ function InvoiceManagement() {
   };
 
   // map backend InvoiceDto -> row ใช้ในตาราง
-  const mapDto = (it) => ({
-    id: it.id,
-    createDate: d2str(it.createDate),
-    firstName: it.firstName ?? "",
-    lastName: it.lastName ?? "",
-    nationalId: it.nationalId ?? "",
-    phoneNumber: it.phoneNumber ?? "",
-    email: it.email ?? "",
-    package: it.packageName ?? "",
+  const mapDto = (it) => {
+    return {
+      id: it.id,
+      createDate: d2str(it.createDate),
+      firstName: it.firstName ?? "",
+      lastName: it.lastName ?? "",
+      nationalId: it.nationalId ?? "",
+      phoneNumber: it.phoneNumber ?? "",
+      email: it.email ?? "",
+      package: it.packageName ?? "",
 
-    signDate: d2str(it.signDate),
-    startDate: d2str(it.startDate),
-    endDate: d2str(it.endDate),
+      signDate: d2str(it.signDate),
+      startDate: d2str(it.startDate),
+      endDate: d2str(it.endDate),
 
-    floor: it.floor ?? "",
-    room: it.room ?? "",
+      floor: it.floor ?? "",
+      room: it.room ?? "",
 
-    amount: Number(it.amount ?? it.netAmount ?? 0),
-    rent: Number(it.rent ?? 0),
-    water: Number(it.water ?? 0),
-    waterUnit: Number(it.waterUnit ?? 0),
-    electricity: Number(it.electricity ?? 0),
-    electricityUnit: Number(it.electricityUnit ?? 0),
+      amount: Number(it.amount ?? it.netAmount ?? 0),
+      rent: Number(it.rent ?? 0),
+      water: Number(it.water ?? 0),
+      waterUnit: Number(it.waterUnit ?? 0),
+      electricity: Number(it.electricity ?? 0),
+      electricityUnit: Number(it.electricityUnit ?? 0),
 
-    status: (it.status ?? it.statusText ?? "").trim() || "Unknown",
-    payDate: d2str(it.payDate),
-    penalty: Number(it.penalty ?? ((it.penaltyTotal ?? 0) > 0 ? 1 : 0)),
-    penaltyDate: d2str(it.penaltyAppliedAt),
-  });
+      status: (it.status ?? it.statusText ?? "").trim() || "Unknown",
+      payDate: d2str(it.payDate),
+      penalty: Number(it.penalty ?? ((it.penaltyTotal ?? 0) > 0 ? 1 : 0)),
+      penaltyDate: d2str(it.penaltyAppliedAt),
+      
+      // Outstanding Balance fields
+      previousBalance: Number(it.previousBalance ?? 0),
+      paidAmount: Number(it.paidAmount ?? 0),
+      outstandingBalance: Number(it.outstandingBalance ?? 0),
+      hasOutstandingBalance: Boolean(it.hasOutstandingBalance),
+    };
+  };
 
   useEffect(() => {
     fetchData();
@@ -175,6 +183,7 @@ function InvoiceManagement() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json(); // List<InvoiceDto>
+      
       const rows = Array.isArray(json) ? json.map(mapDto) : [];
       setData(rows);
       setTotalRecords(rows.length);
@@ -216,7 +225,7 @@ function InvoiceManagement() {
   // ✅ ดึงข้อมูล contract จาก backend
   const fetchContracts = async () => {
     try {
-      const res = await fetch(`${API_BASE}/contracts`, {
+      const res = await fetch(`${API_BASE}/contract/list`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -308,6 +317,15 @@ function InvoiceManagement() {
     waterBill: 0,
     elecBill: 0,
     net: 0,
+  });
+
+  // ===== OUTSTANDING BALANCE STATE =====
+  const [outstandingInfo, setOutstandingInfo] = useState({
+    loading: false,
+    hasOutstanding: false,
+    amount: 0,
+    contractId: null,
+    error: null
   });
 
   const mapStatusToCode = (s) => {
@@ -416,6 +434,77 @@ function InvoiceManagement() {
     }
   }, [invForm.packageId, packages]);
 
+  // 🤖 ตรวจสอบยอดค้างอัตโนมัติเมื่อเลือกห้อง
+  const checkOutstandingBalance = async (floor, room) => {
+    if (!floor || !room) {
+      setOutstandingInfo({
+        loading: false,
+        hasOutstanding: false,
+        amount: 0,
+        contractId: null,
+        error: null
+      });
+      return;
+    }
+
+    setOutstandingInfo(prev => ({ ...prev, loading: true, error: null }));
+
+    try {
+      // หา Contract ID จากห้อง
+      const contractResponse = await fetch(`${API_BASE}/contract/by-room?floor=${floor}&room=${room}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!contractResponse.ok) {
+        throw new Error(`ไม่พบสัญญาสำหรับห้อง Floor ${floor} Room ${room}`);
+      }
+
+      const contractData = await contractResponse.json();
+      const contractId = contractData.contractId; // ใช้ contractId แทน id
+
+      // ตรวจสอบยอดค้างจาก Outstanding Balance Service
+      console.log(`🔍 Calling Outstanding Balance API: ${API_BASE}/outstanding-balance/calculate/${contractId}`);
+      const outstandingResponse = await fetch(`${API_BASE}/outstanding-balance/calculate/${contractId}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      console.log(`📡 Outstanding Balance API Status: ${outstandingResponse.status}`);
+
+      if (outstandingResponse.ok) {
+        const outstandingAmount = await outstandingResponse.json();
+        console.log(`💰 Outstanding Amount Response:`, outstandingAmount);
+        setOutstandingInfo({
+          loading: false,
+          hasOutstanding: outstandingAmount > 0,
+          amount: outstandingAmount,
+          contractId: contractId,
+          error: null
+        });
+      } else {
+        const errorText = await outstandingResponse.text();
+        console.error(`❌ Outstanding Balance API Error: ${outstandingResponse.status} - ${errorText}`);
+        throw new Error('ไม่สามารถตรวจสอบยอดค้างได้');
+      }
+
+    } catch (error) {
+      console.error('Error checking outstanding balance:', error);
+      setOutstandingInfo({
+        loading: false,
+        hasOutstanding: false,
+        amount: 0,
+        contractId: null,
+        error: error.message
+      });
+    }
+  };
+
+  // ตรวจสอบยอดค้างเมื่อเลือกห้อง
+  useEffect(() => {
+    checkOutstandingBalance(invForm.floor, invForm.room);
+  }, [invForm.floor, invForm.room]);
+
   const clearFilters = () =>
     setFilters({
       status: "ALL",
@@ -504,72 +593,37 @@ function InvoiceManagement() {
     try {
       setErr("");
       
-      // แสดง loading สำหรับ PDF นั้น ๆ (optional)
-      // showWarning(`กำลังสร้างไฟล์ PDF สำหรับใบแจ้งหนี้ ${invoice.id}...`);
-      
-      // ✅ ใช้วิธีสร้าง mock PDF แทน เนื่องจาก backend ยังไม่มี PDF endpoint
       showMessageSave(`กำลังสร้าง PDF สำหรับใบแจ้งหนี้ #${invoice.id}...`);
       
-      // Mock PDF content - สร้าง HTML แทน PDF ชั่วคราว
-      const printContent = `
-        <html>
-          <head>
-            <title>Invoice ${invoice.id}</title>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-              .invoice-info { margin-bottom: 20px; }
-              .invoice-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-              .invoice-table th, .invoice-table td { border: 1px solid #ddd; padding: 12px; text-align: left; }
-              .invoice-table th { background-color: #f8f9fa; }
-              .total-row { background-color: #e9ecef; font-weight: bold; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>ใบแจ้งหนี้</h1>
-              <h2>Invoice #${invoice.id}</h2>
-              <p>วันที่: ${invoice.createDate}</p>
-            </div>
-            <div class="invoice-info">
-              <h3>ข้อมูลลูกค้า</h3>
-              <p><strong>ชื่อ:</strong> ${invoice.firstName} ${invoice.lastName}</p>
-              <p><strong>ห้อง:</strong> ชั้น ${invoice.floor} ห้อง ${invoice.room}</p>
-            </div>
-            <table class="invoice-table">
-              <thead>
-                <tr><th>รายการ</th><th>จำนวนเงิน (บาท)</th></tr>
-              </thead>
-              <tbody>
-                <tr><td>ค่าเช่า</td><td>${invoice.rent?.toLocaleString()}</td></tr>
-                <tr><td>ค่าน้ำ</td><td>${invoice.water?.toLocaleString()}</td></tr>
-                <tr><td>ค่าไฟ</td><td>${invoice.electricity?.toLocaleString()}</td></tr>
-                <tr class="total-row"><td><strong>รวมทั้งสิ้น</strong></td><td><strong>${invoice.amount?.toLocaleString()} บาท</strong></td></tr>
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `;
+      // เรียก API backend เพื่อสร้าง PDF
+      const response = await fetch(`${API_BASE}/invoice/pdf/${invoice.id}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
 
-      // สร้าง HTML file และ download
-      const blob = new Blob([printContent], { type: 'text/html' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      
-      // ตั้งชื่อไฟล์ตามข้อมูล Invoice
-      const fileName = `Invoice_${invoice.id}_${invoice.firstName}_${invoice.lastName}_Room_${invoice.room}.pdf`;
-      link.download = fileName;
-      
-      // Trigger download
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Cleanup
-      window.URL.revokeObjectURL(url);
-      
-      showMessageSave();
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // ตั้งชื่อไฟล์ตามข้อมูล Invoice
+        const fileName = `Invoice_${invoice.id}_${invoice.firstName}_${invoice.lastName}_Room_${invoice.room}.pdf`;
+        link.download = fileName;
+        
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        
+        showMessageSave(`ดาวน์โหลด PDF ใบแจ้งหนี้ #${invoice.id} สำเร็จ`);
+      } else {
+        console.error(`Failed to download PDF for invoice ${invoice.id}: ${response.status} ${response.statusText}`);
+        showMessageError(`Cannot generate PDF: ${response.status} ${response.statusText}`);
+      }
       
     } catch (error) {
       console.error('PDF Download Error:', error);
@@ -581,7 +635,7 @@ function InvoiceManagement() {
   // ✅ ดาวน์โหลด PDF หลายใบพร้อมกัน
   const handleBulkDownloadPdf = async () => {
     if (selectedItems.length === 0) {
-      showMessageError("กรุณาเลือกใบแจ้งหนี้ที่ต้องการดาวน์โหลด");
+      showMessageError("Please select invoices to download");
       return;
     }
 
@@ -629,7 +683,7 @@ function InvoiceManagement() {
       if (successCount > 0) {
         showMessageSave(`ดาวน์โหลด PDF สำเร็จ ${successCount} ใบ${errorCount > 0 ? `, ไม่สำเร็จ ${errorCount} ใบ` : ''}`);
       } else {
-        showMessageError("ไม่สามารถดาวน์โหลด PDF ได้");
+        showMessageError("Cannot download PDF");
       }
 
       // เคลียร์การเลือก
@@ -646,13 +700,13 @@ function InvoiceManagement() {
   // ✅ ลบใบแจ้งหนี้หลายรายการพร้อมกัน
   const handleBulkDelete = async () => {
     if (selectedItems.length === 0) {
-      showMessageError("กรุณาเลือกใบแจ้งหนี้ที่ต้องการลบ");
+      showMessageError("Please select invoices to delete");
       return;
     }
 
     const confirmed = await showMessageConfirmDelete(
       `คุณต้องการลบใบแจ้งหนี้ ${selectedItems.length} รายการ ใช่หรือไม่?`,
-      "การลบจะไม่สามารถกู้คืนได้"
+      "Deletion cannot be undone"
     );
 
     if (!confirmed) return;
@@ -685,7 +739,7 @@ function InvoiceManagement() {
         showMessageSave(`ลบใบแจ้งหนี้สำเร็จ ${successCount} รายการ${errorCount > 0 ? `, ไม่สำเร็จ ${errorCount} รายการ` : ''}`);
         fetchData(); // รีเฟรชข้อมูล
       } else {
-        showMessageError("ไม่สามารถลบใบแจ้งหนี้ได้");
+        showMessageError("Cannot delete invoices");
       }
 
       // เคลียร์การเลือก
@@ -748,10 +802,10 @@ function InvoiceManagement() {
       } else {
         // Fallback payment methods
         setPaymentMethods({
-          'CASH': 'เงินสด',
-          'BANK_TRANSFER': 'โอนเงิน',
-          'PROMPTPAY': 'พร้อมเพย์',
-          'CREDIT_CARD': 'บัตรเครดิต'
+          'CASH': 'Cash',
+          'BANK_TRANSFER': 'Bank Transfer',
+          'PROMPTPAY': 'PromptPay',
+          'CREDIT_CARD': 'Credit Card'
         });
       }
 
@@ -761,25 +815,65 @@ function InvoiceManagement() {
       } else {
         // Fallback payment statuses
         setPaymentStatuses({
-          'PENDING': 'รอยืนยัน',
-          'CONFIRMED': 'ยืนยันแล้ว',
-          'REJECTED': 'ปฏิเสธ'
+          'PENDING': 'Pending',
+          'CONFIRMED': 'Confirmed',
+          'REJECTED': 'Rejected'
         });
       }
     } catch (error) {
       console.error('Error loading payment methods:', error);
       // Set fallback values when error occurs
       setPaymentMethods({
-        'CASH': 'เงินสด',
-        'BANK_TRANSFER': 'โอนเงิน',
-        'PROMPTPAY': 'พร้อมเพย์',
-        'CREDIT_CARD': 'บัตรเครดิต'
+        'CASH': 'Cash',
+        'BANK_TRANSFER': 'Bank Transfer',
+        'PROMPTPAY': 'PromptPay',
+        'CREDIT_CARD': 'Credit Card'
       });
       setPaymentStatuses({
-        'PENDING': 'รอยืนยัน',
-        'CONFIRMED': 'ยืนยันแล้ว',
-        'REJECTED': 'ปฏิเสธ'
+        'PENDING': 'Pending',
+        'CONFIRMED': 'Confirmed',
+        'REJECTED': 'Rejected'
       });
+    }
+  };
+
+  // ✅ ตรวจสอบและอัปเดตสถานะอัตโนมัติ
+  const checkAndUpdateInvoiceStatus = async (invoiceId, newPaymentAmount) => {
+    try {
+      // โหลดข้อมูลใบแจ้งหนี้และการชำระเงินล่าสุด
+      const invoiceResponse = await fetch(`${API_BASE}/api/invoices/${invoiceId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!invoiceResponse.ok) return;
+
+      const invoice = await invoiceResponse.json();
+      const totalInvoiceAmount = invoice.netAmount || invoice.amount || 0;
+      
+      // คำนวณยอดรวมที่ชำระ (รวมการชำระใหม่)
+      const currentPayments = invoice.paymentRecords || [];
+      const totalPaid = currentPayments.reduce((sum, payment) => {
+        return sum + (parseFloat(payment.paymentAmount) || 0);
+      }, 0) + newPaymentAmount;
+
+      // ตรวจสอบว่าจ่ายครบหรือไม่
+      if (totalPaid >= totalInvoiceAmount && invoice.status !== 'COMPLETED') {
+        // อัปเดตสถานะเป็น COMPLETED
+        const updateResponse = await fetch(`${API_BASE}/api/invoices/${invoiceId}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'COMPLETED' })
+        });
+
+        if (updateResponse.ok) {
+          console.log(`✅ อัปเดตสถานะใบแจ้งหนี้ ${invoiceId} เป็น COMPLETED อัตโนมัติ`);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error checking invoice status:', error);
+      // ไม่แสดง error ให้ผู้ใช้เพราะเป็นการทำงานเบื้องหลัง
     }
   };
 
@@ -794,7 +888,30 @@ function InvoiceManagement() {
     
     // Validate form data
     if (!paymentForm.paymentAmount || parseFloat(paymentForm.paymentAmount) <= 0) {
-      showMessageError('กรุณาระบุจำนวนเงินที่ถูกต้อง');
+      showMessageError('Please enter a valid amount');
+      return;
+    }
+
+    // ✅ ตรวจสอบการจ่ายเงินเกิน - ใช้ข้อมูล paymentRecords ที่โหลดไว้แล้ว
+    const paymentAmount = parseFloat(paymentForm.paymentAmount);
+    const totalInvoiceAmount = selectedInvoice.netAmount || selectedInvoice.amount || 0;
+    
+    // ใช้ paymentRecords ที่โหลดล่าสุดจาก loadPaymentRecords
+    const totalAlreadyPaid = paymentRecords.reduce((sum, payment) => {
+      return sum + (parseFloat(payment.paymentAmount) || 0);
+    }, 0);
+    const remainingAmount = totalInvoiceAmount - totalAlreadyPaid;
+
+    // ป้องกันการจ่ายเกินยอดคงเหลือ
+    if (paymentAmount > remainingAmount) {
+      showMessageError(`Cannot pay more than remaining amount!`);
+      return;
+    }
+
+    // ป้องกันการจ่ายเกินยอดรวมของบิล
+    const totalAfterThisPayment = totalAlreadyPaid + paymentAmount;
+    if (totalAfterThisPayment > totalInvoiceAmount) {
+      showMessageError(`Payment amount exceeds invoice total!\n\nInvoice Total: ${totalInvoiceAmount.toLocaleString()} THB\nAlready Paid: ${totalAlreadyPaid.toLocaleString()} THB\nEntered: ${paymentAmount.toLocaleString()} THB\nTotal Would Be: ${totalAfterThisPayment.toLocaleString()} THB\n\nCannot exceed invoice total!`);
       return;
     }
     
@@ -834,6 +951,10 @@ function InvoiceManagement() {
         
         // โหลดข้อมูลใหม่
         await loadPaymentRecords(selectedInvoice.id);
+        
+        // ✅ ตรวจสอบและอัปเดตสถานะอัตโนมัติ
+        await checkAndUpdateInvoiceStatus(selectedInvoice.id, paymentAmount);
+        
         await fetchData(); // อัปเดตตาราง Invoice
         
       } else {
@@ -873,7 +994,7 @@ function InvoiceManagement() {
         
         showMessageSave();
       } else {
-        showMessageError('ไม่สามารถดาวน์โหลดหลักฐานได้');
+        showMessageError('Cannot download proof');
       }
     } catch (error) {
       console.error('Error downloading proof:', error);
@@ -884,7 +1005,7 @@ function InvoiceManagement() {
   // อัปโหลดหลักฐานการชำระเงิน
   const handleUploadProof = async () => {
     if (!selectedFile) {
-      showMessageError('กรุณาเลือกไฟล์');
+      showMessageError('Please select a file');
       return;
     }
 
@@ -911,7 +1032,7 @@ function InvoiceManagement() {
       
       // ถ้าไม่มี payment records ให้เพิ่มก่อน
       if (!paymentRecords.length) {
-        showMessageError('กรุณาเพิ่มการบันทึกการชำระเงินก่อนอัปโหลดหลักฐาน');
+        showMessageError('Please add a payment record before uploading proof');
         return;
       }
 
@@ -1027,7 +1148,12 @@ function InvoiceManagement() {
 
       if (!res.ok) {
         const msg = await res.text().catch(() => "");
-        throw new Error(msg || `ลบไม่สำเร็จ (HTTP ${res.status})`);
+        console.error("Delete failed:", {
+          status: res.status,
+          message: msg,
+          invoiceId: id
+        });
+        throw new Error(msg || `ลบไม่สำเร็จ (HTTP ${res.status}) - อาจมีข้อมูลเกี่ยวข้องที่ป้องกันการลบ`);
       }
 
       // ลบสำเร็จ → ตัดแถวออกจาก state
@@ -1096,6 +1222,7 @@ function InvoiceManagement() {
 
       const body = {
         packageId: Number(invForm.packageId),
+        contractId: outstandingInfo.contractId, // เพิ่ม contractId จากการตรวจสอบ
         floor: invForm.floor,
         room: invForm.room,
         createDate: invForm.createDate, // YYYY-MM-DD
@@ -1106,8 +1233,24 @@ function InvoiceManagement() {
         electricityRate: Number(invForm.elecRate || 0),
         penaltyTotal: 0,
         invoiceStatus: mapStatusToCode(invForm.status),
+        includeOutstandingBalance: outstandingInfo.hasOutstanding, // 🤖 อัตโนมัติ
         // subTotal / netAmount: ให้ backend คำนวณเอง
       };
+
+      console.log("🤖 Auto Outstanding Balance Debug:", {
+        hasOutstanding: outstandingInfo.hasOutstanding,
+        amount: outstandingInfo.amount,
+        contractId: outstandingInfo.contractId,
+        floor: invForm.floor,
+        room: invForm.room
+      });
+
+      console.log("📤 Request Body:", {
+        contractId: outstandingInfo.contractId,
+        includeOutstandingBalance: outstandingInfo.hasOutstanding,
+        floor: invForm.floor,
+        room: invForm.room
+      });
 
       const res = await fetch(`${API_BASE}/invoice/create`, {
         method: "POST",
@@ -1262,23 +1405,23 @@ function InvoiceManagement() {
                   {/* แสดงปุ่มจัดการหลายรายการเมื่อมีการเลือก */}
                   {selectedItems.length > 0 && (
                     <div className="d-flex align-items-center gap-2 me-3">
-                      <span className="badge bg-primary">{selectedItems.length} รายการที่เลือก</span>
+                      <span className="badge bg-primary">{selectedItems.length} selected</span>
                       <button
                         type="button"
                         className="btn btn-outline-success btn-sm"
                         onClick={handleBulkDownloadPdf}
                         disabled={bulkDownloading}
-                        title={`ดาวน์โหลด PDF ${selectedItems.length} ใบ`}
+                        title={`Download ${selectedItems.length} PDFs`}
                       >
                         {bulkDownloading ? (
                           <>
                             <span className="spinner-border spinner-border-sm me-1"></span>
-                            ดาวน์โหลด...
+                            Downloading...
                           </>
                         ) : (
                           <>
                             <i className="bi bi-file-earmark-pdf-fill me-1"></i>
-                            ดาวน์โหลด PDF ({selectedItems.length})
+                            Download PDF ({selectedItems.length})
                           </>
                         )}
                       </button>
@@ -1287,17 +1430,17 @@ function InvoiceManagement() {
                         className="btn btn-outline-danger btn-sm"
                         onClick={handleBulkDelete}
                         disabled={bulkDeleting}
-                        title={`ลบ ${selectedItems.length} รายการ`}
+                        title={`Delete ${selectedItems.length} items`}
                       >
                         {bulkDeleting ? (
                           <>
                             <span className="spinner-border spinner-border-sm me-1"></span>
-                            ลบ...
+                            Deleting...
                           </>
                         ) : (
                           <>
                             <i className="bi bi-trash-fill me-1"></i>
-                            ลบ ({selectedItems.length})
+                            Delete ({selectedItems.length})
                           </>
                         )}
                       </button>
@@ -1305,10 +1448,10 @@ function InvoiceManagement() {
                         type="button"
                         className="btn btn-outline-secondary btn-sm"
                         onClick={() => setSelectedItems([])}
-                        title="ยกเลิกการเลือก"
+                        title="Cancel selection"
                       >
                         <i className="bi bi-x-circle me-1"></i>
-                        ยกเลิก
+                        Cancel
                       </button>
                     </div>
                   )}
@@ -1324,7 +1467,7 @@ function InvoiceManagement() {
                         fetchTenants();
                         fetchData();
                       }}
-                      title="รีเฟรชข้อมูล"
+                      title="Refresh data"
                     >
                       <i className="bi bi-arrow-clockwise me-1"></i> Refresh
                     </button>
@@ -1403,6 +1546,7 @@ function InvoiceManagement() {
                     <th className="text-start align-middle header-color">Status</th>
                     <th className="text-start align-middle header-color">Pay date</th>
                     <th className="text-start align-middle header-color">Penalty</th>
+                    <th className="text-start align-middle header-color">Outstanding</th>
                     <th className="text-center align-middle header-color">Actions</th>
                   </tr>
                 </thead>
@@ -1410,7 +1554,7 @@ function InvoiceManagement() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="14" className="text-center">
+                      <td colSpan="15" className="text-center">
                         Loading...
                       </td>
                     </tr>
@@ -1456,12 +1600,25 @@ function InvoiceManagement() {
                             }`}
                           ></i>
                         </td>
+                        <td className="align-middle text-start">
+                          {item.hasOutstandingBalance ? (
+                            <span className="text-danger fw-bold">
+                              <i className="bi bi-exclamation-triangle-fill me-1"></i>
+                              {item.outstandingBalance.toLocaleString()} THB
+                            </span>
+                          ) : (
+                            <span className="text-success">
+                              <i className="bi bi-check-circle-fill me-1"></i>
+                              None
+                            </span>
+                          )}
+                        </td>
                         <td className="align-middle text-center">
                           <button
                             className="btn btn-sm form-Button-Edit me-1"
                             onClick={() => handleViewInvoice(item)}
                             aria-label="View invoice"
-                            title="ดูรายละเอียดใบแจ้งหนี้"
+                            title="View invoice details"
                           >
                             <i className="bi bi-eye-fill"></i>
                           </button>
@@ -1469,7 +1626,7 @@ function InvoiceManagement() {
                             className="btn btn-sm btn-success me-1"
                             onClick={() => handlePaymentManagement(item)}
                             aria-label="Manage payments"
-                            title="จัดการการชำระเงิน"
+                            title="Manage payments"
                           >
                             <i className="bi bi-credit-card-fill"></i>
                           </button>
@@ -1477,7 +1634,7 @@ function InvoiceManagement() {
                             className="btn btn-sm form-Button-Edit me-1"
                             onClick={() => handleDownloadPdf(item)}
                             aria-label="Download PDF"
-                            title="ดาวน์โหลด PDF ใบแจ้งหนี้"
+                            title="Download PDF invoice"
                           >
                             <i className="bi bi-file-earmark-pdf-fill"></i>
                           </button>
@@ -1485,7 +1642,7 @@ function InvoiceManagement() {
                             className="btn btn-sm form-Button-Del me-1"
                             onClick={() => handleDelete(item.id)}  // ✅ ส่ง id
                             aria-label="Delete invoice"
-                            title="ลบใบแจ้งหนี้"
+                            title="Delete invoice"
                             disabled={deletingId === item.id || loading} // ✅ กันกดซ้ำ
                           >
                             <i className={`bi ${deletingId === item.id ? "bi-arrow-repeat spin" : "bi-trash-fill"}`}></i>
@@ -1495,7 +1652,7 @@ function InvoiceManagement() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="14" className="text-center">
+                      <td colSpan="15" className="text-center">
                         No invoices found
                       </td>
                     </tr>
@@ -1682,7 +1839,7 @@ function InvoiceManagement() {
                           .map((pkg) => (
                             <option key={pkg.id} value={pkg.id} style={{ backgroundColor: '#fff', color: '#000' }}>
                               {pkg.contract_name || pkg.name || `Package ${pkg.id}`} - ฿{pkg.price ? pkg.price.toLocaleString() : 'N/A'}
-                              {pkg.duration && ` (${pkg.duration} เดือน)`}
+                              {pkg.duration && ` (${pkg.duration} months)`}
                             </option>
                           ))
                       )}
@@ -1720,6 +1877,7 @@ function InvoiceManagement() {
                     {invForm.packageId && packages.find(p => p.id === Number(invForm.packageId))?.name}
                   </div>
                 </div>
+
 
                 {/* แถว 2: Water */}
                 <div className="col-md-6">
@@ -1767,8 +1925,8 @@ function InvoiceManagement() {
                     value={invForm.status}
                     onChange={(e) => setInvForm((p) => ({ ...p, status: e.target.value }))}
                   >
-                    <option value="Incomplete">Incomplete (ยังไม่ชำระ)</option>
-                    <option value="Complete">Complete (ชำระแล้ว)</option>
+                    <option value="Incomplete">Incomplete (Unpaid)</option>
+                    <option value="Complete">Complete (Paid)</option>
                   </select>
                 </div>
               </div>
@@ -1812,7 +1970,7 @@ function InvoiceManagement() {
               >
                 <option value="ALL">All</option>
                 <option value="Complete">Complete (ชำระแล้ว)</option>
-                <option value="Incomplete">Incomplete (ยังไม่ชำระ)</option>
+                <option value="Incomplete">Incomplete (Unpaid)</option>
               </select>
             </div>
 
@@ -2010,7 +2168,7 @@ A201,22,140,2024-11,20,8`}
               <div className="modal-header">
                 <h5 className="modal-title">
                   <i className="bi bi-credit-card-fill me-2"></i>
-                  จัดการการชำระเงิน - Invoice #{selectedInvoice.id}
+                  Payment Management - Invoice #{selectedInvoice.id}
                 </h5>
                 <button 
                   type="button" 
@@ -2025,21 +2183,21 @@ A201,22,140,2024-11,20,8`}
                   <div className="col-md-6">
                     <div className="card">
                       <div className="card-body">
-                        <h6 className="card-title">ข้อมูลใบแจ้งหนี้</h6>
-                        <p className="mb-1"><strong>ลูกค้า:</strong> {selectedInvoice.firstName} {selectedInvoice.lastName}</p>
-                        <p className="mb-1"><strong>ห้อง:</strong> {selectedInvoice.floor}/{selectedInvoice.room}</p>
-                        <p className="mb-1"><strong>ยอดรวม:</strong> <span className="text-primary fw-bold">{selectedInvoice.amount?.toLocaleString()} บาท</span></p>
+                        <h6 className="card-title">Invoice Information</h6>
+                        <p className="mb-1"><strong>Customer:</strong> {selectedInvoice.firstName} {selectedInvoice.lastName}</p>
+                        <p className="mb-1"><strong>Room:</strong> {selectedInvoice.floor}/{selectedInvoice.room}</p>
+                        <p className="mb-1"><strong>Total:</strong> <span className="text-primary fw-bold">{selectedInvoice.amount?.toLocaleString()} THB</span></p>
                         <p className="mb-0">
-                          <strong>สถานะ:</strong> 
+                          <strong>Status:</strong> 
                           <span className={`badge ms-2 ${selectedInvoice.status === 'Complete' ? 'bg-success' : 'bg-warning text-dark'}`}>
-                            {selectedInvoice.status === 'Complete' ? 'ชำระแล้ว' : 'ยังไม่ชำระ'}
+                            {selectedInvoice.status === 'Complete' ? 'Paid' : 'Unpaid'}
                           </span>
                         </p>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="col-md-6">
+                  {/* <div className="col-md-6">
                     <div className="card">
                       <div className="card-body">
                         <h6 className="card-title">สรุปการชำระ</h6>
@@ -2054,19 +2212,19 @@ A201,22,140,2024-11,20,8`}
                         )}
                       </div>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
 
                 {/* Add Payment Form */}
                 <div className="card mb-4">
                   <div className="card-header">
-                    <h6 className="mb-0"><i className="bi bi-plus-circle me-2"></i>เพิ่มการบันทึกการชำระเงิน</h6>
+                    <h6 className="mb-0"><i className="bi bi-plus-circle me-2"></i>Add Payment Record</h6>
                   </div>
                   <div className="card-body">
                     <form onSubmit={handleAddPayment}>
                       <div className="row g-3">
                         <div className="col-md-3">
-                          <label className="form-label">จำนวนเงิน *</label>
+                          <label className="form-label">Amount *</label>
                           <input
                             type="number"
                             className="form-control"
@@ -2079,7 +2237,7 @@ A201,22,140,2024-11,20,8`}
                         </div>
                         
                         <div className="col-md-3">
-                          <label className="form-label">วิธีการชำระ *</label>
+                          <label className="form-label">Payment Method *</label>
                           <select
                             className="form-select"
                             value={paymentForm.paymentMethod}
@@ -2093,7 +2251,7 @@ A201,22,140,2024-11,20,8`}
                         </div>
                         
                         <div className="col-md-3">
-                          <label className="form-label">วันที่ชำระ *</label>
+                          <label className="form-label">Payment Date *</label>
                           <input
                             type="datetime-local"
                             className="form-control"
@@ -2104,29 +2262,29 @@ A201,22,140,2024-11,20,8`}
                         </div>
                         
                         <div className="col-md-3">
-                          <label className="form-label">เลขที่อ้างอิง</label>
+                          <label className="form-label">Reference Number</label>
                           <input
                             type="text"
                             className="form-control"
                             value={paymentForm.transactionReference}
                             onChange={(e) => setPaymentForm(prev => ({ ...prev, transactionReference: e.target.value }))}
-                            placeholder="เลขที่โอนเงิน"
+                            placeholder="Transfer number"
                           />
                         </div>
                         
                         <div className="col-md-9">
-                          <label className="form-label">หมายเหตุ</label>
+                          <label className="form-label">Notes</label>
                           <input
                             type="text"
                             className="form-control"
                             value={paymentForm.notes}
                             onChange={(e) => setPaymentForm(prev => ({ ...prev, notes: e.target.value }))}
-                            placeholder="หมายเหตุเพิ่มเติม"
+                            placeholder="Additional notes"
                           />
                         </div>
                         
                         <div className="col-md-3">
-                          <label className="form-label">ผู้บันทึก</label>
+                          <label className="form-label">Recorded By</label>
                           <input
                             type="text"
                             className="form-control"
@@ -2145,12 +2303,12 @@ A201,22,140,2024-11,20,8`}
                             {savingPayment ? (
                               <>
                                 <span className="spinner-border spinner-border-sm me-2"></span>
-                                กำลังบันทึก...
+                                Saving...
                               </>
                             ) : (
                               <>
                                 <i className="bi bi-plus-circle me-2"></i>
-                                เพิ่มการบันทึกการชำระ
+                                Add Payment Record
                               </>
                             )}
                           </button>
@@ -2165,13 +2323,13 @@ A201,22,140,2024-11,20,8`}
                   <div className="card-header">
                     <h6 className="mb-0">
                       <i className="bi bi-cloud-upload me-2"></i>
-                      อัปโหลดหลักฐานการชำระเงิน (ทางเลือก)
+                      Upload Payment Proof (Optional)
                     </h6>
                   </div>
                   <div className="card-body">
                     <div className="row g-3">
                       <div className="col-md-6">
-                        <label className="form-label">เลือกไฟล์</label>
+                        <label className="form-label">Select File</label>
                         <input
                           type="file"
                           className="form-control"
@@ -2211,16 +2369,16 @@ A201,22,140,2024-11,20,8`}
                       </div>
                       
                       <div className="col-md-3">
-                        <label className="form-label">ประเภทหลักฐาน</label>
+                        <label className="form-label">Proof Type</label>
                         <select 
                           className="form-select"
                           value={proofType}
                           onChange={(e) => setProofType(e.target.value)}
                         >
-                          <option value="BANK_SLIP">สลิปโอนเงิน</option>
-                          <option value="RECEIPT">ใบเสร็จ</option>
-                          <option value="BANK_STATEMENT">Statement ธนาคาร</option>
-                          <option value="OTHER">อื่นๆ</option>
+                          <option value="BANK_SLIP">Bank Slip</option>
+                          <option value="RECEIPT">Receipt</option>
+                          <option value="BANK_STATEMENT">Bank Statement</option>
+                          <option value="OTHER">Other</option>
                         </select>
                       </div>
 
@@ -2236,12 +2394,12 @@ A201,22,140,2024-11,20,8`}
                             {uploadingProof ? (
                               <>
                                 <span className="spinner-border spinner-border-sm me-2"></span>
-                                อัปโหลด...
+                                Uploading...
                               </>
                             ) : (
                               <>
                                 <i className="bi bi-upload me-2"></i>
-                                อัปโหลด
+                                Upload
                               </>
                             )}
                           </button>
@@ -2249,13 +2407,13 @@ A201,22,140,2024-11,20,8`}
                       </div>
 
                       <div className="col-12">
-                        <label className="form-label">รายละเอียดเพิ่มเติม</label>
+                        <label className="form-label">Additional Details</label>
                         <textarea
                           className="form-control"
                           rows="2"
                           value={proofDescription}
                           onChange={(e) => setProofDescription(e.target.value)}
-                          placeholder="รายละเอียดเพิ่มเติมเกี่ยวกับหลักฐาน (ถ้ามี)"
+                          placeholder="Additional details about the proof (if any)"
                         ></textarea>
                       </div>
                     </div>
@@ -2265,34 +2423,34 @@ A201,22,140,2024-11,20,8`}
                 {/* Payment Records List */}
                 <div className="card">
                   <div className="card-header">
-                    <h6 className="mb-0"><i className="bi bi-list me-2"></i>ประวัติการชำระเงิน</h6>
+                    <h6 className="mb-0"><i className="bi bi-list me-2"></i>Payment History</h6>
                   </div>
                   <div className="card-body">
                     {loadingPayments ? (
                       <div className="text-center py-3">
                         <span className="spinner-border spinner-border-sm me-2"></span>
-                        กำลังโหลดข้อมูล...
+                        Loading data...
                       </div>
                     ) : paymentRecords.length > 0 ? (
                       <div className="table-responsive">
                         <table className="table table-hover">
                           <thead>
                             <tr>
-                              <th>วันที่ชำระ</th>
-                              <th>จำนวนเงิน</th>
-                              <th>วิธีการชำระ</th>
-                              <th>สถานะ</th>
-                              <th>เลขที่อ้างอิง</th>
-                              <th>หลักฐาน</th>
-                              <th>หมายเหตุ</th>
-                              <th>การจัดการ</th>
+                              <th>Payment Date</th>
+                              <th>Amount</th>
+                              <th>Payment Method</th>
+                              <th>Status</th>
+                              <th>Reference Number</th>
+                              <th>Proof</th>
+                              <th>Notes</th>
+                              <th>Actions</th>
                             </tr>
                           </thead>
                           <tbody>
                             {paymentRecords.map((payment) => (
                               <tr key={payment.id}>
                                 <td>{new Date(payment.paymentDate).toLocaleString('th-TH')}</td>
-                                <td className="fw-bold text-success">{payment.paymentAmount?.toLocaleString()} บาท</td>
+                                <td className="fw-bold text-success">{payment.paymentAmount?.toLocaleString()} THB</td>
                                 <td>{payment.paymentMethodDisplay}</td>
                                 <td>
                                   <select
@@ -2323,7 +2481,7 @@ A201,22,140,2024-11,20,8`}
                                           <button
                                             className="btn btn-sm btn-outline-success"
                                             onClick={() => handleViewProof(proof.id, proof.fileName)}
-                                            title="ดาวน์โหลดหลักฐาน"
+                                            title="Download proof"
                                           >
                                             <i className="bi bi-download"></i>
                                           </button>
@@ -2331,7 +2489,7 @@ A201,22,140,2024-11,20,8`}
                                       ))}
                                     </div>
                                   ) : (
-                                    <span className="text-muted small">ไม่มีหลักฐาน</span>
+                                    <span className="text-muted small">No proof</span>
                                   )}
                                 </td>
                                 <td>{payment.notes}</td>
@@ -2339,7 +2497,7 @@ A201,22,140,2024-11,20,8`}
                                   <button
                                     className="btn btn-sm btn-outline-danger"
                                     onClick={() => handleDeletePayment(payment.id)}
-                                    title="ลบการบันทึก"
+                                    title="Delete record"
                                   >
                                     <i className="bi bi-trash"></i>
                                   </button>
@@ -2352,7 +2510,7 @@ A201,22,140,2024-11,20,8`}
                     ) : (
                       <div className="text-center py-3 text-muted">
                         <i className="bi bi-inbox display-6"></i>
-                        <p>ยังไม่มีการบันทึกการชำระเงิน</p>
+                        <p>No payment records yet</p>
                       </div>
                     )}
                   </div>
@@ -2365,7 +2523,7 @@ A201,22,140,2024-11,20,8`}
                   className="btn btn-secondary" 
                   onClick={() => setShowPaymentModal(false)}
                 >
-                  ปิด
+                  Close
                 </button>
               </div>
             </div>

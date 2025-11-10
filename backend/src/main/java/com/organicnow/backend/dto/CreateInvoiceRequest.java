@@ -71,4 +71,7 @@ public class CreateInvoiceRequest {
     private Long packageId;             // อ้างอิง package โดยตรง
     private String floor;               // ชั้น (เช่น "1", "2")
     private String room;                // ห้อง (เช่น "101", "102")
+    
+    // ===== ส่วนใหม่: รองรับ Outstanding Balance =====
+    private Boolean includeOutstandingBalance; // รวมยอดค้างชำระหรือไม่
 }

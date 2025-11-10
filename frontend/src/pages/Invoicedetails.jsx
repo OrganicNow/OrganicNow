@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
+import QRCodeGenerator from "../component/QRCodeGenerator";
 import useMessage from "../component/useMessage";
 import "../assets/css/tenantmanagement.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
@@ -72,6 +73,11 @@ function InvoiceDetails() {
     penalty: Number(initial.penalty) || 0,
     penaltyDate: initial.penaltyDate || null,
     payDate: initial.payDate || null,
+    // Outstanding Balance fields
+    previousBalance: Number(initial.previousBalance) || 0,
+    paidAmount: Number(initial.paidAmount) || 0,
+    outstandingBalance: Number(initial.outstandingBalance) || 0,
+    hasOutstandingBalance: Boolean(initial.hasOutstandingBalance),
   });
 
   // ===== Fetch ข้อมูลล่าสุดจาก API =====
@@ -101,8 +107,14 @@ function InvoiceDetails() {
             penalty: Number(apiData.penaltyTotal || apiData.penalty) || initial.penalty,
             status: (apiData.invoiceStatus === 1 ? "complete" : 
                     apiData.invoiceStatus === 2 ? "cancelled" : "pending"),
+            createDate: apiData.createDate ? d2str(apiData.createDate) : initial.createDate, // 🔥 เพิ่ม createDate
             payDate: apiData.payDate ? d2str(apiData.payDate) : initial.payDate,
             penaltyDate: apiData.penaltyAppliedAt ? d2str(apiData.penaltyAppliedAt) : initial.penaltyDate,
+            // Outstanding Balance fields - แก้ไขการแมปให้ถูกต้อง 🔥
+            previousBalance: Number(apiData.previousBalance) || 0,
+            paidAmount: Number(apiData.paidAmount) || 0, // ใช้ paidAmount (ยอดที่ได้รับทั้งหมด)
+            outstandingBalance: Number(apiData.outstandingBalance) || 0, // ใช้ outstandingBalance (ยอดคงเหลือ)
+            hasOutstandingBalance: Boolean(apiData.hasOutstandingBalance), // ใช้ hasOutstandingBalance
           };
           
           console.log("🔍 Update Data:", updateData);
@@ -205,6 +217,7 @@ function InvoiceDetails() {
       waterRate: RATE_WATER_PER_UNIT,
       electricityRate: RATE_ELEC_PER_UNIT,
       // dueDate: (ไม่มี UI ก็ไม่ส่ง)
+      createDate: invoiceForm.createDate ? `${invoiceForm.createDate}T00:00:00` : null, // 🔥 เพิ่ม createDate
       invoiceStatus: mapStatusToCode(invoiceForm.status),
       payDate: invoiceForm.payDate ? `${invoiceForm.payDate}T00:00:00` : null,
       payMethod: null, // ยังไม่มีให้เลือกใน UI นี้ จะเว้นไว้
@@ -306,6 +319,11 @@ function InvoiceDetails() {
                       freshData.invoiceStatus === 2 ? "cancelled" : "pending"),
               payDate: freshData.payDate ? d2str(freshData.payDate) : prev.payDate,
               penaltyDate: freshData.penaltyAppliedAt ? d2str(freshData.penaltyAppliedAt) : prev.penaltyDate,
+              // Outstanding Balance fields
+              previousBalance: Number(freshData.previousBalance) || 0,
+              paidAmount: Number(freshData.paidAmount) || 0,
+              outstandingBalance: Number(freshData.outstandingBalance) || 0,
+              hasOutstandingBalance: Boolean(freshData.hasOutstandingBalance),
             }));
           }
         } catch (error) {
@@ -424,7 +442,11 @@ function InvoiceDetails() {
                           <p><span className="label">Rent:</span> <span className="value">{invoiceForm.rent.toLocaleString()}</span></p>
                           <p><span className="label">Water bill:</span> <span className="value">{invoiceForm.water.toLocaleString()}</span></p>
                           <p><span className="label">Electricity bill:</span> <span className="value">{invoiceForm.electricity.toLocaleString()}</span></p>
-                          <p><span className="label">NET:</span> <span className="value fw-bold text-primary">{invoiceForm.amount.toLocaleString()}</span></p>
+                          <p><span className="label">Penalty:</span> <span className={`value ${invoiceForm.penalty > 0 ? 'text-danger fw-bold' : ''}`}>
+                             {invoiceForm.penalty.toLocaleString()} THB
+                             {invoiceForm.penalty > 0 && <small className="text-muted"> (10%)</small>}
+                           </span></p>
+                          <p><span className="label">NET:</span> <span className="value fw-bold text-primary">{invoiceForm.amount.toLocaleString()} THB</span></p>
                         </div>
                       </div>
                       <div className="row mt-2">
@@ -451,6 +473,117 @@ function InvoiceDetails() {
                         </div>
                         <div className="col-6">
                           <p><span className="label">Penalty date:</span> <span className="value">{invoiceForm.penaltyDate || "-"}</span></p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="card border-0 shadow-sm rounded-2 mt-3">
+                    <div className="card-body">
+                      <h5 className="card-title">
+                        <i className="bi bi-credit-card me-2"></i>
+                        Outstanding Balance Information
+                      </h5>
+                      <div className="row">
+                        <div className="col-6">
+                          <p><span className="label">Previous Balance:</span> 
+                             <span className="value">{invoiceForm.previousBalance.toLocaleString()} THB</span></p>
+                          <p><span className="label">Paid Amount:</span> 
+                             <span className="value text-success">{invoiceForm.paidAmount.toLocaleString()} THB</span></p>
+                        </div>
+                        <div className="col-6">
+                          <p><span className="label">Outstanding Balance:</span> 
+                             <span className={`value fw-bold ${invoiceForm.hasOutstandingBalance ? 'text-danger' : 'text-success'}`}>
+                               {invoiceForm.outstandingBalance.toLocaleString()} THB
+                             </span></p>
+                          <p><span className="label">Outstanding Status:</span> 
+                             <span className="value">
+                               {invoiceForm.hasOutstandingBalance ? (
+                                 <span className="badge bg-danger">
+                                   <i className="bi bi-exclamation-triangle me-1"></i>
+                                   Outstanding {invoiceForm.outstandingBalance.toLocaleString()} THB
+                                 </span>
+                               ) : (
+                                 <span className="badge bg-success">
+                                   <i className="bi bi-check-circle me-1"></i>
+                                   Fully Paid
+                                 </span>
+                               )}
+                             </span></p>
+                        </div>
+                      </div>
+                      {invoiceForm.hasOutstandingBalance && (
+                        <div className="alert alert-warning mt-2 mb-0">
+                          <i className="bi bi-info-circle me-2"></i>
+                          <small>
+                            This outstanding balance will be included in the next month's invoice. If not paid within the deadline, a 10% penalty will apply.
+                          </small>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Payment Information */}
+                  <div className="card border-0 shadow-sm rounded-2 mt-3">
+                    <div className="card-body">
+                      <h5 className="card-title">
+                        <i className="bi bi-bank me-2"></i>
+                        Bank Transfer Information
+                      </h5>
+                      <div className="row">
+                        <div className="col-md-6">
+                          <h6 className="text-primary mb-3">
+                            <i className="bi bi-building me-1"></i>
+                            Bangkok Bank
+                          </h6>
+                          <p><span className="label">Account Name:</span> <span className="value">OrganicNow Property Management</span></p>
+                          <p><span className="label">Account Number:</span> <span className="value fw-bold">123-4-56789-0</span></p>
+                          <p><span className="label">Branch:</span> <span className="value">Central Plaza Branch</span></p>
+                          <p><span className="label">SWIFT Code:</span> <span className="value">BKKBTHBK</span></p>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="text-center">
+                            <h6 className="text-primary mb-3">
+                              <i className="bi bi-qr-code me-1"></i>
+                              QR Code Payment
+                            </h6>
+                            <div className="qr-code-container p-3 border rounded-3 bg-light d-flex justify-content-center">
+                              <QRCodeGenerator 
+                                value={`https://promptpay.io/0123456789/${invoiceForm.amount}.00`}
+                                size={150}
+                                className="qr-code-payment"
+                                errorMessage="QR Code unavailable"
+                              />
+                            </div>
+                            <small className="text-muted d-block mt-2">
+                              <strong>Amount:</strong> {invoiceForm.amount.toLocaleString()} THB<br />
+                              Scan with PromptPay compatible banking apps
+                            </small>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PromptPay Information */}
+                  <div className="card border-0 shadow-sm rounded-2 mt-3">
+                    <div className="card-body">
+                      <h5 className="card-title">
+                        <i className="bi bi-phone me-2"></i>
+                        PromptPay Information
+                      </h5>
+                      <div className="row">
+                        <div className="col-md-6">
+                          <p><span className="label">PromptPay ID:</span> <span className="value fw-bold">0123456789</span></p>
+                          <p><span className="label">Account Name:</span> <span className="value">OrganicNow Property Management</span></p>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="bg-light p-3 rounded-3">
+                            <small className="text-muted">
+                              <i className="bi bi-lightbulb me-1"></i>
+                              <strong>Quick Payment:</strong> Use mobile banking apps to scan the QR code above for instant payment.
+                            </small>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -516,7 +649,13 @@ function InvoiceDetails() {
               <div className="row g-3">
                 <div className="col-md-6">
                   <label className="form-label">Create date</label>
-                  <input type="date" className="form-control" value={invoiceForm.createDate} disabled />
+                  <input 
+                    type="date" 
+                    className="form-control" 
+                    value={invoiceForm.createDate} 
+                    onChange={(e) => setInvoiceForm((p) => ({ ...p, createDate: e.target.value }))}
+                    title="แก้ไขวันที่สร้างใบแจ้งหนี้เพื่อทดสอบระบบ Outstanding Balance"
+                  />
                 </div>
                 <div className="col-md-6">
                   <label className="form-label">Rent (from package)</label>
@@ -591,10 +730,76 @@ function InvoiceDetails() {
                     className="form-control"
                     value={invoiceForm.payDate || ""}
                     onChange={(e) => setInvoiceForm((p) => ({ ...p, payDate: e.target.value || null }))}
-                    disabled
+                    title="แก้ไขวันที่ชำระเพื่อทดสอบ penalty system"
                   />
                 </div>
               </div>
+            </div>
+          </div>
+
+          <hr className="my-4" />
+
+          {/* Outstanding Balance Information */}
+          <div className="row g-3 align-items-start">
+            <div className="col-md-3"><strong>Outstanding Balance Information</strong></div>
+            <div className="col-md-9">
+              <div className="row g-3">
+                <div className="col-md-6">
+                  <label className="form-label">Previous Balance</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={`${invoiceForm.previousBalance.toLocaleString()} THB`}
+                    disabled
+                    title="Previous month's outstanding balance (read-only)"
+                  />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label">Paid Amount</label>
+                  <input
+                    type="text"
+                    className="form-control text-success"
+                    value={`${invoiceForm.paidAmount.toLocaleString()} THB`}
+                    disabled
+                    title="Amount already paid (read-only)"
+                  />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label">Outstanding Balance</label>
+                  <input
+                    type="text"
+                    className={`form-control fw-bold ${invoiceForm.hasOutstandingBalance ? 'text-danger' : 'text-success'}`}
+                    value={`${invoiceForm.outstandingBalance.toLocaleString()} THB`}
+                    disabled
+                    title="Remaining outstanding amount (read-only)"
+                  />
+                </div>
+                <div className="col-md-6">
+                  <label className="form-label">Outstanding Status</label>
+                  <div className="form-control d-flex align-items-center" style={{ minHeight: '38px' }}>
+                    {invoiceForm.hasOutstandingBalance ? (
+                      <span className="badge bg-danger">
+                        <i className="bi bi-exclamation-triangle me-1"></i>
+                        Outstanding
+                      </span>
+                    ) : (
+                      <span className="badge bg-success">
+                        <i className="bi bi-check-circle me-1"></i>
+                        No Outstanding
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {/* {invoiceForm.hasOutstandingBalance && (
+                <div className="alert alert-info mt-3 mb-0">
+                  <i className="bi bi-info-circle me-2"></i>
+                  <small>
+                    <strong>Note:</strong> Outstanding balance information is automatically calculated by the system and cannot be edited on this page. 
+                    To manage payments, please use the "Payment Management" function on the Invoice Management page.
+                  </small>
+                </div>
+              )} */}
             </div>
           </div>
 
