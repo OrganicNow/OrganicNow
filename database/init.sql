@@ -97,48 +97,15 @@ VALUES
 -- Anan -> ห้อง 103 -> package 9 เดือน
 (3, 3, 3, '2025-01-10', '2025-02-01', '2025-10-31', 1, 5000.00, 21000.00);
 
--- บิล 1
-INSERT INTO invoice (contact_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount)
-VALUES (1, '2025-02-01', '2025-02-05', 1, '2025-02-03', 1, 8000, 0, 8000);
-INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 1, 8000);
-
--- บิล 2
-INSERT INTO invoice (contact_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount)
-VALUES (1, '2025-03-01', '2025-03-05', 1, '2025-03-04', 1, 8000, 0, 8000);
-INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 2, 8000);
-
--- บิล 3
-INSERT INTO invoice (contact_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount)
-VALUES (1, '2025-04-01', '2025-04-05', 1, '2025-04-02', 1, 8000, 0, 8000);
-INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 3, 8000);
-
--- บิล 1 (จ่ายตรง)
-INSERT INTO invoice (contact_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount)
-VALUES (2, '2025-02-01', '2025-02-05', 1, '2025-02-05', 2, 15000, 0, 15000);
-INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 4, 15000);
-
--- บิล 2 (จ่ายตรง)
-INSERT INTO invoice (contact_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount)
-VALUES (2, '2025-03-01', '2025-03-05', 1, '2025-03-03', 2, 15000, 0, 15000);
-INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 5, 15000);
-
--- บิล 3 (ยังไม่จ่าย)
-INSERT INTO invoice (contact_id, create_date, due_date, invoice_status, sub_total, penalty_total, net_amount)
-VALUES (2, '2025-04-01', '2025-04-05', 0, 15000, 0, 15000);
-INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 6, 15000);
-
--- บิล 1 (ตรงเวลา)
-INSERT INTO invoice (contact_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount)
-VALUES (3, '2025-02-01', '2025-02-05', 1, '2025-02-04', 1, 21000, 0, 21000);
-INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 7, 21000);
-
--- บิล 2 (จ่ายช้า + penalty 500)
-INSERT INTO invoice (contact_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount, penalty_applied_at)
-VALUES (3, '2025-03-01', '2025-03-05', 1, '2025-03-15', 1, 21000, 500, 21500, '2025-03-10');
-INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 8, 21000);
-
--- บิล 3 (ยังไม่จ่าย)
-INSERT INTO invoice (contact_id, create_date, due_date, invoice_status, sub_total, penalty_total, net_amount)
-VALUES (3, '2025-04-01', '2025-04-05', 0, 21000, 0, 21000);
-INSERT INTO invoice_item (fee_id, invoice_id, total_fee) VALUES (1, 9, 21000);
-
+INSERT INTO invoice (contract_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount, penalty_applied_at,
+                     requested_floor, requested_room, requested_rent, requested_water, requested_water_unit, requested_electricity, requested_electricity_unit) VALUES
+-- บิล 1: ตุลาคม 2025 - มี penalty เพราะค้างจ่าย (ยังไม่จ่าย)
+(1, '2025-10-08', '2025-11-08', 0, NULL, NULL, 7000, 700, 7700, '2025-11-08',
+ 1, '101', 7000, 30, 1, 7, 1),
+-- บิล 2: พฤศจิกายน 2025 - ใหม่ ยังไม่จ่าย (ไม่มี penalty ยัง)
+(1, '2025-11-09', '2025-12-09', 0, NULL, NULL, 7000, 0, 7000, NULL,
+ 1, '101', 7000, 30, 1, 8, 1),
+-- บิล 3: ธันวาคม 2025 - ในอนาคต สำหรับทดสอบ (ยังไม่ถึงเวลา)
+(1, '2025-12-01', '2026-01-01', 0, NULL, NULL, 7000, 0, 7000, NULL,
+ 1, '101', 7000, 30, 1, 6, 1)
+    ON CONFLICT (invoice_id) DO NOTHING;

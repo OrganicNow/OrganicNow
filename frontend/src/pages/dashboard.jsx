@@ -1,98 +1,78 @@
-// Dashboard.jsx
+// frontend/src/pages/Dashboard.jsx
 import React, { useEffect, useState } from "react";
-import { Line, Bar } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  LineElement,
-  BarElement,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  Tooltip,
-  Legend,
-} from "chart.js";
-
+import LineChart from "../component/LineChart.jsx";
+import BarChart from "../component/BarChart.jsx";
 import Layout from "../component/layout";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-
-ChartJS.register(
-  LineElement,
-  BarElement,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  Tooltip,
-  Legend
-);
+import { motion, AnimatePresence } from "framer-motion";
 
 function Dashboard() {
   const [rooms, setRooms] = useState([]);
   const [maintains, setMaintains] = useState([]);
   const [finances, setFinances] = useState([]);
+  const [selectedRoom, setSelectedRoom] = useState(null);
+  const [visibleRoom, setVisibleRoom] = useState(null);
 
-  // 👉 ดึงข้อมูลจาก backend
+  // ✅ ดึงข้อมูลจาก backend
   useEffect(() => {
     fetch("http://localhost:8080/dashboard")
       .then((res) => res.json())
       .then((data) => {
         console.log("📊 Dashboard API:", data);
-
-        // ✅ ใช้ข้อมูลจริงจาก backend
-        setRooms(
-          (data.rooms || []).map((room) => ({
-            number: parseInt(room.roomNumber, 10),
-            status: room.status, // 0=available, 1=unavailable, 2=repair
-            floor: room.room_floor, // ⬅️ ใช้ค่าจาก backend
-          }))
-        );
-
+        setRooms(data.rooms || []);
         setMaintains(data.maintains || []);
         setFinances(data.finances || []);
       })
       .catch((err) => console.error("Failed to fetch dashboard:", err));
   }, []);
 
-  // ✅ แยกห้องตาม floor จาก backend (unique floors)
-  const floors = [...new Set(rooms.map((r) => r.floor))].sort((a, b) => a - b);
+  // ✅ ใช้ room_floor จาก backend โดยตรง
+  const floors = [...new Set(rooms.map((r) => r.room_floor))].sort(
+    (a, b) => a - b
+  );
 
-  // 👉 Chart: Maintain requests
-  const requestOverviewData = {
-    labels: maintains.map((m) => m.month),
-    datasets: [
-      {
-        label: "Requests",
-        data: maintains.map((m) => m.total),
-        borderColor: "rgba(99,102,241,1)",
-        backgroundColor: "rgba(99,102,241,0.2)",
-        tension: 0.4,
-        fill: true,
-      },
-    ],
+  // ✅ toggle graph + delay animation
+  const handleRoomClick = (roomNumber) => {
+    if (selectedRoom === roomNumber) {
+      setSelectedRoom(null);
+      setTimeout(() => setVisibleRoom(null), 400);
+    } else {
+      setSelectedRoom(roomNumber);
+      if (visibleRoom) {
+        setVisibleRoom(null);
+        setTimeout(() => setVisibleRoom(roomNumber), 400);
+      } else {
+        setVisibleRoom(roomNumber);
+      }
+    }
   };
 
-  // 👉 Chart: Finance overview
-  const financeHistoryData = {
-    labels: finances.map((f) => f.month),
-    datasets: [
-      {
-        label: "On Time",
-        data: finances.map((f) => f.onTime),
-        backgroundColor: "rgb(166,70,255)",
-      },
-      {
-        label: "Penalty",
-        data: finances.map((f) => f.penalty),
-        backgroundColor: "rgba(84,191,255)",
-      },
-      {
-        label: "Overdue",
-        data: finances.map((f) => f.overdue),
-        backgroundColor: "rgba(255,108,191)",
-      },
-    ],
-  };
+  const getRoomUsageData = (roomNumber) => ({
+  title: `Room ${roomNumber} - Usage`,
+  categories: ["Jan", "Feb", "Mar", "Apr"],
+  series: [
+    { name: "Electricity (kWh)", data: [20, 30, 25, 40] },
+    { name: "Water (m³)", data: [5, 8, 6, 7] },
+  ],
+  yTitle: "Usage",
+  csvCategoryName: "Month",
+});
+
+  // ✅ Request Overview (รวม)
+  const maintainCategories = maintains.map((m) => m.month);
+  const maintainSeries = [
+    { name: "Requests", data: maintains.map((m) => m.total) },
+  ];
+
+  // ✅ Finance Overview (รวม)
+  const financeCategories = finances.map((f) => f.month);
+  const financeSeries = [
+    { name: "On Time", data: finances.map((f) => f.onTime) },
+    { name: "Penalty", data: finances.map((f) => f.penalty) },
+    { name: "Overdue", data: finances.map((f) => f.overdue) },
+  ];
 
   return (
     <Layout title="Dashboard" icon="pi pi-home" notifications={3}>
@@ -104,18 +84,22 @@ function Dashboard() {
               <div className="card-body">
                 <h5 className="card-title mb-3">Room Overview</h5>
 
-                {/* ✅ แสดงทุกชั้นแบบ dynamic */}
                 {floors.map((floor) => (
                   <div key={floor} className="mb-4">
                     <h6 className="fw-semibold mb-2">Floor {floor}</h6>
-                    <div className="d-flex flex-nowrap overflow-auto gap-3 py-2 px-1">
+
+                    {/* ✅ ใช้ room_floor แทนการคำนวณ */}
+                    <div className="d-flex flex-wrap gap-3 py-2 px-1">
                       {rooms
-                        .filter((r) => r.floor === floor)
-                        .sort((a, b) => a.number - b.number)
+                        .filter((r) => r.room_floor === floor)
+                        .sort(
+                          (a, b) =>
+                            Number(a.roomNumber) - Number(b.roomNumber)
+                        ) // ✅ แปลงเป็นตัวเลขก่อนเรียง
                         .map((room) => (
-                          <div
-                            key={room.number}
-                            className="d-flex align-items-center justify-content-center text-white fw-bold rounded flex-shrink-0"
+                          <button
+                            key={room.roomNumber}
+                            className="border-0 text-white fw-bold rounded"
                             style={{
                               width: "85px",
                               height: "85px",
@@ -127,16 +111,51 @@ function Dashboard() {
                                   : room.status === 1
                                   ? "#ef4444"
                                   : "#facc15",
+                              transition:
+                                "transform 0.15s ease, box-shadow 0.15s",
+                              transform:
+                                selectedRoom === room.roomNumber
+                                  ? "scale(1.08)"
+                                  : "scale(1)",
+                              boxShadow:
+                                selectedRoom === room.roomNumber
+                                  ? "0 0 10px rgba(34,197,94,0.6)"
+                                  : "none",
                             }}
+                            onClick={() => handleRoomClick(room.roomNumber)}
                           >
-                            {room.number}
-                          </div>
+                            {room.roomNumber}
+                          </button>
                         ))}
                     </div>
+
+                    {/* ✅ แสดงกราฟแบบ fade-in/out ทีละตัว */}
+                    <AnimatePresence mode="wait">
+                      {visibleRoom &&
+                        rooms.some(
+                          (r) =>
+                            r.room_floor === floor &&
+                            r.roomNumber === visibleRoom
+                        ) && (
+                          <motion.div
+                            key={visibleRoom}
+                            initial={{ opacity: 0, y: -15 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -15 }}
+                            transition={{ duration: 0.4, ease: "easeInOut" }}
+                            className="mt-3"
+                          >
+                            <h6 className="fw-semibold text-primary mb-2">
+                              Usage for Room {visibleRoom}
+                            </h6>
+                            <BarChart {...getRoomUsageData(visibleRoom)} />
+                          </motion.div>
+                        )}
+                    </AnimatePresence>
                   </div>
                 ))}
 
-                {/* Legend */}
+                {/* ✅ Legend */}
                 <div className="mt-4 small text-center">
                   <span className="me-3">
                     <span
@@ -156,26 +175,36 @@ function Dashboard() {
             </div>
           </div>
 
-          {/* 📊 Request Overview (Left) */}
+          {/* 📊 Request Overview */}
           <div className="col-lg-6">
             <div className="card border-0 shadow-sm rounded-3 h-100">
               <div className="card-body">
                 <h5 className="card-title mb-3">
                   Request Overview (Last 12 months)
                 </h5>
-                <Line data={requestOverviewData} />
+                <LineChart
+                  title="Maintenance Requests"
+                  categories={maintainCategories}
+                  series={maintainSeries}
+                />
               </div>
             </div>
           </div>
 
-          {/* 💰 Finance History (Right) */}
+          {/* 💰 Finance History */}
           <div className="col-lg-6">
             <div className="card border-0 shadow-sm rounded-3 h-100">
               <div className="card-body">
                 <h5 className="card-title mb-3">
                   Finance History (Last 12 months)
                 </h5>
-                <Bar data={financeHistoryData} />
+                <BarChart
+                  title="Finance History"
+                  categories={financeCategories}
+                  series={financeSeries}
+                  yTitle="Transactions"
+                  csvCategoryName="Month"
+                />
               </div>
             </div>
           </div>

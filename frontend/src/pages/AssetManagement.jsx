@@ -196,21 +196,28 @@ function AssetManagement() {
 
     try {
       setSaving(true);
+
+      const payload = {
+        assetGroupName: groupName,
+        freeReplacement: freeReplacement,
+        monthlyAddonFee: monthlyAddonFee ? parseFloat(monthlyAddonFee) : 0,
+        oneTimeDamageFee: oneTimeDamageFee ? parseFloat(oneTimeDamageFee) : 0,
+      };
+
       if (editingGroupId == null) {
-        await axios.post(
-          `${apiPath}/asset-group/create`,
-          { assetGroupName: groupName },
-          { withCredentials: true }
-        );
+        await axios.post(`${apiPath}/asset-group/create`, payload, {
+          withCredentials: true,
+        });
         showMessageSave("สร้าง Group สำเร็จ");
       } else {
         await axios.put(
           `${apiPath}/asset-group/update/${editingGroupId}`,
-          { assetGroupName: groupName },
+          payload,
           { withCredentials: true }
         );
         showMessageSave("แก้ไข Group สำเร็จ");
       }
+
       clearFormGroup();
       fetchGroups();
       document.getElementById("modalGroup_btnClose")?.click();
