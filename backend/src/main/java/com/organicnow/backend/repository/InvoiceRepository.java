@@ -58,7 +58,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
         ORDER BY i.invoice_id DESC
     """, nativeQuery = true)
     List<Object[]> findAllInvoicesWithTenantDetails();
-<<<<<<< HEAD
     
     // เพิ่มสำหรับ CSV Import
     @Query("SELECT i FROM Invoice i WHERE i.contact.id = :contractId " +
@@ -77,7 +76,6 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
            "AND i.invoiceStatus = 0 AND i.dueDate < :currentDate")
     List<Invoice> findOverdueInvoicesByContract(@Param("contractId") Long contractId, 
                                               @Param("currentDate") LocalDateTime currentDate);
-=======
 
     @Query(value = """
     SELECT 
@@ -93,5 +91,4 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     ORDER BY r.room_number, month
 """, nativeQuery = true)
     List<Object[]> findRoomUsageSummary();
->>>>>>> f88e7a40f80460f3b336a41bbe20336a38657894
 }

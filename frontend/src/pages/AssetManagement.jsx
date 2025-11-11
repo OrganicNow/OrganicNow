@@ -445,7 +445,7 @@ function AssetManagement() {
         <div className="row g-4">
           {/* ===== Sidebar ===== */}
           <div className="col-lg-3">
-            <div className="sidebar-modern card border-0 shadow-sm rounded-4 p-3">
+            <div className="sidebar-modern card border-0 shadow-sm rounded-3 p-3">
               <h6 className="fw-semibold text-primary mb-3">
                 <i className="bi bi-box me-2"></i>Asset Groups
               </h6>

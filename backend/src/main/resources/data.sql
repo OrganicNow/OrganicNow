@@ -70,11 +70,7 @@ INSERT INTO contract (room_id, tenant_id, package_id, sign_date, start_date, end
 -- Invoice (แค่ 3 บิลสำหรับทดสอบ Outstanding Balance)
 -- ========================
 INSERT INTO invoice (contract_id, create_date, due_date, invoice_status, pay_date, pay_method, sub_total, penalty_total, net_amount, penalty_applied_at,
-<<<<<<< HEAD
-                    requested_floor, requested_room, requested_rent, requested_water, requested_water_unit, requested_electricity, requested_electricity_unit) VALUES
-=======
                      requested_floor, requested_room, requested_rent, requested_water, requested_water_unit, requested_electricity, requested_electricity_unit) VALUES
->>>>>>> f88e7a40f80460f3b336a41bbe20336a38657894
 -- บิล 1: ตุลาคม 2025 - มี penalty เพราะค้างจ่าย (ยังไม่จ่าย)
 (1, '2025-10-08', '2025-11-08', 0, NULL, NULL, 7000, 700, 7700, '2025-11-08',
  1, '101', 7000, 30, 1, 7, 1),
