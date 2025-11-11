@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
 import Pagination from "../component/pagination";
-import { useToast } from "../component/Toast.jsx";
+import useMessage from "../component/useMessage";
 import { pageSize as defaultPageSize } from "../config_variable";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -11,9 +11,25 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 
 const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
 
+// ✅ เพิ่ม CSS เพื่อป้องกันการ auto-scroll
+const preventScrollCSS = `
+  html, body {
+    scroll-behavior: auto !important;
+  }
+  
+  .invoice-management-container {
+    scroll-behavior: auto !important;
+  }
+  
+  /* ป้องกันการ focus ที่ทำให้ scroll */
+  input, select, textarea, button {
+    scroll-margin-top: 0 !important;
+  }
+`;
+
 function InvoiceManagement() {
   const navigate = useNavigate();
-  const { showSuccess, showError, showWarning } = useToast();
+  const { showMessageError, showMessageSave, showMessageConfirmDelete, showMessageAdjust } = useMessage();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -26,6 +42,35 @@ function InvoiceManagement() {
 
   // ✅ สถานะกำลังลบใบแจ้งหนี้ (เพื่อ disable ปุ่ม/โชว์ spinner)
   const [deletingId, setDeletingId] = useState(null);
+
+  // ===== CSV Import States =====
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvUploading, setCsvUploading] = useState(false);
+  const [csvResult, setCsvResult] = useState("");
+
+  // ===== Payment Management States =====
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [paymentRecords, setPaymentRecords] = useState([]);
+  const [paymentForm, setPaymentForm] = useState({
+    paymentAmount: '',
+    paymentMethod: 'BANK_TRANSFER',
+    paymentDate: new Date().toISOString().slice(0, 16),
+    transactionReference: '',
+    notes: '',
+    recordedBy: 'admin'
+  });
+  const [paymentMethods, setPaymentMethods] = useState({});
+  const [paymentStatuses, setPaymentStatuses] = useState({});
+  const [loadingPayments, setLoadingPayments] = useState(false);
+  const [savingPayment, setSavingPayment] = useState(false);
+
+  // ===== File Upload States =====
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [proofType, setProofType] = useState('BANK_SLIP');
+  const [proofDescription, setProofDescription] = useState('');
+  const [uploadingProof, setUploadingProof] = useState(false);
 
   // ====== DATA จาก Backend ======
   const [data, setData] = useState([]);
@@ -77,54 +122,349 @@ function InvoiceManagement() {
   };
 
   // map backend InvoiceDto -> row ใช้ในตาราง
-  const mapDto = (it) => ({
-    id: it.id,
-    createDate: d2str(it.createDate),
-    firstName: it.firstName ?? "",
-    lastName: it.lastName ?? "",
-    nationalId: it.nationalId ?? "",
-    phoneNumber: it.phoneNumber ?? "",
-    email: it.email ?? "",
-    package: it.packageName ?? "",
+  // ✅ คำนวณ Previous Balance แบบ real-time
+  const calculateRealPreviousBalance = (currentInvoice, allInvoices) => {
+    const currentDate = new Date(currentInvoice.createDate);
+    const contractId = currentInvoice.contractId;
+    
+    // หาใบแจ้งหนี้ก่อนหน้าทั้งหมดของ contract เดียวกัน
+    const previousInvoices = allInvoices.filter(invoice => 
+      invoice.contractId === contractId && 
+      new Date(invoice.createDate) < currentDate
+    );
+    
+    // เรียงตามวันที่
+    previousInvoices.sort((a, b) => new Date(a.createDate) - new Date(b.createDate));
+    
+    let cumulativeOutstanding = 0;
+    
+    previousInvoices.forEach(prevInvoice => {
+      // คำนวณ NET amount จริงของ invoice ก่อนหน้า
+      const prevRent = Number(prevInvoice.rent || 0);
+      const prevWater = Number(prevInvoice.water || 0);  
+      const prevElectricity = Number(prevInvoice.electricity || 0);
+      const prevPenalty = Number(prevInvoice.penaltyTotal || 0);
+      const prevPaid = Number(prevInvoice.paidAmount || 0);
+      
+      const prevNetAmount = prevRent + prevWater + prevElectricity + prevPenalty;
+      const prevOutstanding = Math.max(0, prevNetAmount - prevPaid);
+      
+      cumulativeOutstanding += prevOutstanding;
+    });
+    
+    return cumulativeOutstanding;
+  };
 
-    signDate: d2str(it.signDate),
-    startDate: d2str(it.startDate),
-    endDate: d2str(it.endDate),
+  const mapDto = (it) => {
+    // แยกเก็บส่วนประกอบแต่ละตัว
+    const rentAmount = Number(it.rent ?? 0);
+    const waterAmount = Number(it.water ?? 0);
+    const electricityAmount = Number(it.electricity ?? 0);
+    const penaltyAmount = Number(it.penaltyTotal ?? 0);
+    const paidAmount = Number(it.paidAmount ?? 0);
+    
+    // ✅ คำนวณ NET amount จริงเหมือนกับ Invoice Details
+    const calculatedNetAmount = rentAmount + waterAmount + electricityAmount + penaltyAmount;
+    
+    // ใช้ค่าที่คำนวณเองแทน backend เพราะ backend ส่งผิด
+    const correctNetAmount = calculatedNetAmount;
+    
+    // ✅ คำนวณ Previous Balance แบบ real-time (จะคำนวณหลังจาก data โหลดเสร็จ)
+    // สำหรับตอนนี้ใช้ค่าจาก backend ก่อน แล้วจะมาปรับหลังจาก data โหลดครบ
+    const realPreviousBalance = Number(it.previousBalance ?? 0);
+    
+    // ✅ คำนวณ Outstanding Balance = Previous Balance + Current Outstanding
+    const currentOutstanding = Math.max(0, correctNetAmount - paidAmount);
+    const totalOutstandingBalance = realPreviousBalance + currentOutstanding;
+    
+    // 🔍 Debug log เพื่อดูค่าจาก backend และการแก้ไข
+    console.log(`🔍 Invoice #${it.id} - Fixed Calculation:`, {
+      backendNetAmount: it.netAmount,
+      backendAmount: it.amount,
+      backendOutstanding: it.outstandingBalance,
+      components: { rent: rentAmount, water: waterAmount, electricity: electricityAmount, penalty: penaltyAmount },
+      calculated: calculatedNetAmount,
+      finalDisplay: correctNetAmount,
+      paidAmount: paidAmount,
+      realPreviousBalance: realPreviousBalance,
+      currentOutstanding: currentOutstanding,
+      totalOutstandingBalance: totalOutstandingBalance,
+      difference: correctNetAmount - (it.netAmount ?? it.amount ?? 0),
+      useCumulativeOutstanding: true
+    });
+    
+    
+    return {
+      id: it.id,
+      contractId: it.contractId || it.contact?.id,
+      createDate: d2str(it.createDate),
+      firstName: it.firstName ?? "",
+      lastName: it.lastName ?? "",
+      nationalId: it.nationalId ?? "",
+      phoneNumber: it.phoneNumber ?? "",
+      email: it.email ?? "",
+      package: it.packageName ?? "",
 
-    floor: it.floor ?? "",
-    room: it.room ?? "",
+      signDate: d2str(it.signDate),
+      startDate: d2str(it.startDate),
+      endDate: d2str(it.endDate),
 
-    amount: Number(it.amount ?? it.netAmount ?? 0),
-    rent: Number(it.rent ?? 0),
-    water: Number(it.water ?? 0),
-    waterUnit: Number(it.waterUnit ?? 0),
-    electricity: Number(it.electricity ?? 0),
-    electricityUnit: Number(it.electricityUnit ?? 0),
+      floor: it.floor ?? "",
+      room: it.room ?? "",
 
-    status: (it.status ?? it.statusText ?? "").trim() || "Unknown",
-    payDate: d2str(it.payDate),
-    penalty: Number(it.penalty ?? ((it.penaltyTotal ?? 0) > 0 ? 1 : 0)),
-    penaltyDate: d2str(it.penaltyAppliedAt),
-  });
+      amount: correctNetAmount, // ✅ ใช้ค่าที่คำนวณถูกต้องจากส่วนประกอบ
+      rent: rentAmount,
+      water: waterAmount,
+      waterUnit: Number(it.waterUnit ?? 0),
+      electricity: electricityAmount,
+      electricityUnit: Number(it.electricityUnit ?? 0),
+
+      status: (it.status ?? it.statusText ?? "").trim() || "Unknown",
+      payDate: d2str(it.payDate),
+      penalty: Number(it.penalty ?? ((it.penaltyTotal ?? 0) > 0 ? 1 : 0)),
+      penaltyDate: d2str(it.penaltyAppliedAt),
+      penaltyTotal: penaltyAmount,
+      
+      // Outstanding Balance fields - ใช้การคำนวณใหม่ที่ถูกต้อง
+      previousBalance: realPreviousBalance,
+      paidAmount: paidAmount,
+      outstandingBalance: totalOutstandingBalance,
+      hasOutstandingBalance: totalOutstandingBalance > 0,
+    };
+  };
 
   useEffect(() => {
+    // ✅ เพิ่ม CSS เพื่อป้องกันการ auto-scroll
+    const styleElement = document.createElement('style');
+    styleElement.textContent = preventScrollCSS;
+    document.head.appendChild(styleElement);
+
     fetchData();
     fetchRooms();
     fetchContracts();
     fetchTenants();
     fetchPackages();
+    
+    // ✅ คืนตำแหน่ง scroll เมื่อกลับมาจากหน้า InvoiceDetails
+    const restoreScrollPosition = () => {
+      const savedScrollPosition = sessionStorage.getItem('invoiceManagementScrollPosition');
+      if (savedScrollPosition) {
+        // รอให้ DOM load เสร็จก่อน
+        setTimeout(() => {
+          window.scrollTo(0, parseInt(savedScrollPosition));
+          // ลบตำแหน่งที่บันทึกไว้
+          sessionStorage.removeItem('invoiceManagementScrollPosition');
+        }, 100);
+      }
+    };
+
+    restoreScrollPosition();
+    
+    // Cleanup
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+    
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ✅ ป้องกันการ auto-scroll แบบสมบูรณ์ - วิธีที่แข็งแกร่งที่สุด
+  useEffect(() => {
+    // ✅ สร้าง CSS ที่บังคับให้หยุด scroll ทั้งหมด
+    const antiScrollCSS = document.createElement('style');
+    antiScrollCSS.textContent = `
+      /* ✅ ป้องกันการ scroll ของ html, body */
+      html, body {
+        scroll-behavior: auto !important;
+        overflow-x: hidden !important;
+      }
+      
+      /* ✅ ป้องกันการ smooth scroll และ auto-scroll */
+      * {
+        scroll-behavior: auto !important;
+      }
+      
+      /* ✅ ป้องกันการ focus-scroll */
+      *:focus {
+        scroll-margin: 0 !important;
+        scroll-padding: 0 !important;
+      }
+      
+      /* ✅ ป้องกันการ scroll ของ table */
+      .table-responsive {
+        overflow: visible !important;
+      }
+      
+      .table-responsive:focus-within {
+        overflow: visible !important;
+      }
+      
+      /* ✅ ป้องกันการ auto-scroll ของ Bootstrap */
+      .modal-open {
+        overflow: hidden !important;
+      }
+      
+      /* ✅ ป้องกันการ scroll jump */
+      .container, .container-fluid {
+        overflow-anchor: none !important;
+      }
+    `;
+    document.head.appendChild(antiScrollCSS);
+    
+    // ✅ ป้องกันการ scroll ด้วย JavaScript แบบเข้มข้น
+    const preventAllScroll = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return false;
+    };
+
+    const blockScrollEvents = (e) => {
+      // บล็อคทุก event ที่เกี่ยวข้องกับการ scroll
+      if (e.type === 'scroll' || e.type === 'wheel' || e.type === 'touchmove') {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    };
+
+    // ✅ Prevent focus-induced scrolling แบบเข้มข้น
+    const preventFocusScroll = (e) => {
+      const currentY = window.scrollY;
+      const currentX = window.scrollX;
+      
+      setTimeout(() => {
+        if (window.scrollY !== currentY || window.scrollX !== currentX) {
+          window.scrollTo(currentX, currentY);
+        }
+      }, 0);
+      
+      setTimeout(() => {
+        if (window.scrollY !== currentY || window.scrollX !== currentX) {
+          window.scrollTo(currentX, currentY);
+        }
+      }, 1);
+    };
+
+    // ✅ เพิ่ม event listeners สำหรับป้องกันการ scroll
+    document.addEventListener('focus', preventFocusScroll, true);
+    document.addEventListener('focusin', preventFocusScroll, true);
+    document.addEventListener('focusout', preventFocusScroll, true);
+    window.addEventListener('scroll', blockScrollEvents, { passive: false });
+    document.addEventListener('wheel', blockScrollEvents, { passive: false });
+    document.addEventListener('touchmove', blockScrollEvents, { passive: false });
+
+    // ✅ ป้องกันการ scroll ผ่าน keyboard
+    const preventKeyboardScroll = (e) => {
+      const scrollKeys = ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', 'Space'];
+      if (scrollKeys.includes(e.key)) {
+        e.preventDefault();
+        return false;
+      }
+    };
+    document.addEventListener('keydown', preventKeyboardScroll, true);
+
+    // Cleanup
+    return () => {
+      if (antiScrollCSS && antiScrollCSS.parentNode) {
+        antiScrollCSS.parentNode.removeChild(antiScrollCSS);
+      }
+      document.removeEventListener('focus', preventFocusScroll, true);
+      document.removeEventListener('focusin', preventFocusScroll, true);
+      document.removeEventListener('focusout', preventFocusScroll, true);
+      window.removeEventListener('scroll', blockScrollEvents);
+      document.removeEventListener('wheel', blockScrollEvents);
+      document.removeEventListener('touchmove', blockScrollEvents);
+      document.removeEventListener('keydown', preventKeyboardScroll, true);
+    };
+  }, []);
+
+  // ✅ ป้องกันการ scroll เมื่อ modal เปิด/ปิด และการ auto-scroll ทั่วไป
+  useEffect(() => {
+    // ✅ Bootstrap modal event handlers
+    const handleBootstrapModalShow = () => {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      document.body.style.overflow = 'hidden';
+    };
+
+    const handleBootstrapModalHide = () => {
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      }
+    };
+
+    // ✅ ป้องกันการ auto-scroll ทั้งหมด
+    const preventAutoScroll = (e) => {
+      // ป้องกันการ scroll ที่เกิดจาก focus, form submission, etc.
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON')) {
+        e.preventDefault();
+        return false;
+      }
+    };
+
+    const handleModalScrollLock = () => {
+      if (showPaymentModal || showCsvModal) {
+        // บันทึกตำแหน่ง scroll ปัจจุบัน
+        const scrollY = window.scrollY;
+        // ล็อคการ scroll ของ body
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollY}px`;
+        document.body.style.width = '100%';
+        document.body.style.overflow = 'hidden';
+      } else {
+        // คืนค่าการ scroll เดิม
+        const scrollY = document.body.style.top;
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.width = '';
+        document.body.style.overflow = '';
+        if (scrollY) {
+          window.scrollTo(0, parseInt(scrollY || '0') * -1);
+        }
+      }
+    };
+
+    handleModalScrollLock();
+
+    // เพิ่ม event listeners สำหรับ Bootstrap modal
+    document.addEventListener('show.bs.modal', handleBootstrapModalShow);
+    document.addEventListener('hide.bs.modal', handleBootstrapModalHide);
+    
+    // ✅ ป้องกันการ focus ที่ทำให้ scroll
+    document.addEventListener('focus', preventAutoScroll, true);
+    document.addEventListener('scroll', (e) => {
+      // บล็อกการ scroll ที่ไม่ต้องการ
+      if (showPaymentModal || showCsvModal) {
+        e.preventDefault();
+        return false;
+      }
+    }, { passive: false });
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('show.bs.modal', handleBootstrapModalShow);
+      document.removeEventListener('hide.bs.modal', handleBootstrapModalHide);
+      document.removeEventListener('focus', preventAutoScroll, true);
+    };
+  }, [showPaymentModal, showCsvModal]);
 
   // ✅ Refresh ข้อมูลเมื่อ page กลับมา visible (เช่น จาก tenant management)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        // หน้าจอ visible แล้ว - refresh ข้อมูล
+        // หน้าจอ visible แล้ว - refresh ข้อมูลแต่รักษาตำแหน่ง scroll
         fetchRooms();
         fetchContracts();
         fetchTenants();
-        fetchData(); // รวมถึง invoice list ด้วย
+        fetchData(true); // ✅ รักษาตำแหน่ง scroll
       }
     };
 
@@ -136,8 +476,11 @@ function InvoiceManagement() {
     };
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = async (preserveScrollPosition = false) => {
     try {
+      // ✅ บันทึกตำแหน่ง scroll ก่อน refresh ถ้าต้องการรักษาไว้
+      const currentScrollPosition = preserveScrollPosition ? window.scrollY : null;
+      
       setLoading(true);
       setErr("");
       const res = await fetch(`${API_BASE}/invoice/list`, {
@@ -146,11 +489,72 @@ function InvoiceManagement() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = await res.json(); // List<InvoiceDto>
+      
+      // 🔍 Debug log ข้อมูลดิบจาก API
+      console.log(`🔍 Raw API Data (first 2 invoices):`, json.slice(0, 2));
+      
       const rows = Array.isArray(json) ? json.map(mapDto) : [];
-      setData(rows);
-      setTotalRecords(rows.length);
-      setTotalPages(Math.max(1, Math.ceil(rows.length / pageSize)));
+      
+      // ✅ คำนวณ Previous Balance แบบ real-time หลังจากได้ข้อมูลครบ
+      const correctedRows = rows.map(row => {
+        const realPreviousBalance = calculateRealPreviousBalance(row, rows);
+        const currentOutstanding = Math.max(0, row.amount - row.paidAmount);
+        const correctedOutstandingBalance = realPreviousBalance + currentOutstanding;
+        
+        console.log(`🔧 Invoice #${row.id} - Real-time Correction:`, {
+          originalPreviousBalance: row.previousBalance,
+          realPreviousBalance: realPreviousBalance,
+          currentOutstanding: currentOutstanding,
+          correctedOutstandingBalance: correctedOutstandingBalance
+        });
+        
+        return {
+          ...row,
+          previousBalance: realPreviousBalance,
+          outstandingBalance: correctedOutstandingBalance,
+          hasOutstandingBalance: correctedOutstandingBalance > 0
+        };
+      });
+      
+      // ✅ เรียงลำดับข้อมูลตาม createDate และ id เพื่อให้แสดงผลสม่ำเสมอ
+      correctedRows.sort((a, b) => {
+        // เรียงตาม createDate ก่อน (ข้อมูลเก่าอยู่บน ข้อมูลใหม่อยู่ล่าง)
+        if (a.createDate && b.createDate) {
+          const dateA = new Date(a.createDate);
+          const dateB = new Date(b.createDate);
+          if (dateA.getTime() !== dateB.getTime()) {
+            return dateA.getTime() - dateB.getTime();
+          }
+        }
+        // ถ้าวันที่เท่ากัน เรียงตาม id
+        return a.id - b.id;
+      });
+      
+      // ✅ เรียงลำดับข้อมูลตาม id หรือ createDate เพื่อให้แสดงผลสม่ำเสมอ
+      rows.sort((a, b) => {
+        // เรียงตาม createDate ก่อน (ข้อมูลเก่าอยู่บน ข้อมูลใหม่อยู่ล่าง)
+        if (a.createDate && b.createDate) {
+          const dateA = new Date(a.createDate);
+          const dateB = new Date(b.createDate);
+          if (dateA.getTime() !== dateB.getTime()) {
+            return dateA.getTime() - dateB.getTime();
+          }
+        }
+        // ถ้าวันที่เท่ากัน เรียงตาม id
+        return a.id - b.id;
+      });
+      
+      setData(correctedRows);
+      setTotalRecords(correctedRows.length);
+      setTotalPages(Math.max(1, Math.ceil(correctedRows.length / pageSize)));
       setCurrentPage(1);
+      
+      // ✅ คืนตำแหน่ง scroll หลัง refresh ถ้าต้องการ
+      if (preserveScrollPosition && currentScrollPosition !== null) {
+        setTimeout(() => {
+          window.scrollTo(0, currentScrollPosition);
+        }, 50);
+      }
     } catch (e) {
       setErr("Failed to load invoices.");
       console.error(e);
@@ -187,7 +591,7 @@ function InvoiceManagement() {
   // ✅ ดึงข้อมูล contract จาก backend
   const fetchContracts = async () => {
     try {
-      const res = await fetch(`${API_BASE}/contracts`, {
+      const res = await fetch(`${API_BASE}/contract/list`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -279,6 +683,15 @@ function InvoiceManagement() {
     waterBill: 0,
     elecBill: 0,
     net: 0,
+  });
+
+  // ===== OUTSTANDING BALANCE STATE =====
+  const [outstandingInfo, setOutstandingInfo] = useState({
+    loading: false,
+    hasOutstanding: false,
+    amount: 0,
+    contractId: null,
+    error: null
   });
 
   const mapStatusToCode = (s) => {
@@ -387,6 +800,77 @@ function InvoiceManagement() {
     }
   }, [invForm.packageId, packages]);
 
+  // 🤖 ตรวจสอบยอดค้างอัตโนมัติเมื่อเลือกห้อง
+  const checkOutstandingBalance = async (floor, room) => {
+    if (!floor || !room) {
+      setOutstandingInfo({
+        loading: false,
+        hasOutstanding: false,
+        amount: 0,
+        contractId: null,
+        error: null
+      });
+      return;
+    }
+
+    setOutstandingInfo(prev => ({ ...prev, loading: true, error: null }));
+
+    try {
+      // หา Contract ID จากห้อง
+      const contractResponse = await fetch(`${API_BASE}/contract/by-room?floor=${floor}&room=${room}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (!contractResponse.ok) {
+        throw new Error(`ไม่พบสัญญาสำหรับห้อง Floor ${floor} Room ${room}`);
+      }
+
+      const contractData = await contractResponse.json();
+      const contractId = contractData.contractId; // ใช้ contractId แทน id
+
+      // ตรวจสอบยอดค้างจาก Outstanding Balance Service
+      console.log(`🔍 Calling Outstanding Balance API: ${API_BASE}/outstanding-balance/calculate/${contractId}`);
+      const outstandingResponse = await fetch(`${API_BASE}/outstanding-balance/calculate/${contractId}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+
+      console.log(`📡 Outstanding Balance API Status: ${outstandingResponse.status}`);
+
+      if (outstandingResponse.ok) {
+        const outstandingAmount = await outstandingResponse.json();
+        console.log(`💰 Outstanding Amount Response:`, outstandingAmount);
+        setOutstandingInfo({
+          loading: false,
+          hasOutstanding: outstandingAmount > 0,
+          amount: outstandingAmount,
+          contractId: contractId,
+          error: null
+        });
+      } else {
+        const errorText = await outstandingResponse.text();
+        console.error(`❌ Outstanding Balance API Error: ${outstandingResponse.status} - ${errorText}`);
+        throw new Error('ไม่สามารถตรวจสอบยอดค้างได้');
+      }
+
+    } catch (error) {
+      console.error('Error checking outstanding balance:', error);
+      setOutstandingInfo({
+        loading: false,
+        hasOutstanding: false,
+        amount: 0,
+        contractId: null,
+        error: error.message
+      });
+    }
+  };
+
+  // ตรวจสอบยอดค้างเมื่อเลือกห้อง
+  useEffect(() => {
+    checkOutstandingBalance(invForm.floor, invForm.room);
+  }, [invForm.floor, invForm.room]);
+
   const clearFilters = () =>
     setFilters({
       status: "ALL",
@@ -467,15 +951,566 @@ function InvoiceManagement() {
 
   // ====== ACTIONS ======
   const [selectedItems, setSelectedItems] = useState([]);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+
+  // ✅ ดาวน์โหลด PDF ใบแจ้งหนี้
+  const handleDownloadPdf = async (invoice) => {
+    try {
+      setErr("");
+      
+      showMessageSave(`กำลังสร้าง PDF สำหรับใบแจ้งหนี้ #${invoice.id}...`);
+      
+      // เรียก API backend เพื่อสร้าง PDF
+      const response = await fetch(`${API_BASE}/invoice/pdf/${invoice.id}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // ตั้งชื่อไฟล์ตามข้อมูล Invoice
+        const fileName = `Invoice_${invoice.id}_${invoice.firstName}_${invoice.lastName}_Room_${invoice.room}.pdf`;
+        link.download = fileName;
+        
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        
+        showMessageSave(`ดาวน์โหลด PDF ใบแจ้งหนี้ #${invoice.id} สำเร็จ`);
+      } else {
+        console.error(`Failed to download PDF for invoice ${invoice.id}: ${response.status} ${response.statusText}`);
+        showMessageError(`Cannot generate PDF: ${response.status} ${response.statusText}`);
+      }
+      
+    } catch (error) {
+      console.error('PDF Download Error:', error);
+      setErr(`ดาวน์โหลด PDF ล้มเหลว: ${error.message}`);
+      showMessageError(`ดาวน์โหลด PDF ล้มเหลว: ${error.message}`);
+    }
+  };
+
+  // ✅ ดาวน์โหลด PDF หลายใบพร้อมกัน
+  const handleBulkDownloadPdf = async () => {
+    if (selectedItems.length === 0) {
+      showMessageError("Please select invoices to download");
+      return;
+    }
+
+    setBulkDownloading(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      showMessageSave(`กำลังดาวน์โหลด PDF ${selectedItems.length} ใบ...`);
+
+      for (const invoiceId of selectedItems) {
+        const invoice = pageRows.find(item => item.id === invoiceId);
+        if (!invoice) continue;
+
+        try {
+          const response = await fetch(`${API_BASE}/invoice/pdf/${invoice.id}`, {
+            method: 'GET',
+            credentials: 'include',
+          });
+
+          if (response.ok) {
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Invoice_${invoice.id}_${invoice.firstName}_${invoice.lastName}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+            successCount++;
+          } else {
+            console.error(`Failed to download PDF for invoice ${invoice.id}`);
+            errorCount++;
+          }
+        } catch (error) {
+          console.error(`Error downloading PDF for invoice ${invoice.id}:`, error);
+          errorCount++;
+        }
+
+        // หน่วงเวลาเล็กน้อยเพื่อไม่ให้ request มากเกินไป
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      if (successCount > 0) {
+        showMessageSave(`ดาวน์โหลด PDF สำเร็จ ${successCount} ใบ${errorCount > 0 ? `, ไม่สำเร็จ ${errorCount} ใบ` : ''}`);
+      } else {
+        showMessageError("Cannot download PDF");
+      }
+
+      // เคลียร์การเลือก
+      setSelectedItems([]);
+
+    } catch (error) {
+      console.error('Bulk download error:', error);
+      showMessageError("เกิดข้อผิดพลาดในการดาวน์โหลด PDF");
+    } finally {
+      setBulkDownloading(false);
+    }
+  };
+
+  // ✅ ลบใบแจ้งหนี้หลายรายการพร้อมกัน
+  const handleBulkDelete = async () => {
+    if (selectedItems.length === 0) {
+      showMessageError("Please select invoices to delete");
+      return;
+    }
+
+    const confirmed = await showMessageConfirmDelete(
+      `คุณต้องการลบใบแจ้งหนี้ ${selectedItems.length} รายการ ใช่หรือไม่?`,
+      "Deletion cannot be undone"
+    );
+
+    if (!confirmed) return;
+
+    setBulkDeleting(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const invoiceId of selectedItems) {
+        try {
+          const response = await fetch(`${API_BASE}/invoice/delete/${invoiceId}`, {
+            method: 'DELETE',
+            credentials: 'include',
+          });
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            console.error(`Failed to delete invoice ${invoiceId}`);
+            errorCount++;
+          }
+        } catch (error) {
+          console.error(`Error deleting invoice ${invoiceId}:`, error);
+          errorCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        showMessageSave(`ลบใบแจ้งหนี้สำเร็จ ${successCount} รายการ${errorCount > 0 ? `, ไม่สำเร็จ ${errorCount} รายการ` : ''}`);
+        fetchData(); // รีเฟรชข้อมูล
+      } else {
+        showMessageError("Cannot delete invoices");
+      }
+
+      // เคลียร์การเลือก
+      setSelectedItems([]);
+
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      showMessageError("เกิดข้อผิดพลาดในการลบใบแจ้งหนี้");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   const handleUpdate = (item) => {
-    // Update functionality
+    // Update functionality - placeholder for future implementation
+    console.log('Update functionality not yet implemented for:', item);
+  };
+
+  // ===== Payment Management Functions =====
+
+  // เปิด Payment Management Modal
+  const handlePaymentManagement = async (invoice) => {
+    // 🔍 Debug log เพื่อดูค่า invoice ที่ส่งเข้ามา
+    console.log(`🔍 Payment Management - Selected Invoice:`, {
+      id: invoice.id,
+      amount: invoice.amount,
+      rent: invoice.rent,
+      water: invoice.water,
+      electricity: invoice.electricity,
+      penalty: invoice.penalty
+    });
+    
+    setSelectedInvoice(invoice);
+    setShowPaymentModal(true);
+    await loadPaymentRecords(invoice.id);
+    await loadPaymentMethods();
+  };
+
+  // โหลดข้อมูล Payment Records
+  const loadPaymentRecords = async (invoiceId) => {
+    try {
+      setLoadingPayments(true);
+      const response = await fetch(`${API_BASE}/api/payments/records/invoice/${invoiceId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setPaymentRecords(data);
+      } else {
+        console.error('Failed to load payment records');
+        setPaymentRecords([]);
+      }
+    } catch (error) {
+      console.error('Error loading payment records:', error);
+      setPaymentRecords([]);
+    } finally {
+      setLoadingPayments(false);
+    }
+  };
+
+  // โหลดข้อมูล Payment Methods
+  const loadPaymentMethods = async () => {
+    try {
+      const [methodsResponse, statusesResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/payments/payment-methods`).catch(() => null),
+        fetch(`${API_BASE}/api/payments/payment-statuses`).catch(() => null)
+      ]);
+
+      if (methodsResponse?.ok) {
+        const methods = await methodsResponse.json();
+        setPaymentMethods(methods);
+      } else {
+        // Fallback payment methods
+        setPaymentMethods({
+          'CASH': 'Cash',
+          'BANK_TRANSFER': 'Bank Transfer',
+          'PROMPTPAY': 'PromptPay',
+          'CREDIT_CARD': 'Credit Card'
+        });
+      }
+
+      if (statusesResponse?.ok) {
+        const statuses = await statusesResponse.json();
+        setPaymentStatuses(statuses);
+      } else {
+        // Fallback payment statuses
+        setPaymentStatuses({
+          'PENDING': 'Pending',
+          'CONFIRMED': 'Confirmed',
+          'REJECTED': 'Rejected'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading payment methods:', error);
+      // Set fallback values when error occurs
+      setPaymentMethods({
+        'CASH': 'Cash',
+        'BANK_TRANSFER': 'Bank Transfer',
+        'PROMPTPAY': 'PromptPay',
+        'CREDIT_CARD': 'Credit Card'
+      });
+      setPaymentStatuses({
+        'PENDING': 'Pending',
+        'CONFIRMED': 'Confirmed',
+        'REJECTED': 'Rejected'
+      });
+    }
+  };
+
+  // ✅ ตรวจสอบและอัปเดตสถานะอัตโนมัติ
+  const checkAndUpdateInvoiceStatus = async (invoiceId, newPaymentAmount) => {
+    try {
+      // โหลดข้อมูลใบแจ้งหนี้และการชำระเงินล่าสุด
+      const invoiceResponse = await fetch(`${API_BASE}/api/invoices/${invoiceId}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!invoiceResponse.ok) return;
+
+      const invoice = await invoiceResponse.json();
+      const totalInvoiceAmount = invoice.netAmount || invoice.amount || 0;
+      
+      // คำนวณยอดรวมที่ชำระ (รวมการชำระใหม่)
+      const currentPayments = invoice.paymentRecords || [];
+      const totalPaid = currentPayments.reduce((sum, payment) => {
+        return sum + (parseFloat(payment.paymentAmount) || 0);
+      }, 0) + newPaymentAmount;
+
+      // ตรวจสอบว่าจ่ายครบหรือไม่
+      if (totalPaid >= totalInvoiceAmount && invoice.status !== 'COMPLETED') {
+        // อัปเดตสถานะเป็น COMPLETED
+        const updateResponse = await fetch(`${API_BASE}/api/invoices/${invoiceId}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'COMPLETED' })
+        });
+
+        if (updateResponse.ok) {
+          console.log(`✅ อัปเดตสถานะใบแจ้งหนี้ ${invoiceId} เป็น COMPLETED อัตโนมัติ`);
+        }
+      }
+
+    } catch (error) {
+      console.error('Error checking invoice status:', error);
+      // ไม่แสดง error ให้ผู้ใช้เพราะเป็นการทำงานเบื้องหลัง
+    }
+  };
+
+  // เพิ่มการบันทึกการชำระเงิน
+  const handleAddPayment = async (e) => {
+    e.preventDefault();
+    
+    if (!selectedInvoice) {
+      showMessageError('ไม่พบข้อมูลใบแจ้งหนี้');
+      return;
+    }
+    
+    // Validate form data
+    if (!paymentForm.paymentAmount || parseFloat(paymentForm.paymentAmount) <= 0) {
+      showMessageError('Please enter a valid amount');
+      return;
+    }
+
+    // ✅ ตรวจสอบการจ่ายเงินเกิน - ใช้ข้อมูล paymentRecords ที่โหลดไว้แล้ว
+    const paymentAmount = parseFloat(paymentForm.paymentAmount);
+    const totalInvoiceAmount = selectedInvoice.netAmount || selectedInvoice.amount || 0;
+    
+    // ใช้ paymentRecords ที่โหลดล่าสุดจาก loadPaymentRecords
+    const totalAlreadyPaid = paymentRecords.reduce((sum, payment) => {
+      return sum + (parseFloat(payment.paymentAmount) || 0);
+    }, 0);
+    const remainingAmount = totalInvoiceAmount - totalAlreadyPaid;
+
+    // ป้องกันการจ่ายเกินยอดคงเหลือ
+    if (paymentAmount > remainingAmount) {
+      showMessageError(`Cannot pay more than remaining amount!`);
+      return;
+    }
+
+    // ป้องกันการจ่ายเกินยอดรวมของบิล
+    const totalAfterThisPayment = totalAlreadyPaid + paymentAmount;
+    if (totalAfterThisPayment > totalInvoiceAmount) {
+      showMessageError(`Payment amount exceeds invoice total!\n\nInvoice Total: ${totalInvoiceAmount.toLocaleString()} THB\nAlready Paid: ${totalAlreadyPaid.toLocaleString()} THB\nEntered: ${paymentAmount.toLocaleString()} THB\nTotal Would Be: ${totalAfterThisPayment.toLocaleString()} THB\n\nCannot exceed invoice total!`);
+      return;
+    }
+    
+    try {
+      setSavingPayment(true);
+      
+      const paymentData = {
+        invoiceId: selectedInvoice.id,
+        paymentAmount: parseFloat(paymentForm.paymentAmount),
+        paymentMethod: paymentForm.paymentMethod,
+        paymentDate: new Date(paymentForm.paymentDate).toISOString(),
+        transactionReference: paymentForm.transactionReference,
+        notes: paymentForm.notes,
+        recordedBy: paymentForm.recordedBy || 'admin'
+      };
+
+      const response = await fetch(`${API_BASE}/api/payments/records`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(paymentData)
+      });
+
+      if (response.ok) {
+        showMessageSave();
+        
+        // รีเซ็ตฟอร์ม
+        setPaymentForm({
+          paymentAmount: '',
+          paymentMethod: 'BANK_TRANSFER',
+          paymentDate: new Date().toISOString().slice(0, 16),
+          transactionReference: '',
+          notes: '',
+          recordedBy: 'admin'
+        });
+        
+        // โหลดข้อมูลใหม่
+        await loadPaymentRecords(selectedInvoice.id);
+        
+        // ✅ ตรวจสอบและอัปเดตสถานะอัตโนมัติ
+        await checkAndUpdateInvoiceStatus(selectedInvoice.id, paymentAmount);
+        
+        await fetchData(); // อัปเดตตาราง Invoice
+        
+      } else {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(errorText || `HTTP ${response.status}`);
+      }
+      
+    } catch (error) {
+      console.error('Error adding payment:', error);
+      showMessageError(`เพิ่มการบันทึกการชำระเงินล้มเหลว: ${error.message}`);
+    } finally {
+      setSavingPayment(false);
+    }
+  };
+
+  // ดาวน์โหลดหลักฐานการชำระเงิน
+  const handleViewProof = async (proofId, fileName) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/payments/proofs/${proofId}/download`, {
+        method: 'GET'
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        
+        // สร้าง element สำหรับดาวน์โหลด
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName || `หลักฐาน_${proofId}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // ทำความสะอาด URL
+        window.URL.revokeObjectURL(url);
+        
+        showMessageSave();
+      } else {
+        showMessageError('Cannot download proof');
+      }
+    } catch (error) {
+      console.error('Error downloading proof:', error);
+      showMessageError('เกิดข้อผิดพลาดในการดาวน์โหลดหลักฐาน');
+    }
+  };
+
+  // อัปโหลดหลักฐานการชำระเงิน
+  const handleUploadProof = async () => {
+    if (!selectedFile) {
+      showMessageError('Please select a file');
+      return;
+    }
+
+    if (!selectedInvoice) {
+      showMessageError('ไม่พบข้อมูลใบแจ้งหนี้');
+      return;
+    }
+
+    // ตรวจสอบขนาดไฟล์ (ไม่เกิน 5MB)
+    if (selectedFile.size > 5 * 1024 * 1024) {
+      showMessageError('ขนาดไฟล์ไม่ควรเกิน 5MB');
+      return;
+    }
+
+    // ตรวจสอบประเภทไฟล์
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    if (!allowedTypes.includes(selectedFile.type)) {
+      showMessageError('รองรับเฉพาะไฟล์ JPG, PNG, GIF และ PDF');
+      return;
+    }
+
+    try {
+      setUploadingProof(true);
+      
+      // ถ้าไม่มี payment records ให้เพิ่มก่อน
+      if (!paymentRecords.length) {
+        showMessageError('Please add a payment record before uploading proof');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      formData.append('proofType', proofType);
+      formData.append('description', proofDescription || 'หลักฐานการชำระเงิน');
+      formData.append('uploadedBy', 'admin');
+
+      // ใช้ payment record ล่าสุด
+      const latestPaymentId = paymentRecords[0]?.id;
+      if (!latestPaymentId) {
+        throw new Error('ไม่พบการบันทึกการชำระเงิน');
+      }
+
+      const response = await fetch(`${API_BASE}/api/payments/records/${latestPaymentId}/proofs`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        showMessageSave();
+        
+        // รีเซ็ต form
+        setSelectedFile(null);
+        setProofType('BANK_SLIP');
+        setProofDescription('');
+        
+        // Clear file input
+        const fileInput = document.querySelector('input[type="file"]');
+        if (fileInput) fileInput.value = '';
+        
+        // โหลดข้อมูลใหม่
+        await loadPaymentRecords(selectedInvoice.id);
+        
+      } else {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('Upload failed:', errorText);
+        throw new Error(errorText || `HTTP ${response.status}`);
+      }
+      
+    } catch (error) {
+      console.error('Error uploading proof:', error);
+      showMessageError(`อัปโหลดหลักฐานล้มเหลว: ${error.message}`);
+    } finally {
+      setUploadingProof(false);
+    }
+  };
+
+  // อัปเดตสถานะการชำระ
+  const handleUpdatePaymentStatus = async (paymentId, newStatus) => {
+    try {
+      const response = await fetch(`${API_BASE}/api/payments/records/${paymentId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paymentStatus: newStatus
+        })
+      });
+
+      if (response.ok) {
+        showMessageSave();
+        await loadPaymentRecords(selectedInvoice.id);
+        await fetchData(); // อัปเดตตาราง Invoice
+      } else {
+        throw new Error('Failed to update payment status');
+      }
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+      showMessageError(`อัปเดตสถานะการชำระเงินล้มเหลว: ${error.message}`);
+    }
+  };
+
+  // ลบการบันทึกการชำระเงิน
+  const handleDeletePayment = async (paymentId) => {
+    const result = await showMessageConfirmDelete('payment record');
+    if (!result.isConfirmed) return;
+    
+    try {
+      const response = await fetch(`${API_BASE}/api/payments/records/${paymentId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        showMessageSave();
+        await loadPaymentRecords(selectedInvoice.id);
+        await fetchData(); // อัปเดตตาราง Invoice
+      } else {
+        throw new Error('Failed to delete payment record');
+      }
+    } catch (error) {
+      console.error('Error deleting payment:', error);
+      showMessageError(`ลบการบันทึกการชำระเงินล้มเหลว: ${error.message}`);
+    }
   };
 
   // ✅ ลบใบแจ้งหนี้ (DELETE /invoice/delete/{id})
   const handleDelete = async (id) => {
-    const yes = window.confirm("ต้องการลบใบแจ้งหนี้นี้หรือไม่?");
-    if (!yes) return;
+    const result = await showMessageConfirmDelete(`ใบแจ้งหนี้ #${id}`);
+    if (!result.isConfirmed) return;
 
     try {
       setDeletingId(id);
@@ -489,22 +1524,30 @@ function InvoiceManagement() {
 
       if (!res.ok) {
         const msg = await res.text().catch(() => "");
-        throw new Error(msg || `ลบไม่สำเร็จ (HTTP ${res.status})`);
+        console.error("Delete failed:", {
+          status: res.status,
+          message: msg,
+          invoiceId: id
+        });
+        throw new Error(msg || `ลบไม่สำเร็จ (HTTP ${res.status}) - อาจมีข้อมูลเกี่ยวข้องที่ป้องกันการลบ`);
       }
 
       // ลบสำเร็จ → ตัดแถวออกจาก state
       setData((prev) => prev.filter((x) => x.id !== id));
-      showSuccess("🗑️ ลบ Invoice สำเร็จแล้ว!");
+      showMessageSave();
     } catch (e) {
       console.error(e);
       setErr(e.message || "ลบไม่สำเร็จ");
-      showError(`❌ ลบ Invoice ล้มเหลว: ${e.message}`);
+      showMessageError(`ลบ Invoice ล้มเหลว: ${e.message}`);
     } finally {
       setDeletingId(null);
     }
   };
 
   const handleViewInvoice = (invoice) => {
+    // ✅ บันทึกตำแหน่ง scroll ก่อนไปหน้า InvoiceDetails
+    sessionStorage.setItem('invoiceManagementScrollPosition', window.scrollY.toString());
+    
     navigate("/InvoiceDetails", {
       state: {
         invoice: invoice,
@@ -514,17 +1557,22 @@ function InvoiceManagement() {
     });
   };
 
-  const handleSelectRow = (rowIndex) => {
-    setSelectedItems((prev) =>
-      prev.includes(rowIndex) ? prev.filter((i) => i !== rowIndex) : [...prev, rowIndex]
-    );
+  const handleSelectRow = (invoiceId) => {
+    console.log('🔍 Selecting invoice:', invoiceId);
+    setSelectedItems((prev) => {
+      const newSelection = prev.includes(invoiceId) 
+        ? prev.filter((i) => i !== invoiceId) 
+        : [...prev, invoiceId];
+      console.log('🔍 New selection:', newSelection);
+      return newSelection;
+    });
   };
 
   const handleSelectAll = () => {
     if (selectedItems.length === pageRows.length) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(pageRows.map((_, idx) => idx));
+      setSelectedItems(pageRows.map((item) => item.id));
     }
   };
 
@@ -553,6 +1601,7 @@ function InvoiceManagement() {
 
       const body = {
         packageId: Number(invForm.packageId),
+        contractId: outstandingInfo.contractId, // เพิ่ม contractId จากการตรวจสอบ
         floor: invForm.floor,
         room: invForm.room,
         createDate: invForm.createDate, // YYYY-MM-DD
@@ -563,8 +1612,24 @@ function InvoiceManagement() {
         electricityRate: Number(invForm.elecRate || 0),
         penaltyTotal: 0,
         invoiceStatus: mapStatusToCode(invForm.status),
+        includeOutstandingBalance: outstandingInfo.hasOutstanding, // 🤖 อัตโนมัติ
         // subTotal / netAmount: ให้ backend คำนวณเอง
       };
+
+      console.log("🤖 Auto Outstanding Balance Debug:", {
+        hasOutstanding: outstandingInfo.hasOutstanding,
+        amount: outstandingInfo.amount,
+        contractId: outstandingInfo.contractId,
+        floor: invForm.floor,
+        room: invForm.room
+      });
+
+      console.log("📤 Request Body:", {
+        contractId: outstandingInfo.contractId,
+        includeOutstandingBalance: outstandingInfo.hasOutstanding,
+        floor: invForm.floor,
+        room: invForm.room
+      });
 
       const res = await fetch(`${API_BASE}/invoice/create`, {
         method: "POST",
@@ -607,16 +1672,75 @@ function InvoiceManagement() {
       
       await fetchData(); // refresh list เพื่อดูข้อมูลจริงจาก database
       
-      showSuccess("🎉 สร้าง Invoice สำเร็จแล้ว!");
+      showMessageSave();
       return true;
     } catch (e) {
       console.error(e);
       setErr(`Create invoice failed: ${e.message}`);
-      showError(`❌ สร้าง Invoice ล้มเหลว: ${e.message}`);
+      showMessageError(`สร้าง Invoice ล้มเหลว: ${e.message}`);
       return false;
     } finally {
       setSaving(false);
     }
+  };
+
+  // ===== CSV Import Functions =====
+  
+  const handleCsvFileChange = (e) => {
+    const file = e.target.files[0];
+    setCsvFile(file);
+    setCsvResult("");
+  };
+
+  const handleCsvImport = async () => {
+    if (!csvFile) {
+      showMessageError("Please select a CSV file first");
+      return;
+    }
+
+    if (!csvFile.name.toLowerCase().endsWith('.csv')) {
+      showMessageError("Please select a valid CSV file");
+      return;
+    }
+
+    setCsvUploading(true);
+    setCsvResult("");
+
+    try {
+      const formData = new FormData();
+      formData.append('file', csvFile);
+
+      const response = await fetch(`${API_BASE}/invoice/import-csv`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.text();
+        setCsvResult(result);
+        showMessageSave();
+        
+        // Refresh the invoice list
+        setTimeout(() => {
+          fetchData();
+        }, 1000);
+      } else {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Failed to import CSV');
+      }
+    } catch (error) {
+      console.error('CSV Import Error:', error);
+      showMessageError(`Failed to import CSV: ${error.message}`);
+      setCsvResult(`Error: ${error.message}`);
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  const closeCsvModal = () => {
+    setShowCsvModal(false);
+    setCsvFile(null);
+    setCsvResult("");
   };
 
   return (
@@ -657,9 +1781,63 @@ function InvoiceManagement() {
                     </div>
                   </div>
 
+                  {/* แสดงปุ่มจัดการหลายรายการเมื่อมีการเลือก */}
+                  {selectedItems.length > 0 && (
+                    <div className="d-flex align-items-center gap-2 me-3">
+                      <span className="badge bg-primary">{selectedItems.length} selected</span>
+                      <button
+                        type="button"
+                        className="btn btn-outline-success btn-sm"
+                        onClick={handleBulkDownloadPdf}
+                        disabled={bulkDownloading}
+                        title={`Download ${selectedItems.length} PDFs`}
+                      >
+                        {bulkDownloading ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-1"></span>
+                            Downloading...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-file-earmark-pdf-fill me-1"></i>
+                            Download PDF ({selectedItems.length})
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger btn-sm"
+                        onClick={handleBulkDelete}
+                        disabled={bulkDeleting}
+                        title={`Delete ${selectedItems.length} items`}
+                      >
+                        {bulkDeleting ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-1"></span>
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <i className="bi bi-trash-fill me-1"></i>
+                            Delete ({selectedItems.length})
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm"
+                        onClick={() => setSelectedItems([])}
+                        title="Cancel selection"
+                      >
+                        <i className="bi bi-x-circle me-1"></i>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+
                   {/* Right cluster: Create / Refresh */}
                   <div className="d-flex align-items-center gap-2">
-                    <button
+                    {/* <button
                       type="button"
                       className="btn btn-outline-primary btn-sm"
                       onClick={() => {
@@ -668,10 +1846,10 @@ function InvoiceManagement() {
                         fetchTenants();
                         fetchData();
                       }}
-                      title="รีเฟรชข้อมูล"
+                      title="Refresh data"
                     >
                       <i className="bi bi-arrow-clockwise me-1"></i> Refresh
-                    </button>
+                    </button> */}
                     
                     <button
                       type="button"
@@ -686,6 +1864,16 @@ function InvoiceManagement() {
                       title={Object.keys(roomsByFloor).length === 0 ? "No occupied rooms available for invoice creation" : "Create new invoice"}
                     >
                       <i className="bi bi-plus-lg me-1"></i> Create Invoice
+                    </button>
+                    
+                    {/* CSV Import Button */}
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      onClick={() => setShowCsvModal(true)}
+                      title="Import utility usage from CSV file"
+                    >
+                      <i className="bi bi-file-earmark-spreadsheet me-1"></i> Import CSV
                     </button>
                     {/* <button className="btn btn-outline-secondary" onClick={fetchData} disabled={loading}>
                       <i className={`bi ${loading ? "bi-arrow-repeat spin" : "bi-arrow-repeat"} me-1`}></i>
@@ -717,9 +1905,14 @@ function InvoiceManagement() {
               <table className="table text-nowrap">
                 <thead>
                   <tr>
-                    {/* <th className="text-center header-color checkbox-cell">
-                      <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} />
-                    </th> */}
+                    <th className="text-center header-color" style={{ width: '40px', padding: '8px' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={isAllSelected} 
+                        onChange={handleSelectAll}
+                        style={{ transform: 'scale(1.1)' }}
+                      />
+                    </th>
                     <th className="text-center align-middle header-color">Order</th>
                     <th className="text-center align-middle header-color">Create date</th>
                     <th className="text-start align-middle header-color">First Name</th>
@@ -731,7 +1924,8 @@ function InvoiceManagement() {
                     <th className="text-start align-middle header-color">NET</th>
                     <th className="text-start align-middle header-color">Status</th>
                     <th className="text-start align-middle header-color">Pay date</th>
-                    <th className="text-start align-middle header-color">Penalty</th>
+                    {/* <th className="text-start align-middle header-color">Penalty</th> */}
+                    <th className="text-start align-middle header-color">Outstanding</th>
                     <th className="text-center align-middle header-color">Actions</th>
                   </tr>
                 </thead>
@@ -739,20 +1933,21 @@ function InvoiceManagement() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="12" className="text-center">
+                      <td colSpan="15" className="text-center">
                         Loading...
                       </td>
                     </tr>
                   ) : pageRows.length > 0 ? (
                     pageRows.map((item, idx) => (
                       <tr key={`${item.id}-${idx}`}>
-                        {/* <td className="align-middle text-center checkbox-cell">
+                        <td className="align-middle text-center" style={{ width: '40px', padding: '8px' }}>
                           <input
                             type="checkbox"
-                            checked={selectedItems.includes(idx)}
-                            onChange={() => handleSelectRow(idx)}
+                            checked={selectedItems.includes(item.id)}
+                            onChange={() => handleSelectRow(item.id)}
+                            style={{ transform: 'scale(1.1)' }}
                           />
-                        </td> */}
+                        </td>
                         <td className="align-middle text-center">
                           {(currentPage - 1) * pageSize + idx + 1}
                         </td>
@@ -763,7 +1958,7 @@ function InvoiceManagement() {
                         <td className="align-middle text-start">{item.rent.toLocaleString()}</td>
                         <td className="align-middle text-start">{item.water.toLocaleString()}</td>
                         <td className="align-middle text-start">{item.electricity.toLocaleString()}</td>
-                        <td className="align-middle text-start ">{item.amount.toLocaleString()}</td>
+                        <td className="align-middle text-start ">{item.amount.toLocaleString()} THB</td>
                         <td className="align-middle text-start">
                           <span
                             className={`badge ${
@@ -772,30 +1967,51 @@ function InvoiceManagement() {
                                 : "bg-warning text-dark"
                             }`}
                           >
-                            <i className="bi bi-circle-fill me-1"></i>
                             {item.status === "Complete" ? "Complete" : "Incomplete"}
                           </span>
                         </td>
                         <td className="align-middle text-start">{item.payDate}</td>
-                        <td className="align-middle text-center">
+                        {/* <td className="align-middle text-center">
                           <i
                             className={`bi bi-circle-fill ${
                               item.penalty > 0 ? "text-danger" : "text-secondary"
                             }`}
                           ></i>
+                        </td> */}
+                        <td className="align-middle text-start">
+                          {item.hasOutstandingBalance ? (
+                            <span className="text-danger fw-bold">
+                              <i className="bi bi-exclamation-triangle-fill me-1"></i>
+                              {item.outstandingBalance.toLocaleString()} THB
+                            </span>
+                          ) : (
+                            <span className="text-success">
+                              <i className="bi bi-check-circle-fill me-1"></i>
+                            </span>
+                          )}
                         </td>
                         <td className="align-middle text-center">
                           <button
                             className="btn btn-sm form-Button-Edit me-1"
                             onClick={() => handleViewInvoice(item)}
                             aria-label="View invoice"
+                            title="View invoice details"
                           >
                             <i className="bi bi-eye-fill"></i>
                           </button>
                           <button
+                            className="border-0 bg-transparent p-1 me-1"
+                            onClick={() => handlePaymentManagement(item)}
+                            aria-label="Manage payments"
+                            title="Manage payments"
+                          >
+                            <i className="bi bi-credit-card-fill"></i>
+                          </button>
+                          <button
                             className="btn btn-sm form-Button-Edit me-1"
-                            onClick={() => handleUpdate(item)}
+                            onClick={() => handleDownloadPdf(item)}
                             aria-label="Download PDF"
+                            title="Download PDF invoice"
                           >
                             <i className="bi bi-file-earmark-pdf-fill"></i>
                           </button>
@@ -803,6 +2019,7 @@ function InvoiceManagement() {
                             className="btn btn-sm form-Button-Del me-1"
                             onClick={() => handleDelete(item.id)}  // ✅ ส่ง id
                             aria-label="Delete invoice"
+                            title="Delete invoice"
                             disabled={deletingId === item.id || loading} // ✅ กันกดซ้ำ
                           >
                             <i className={`bi ${deletingId === item.id ? "bi-arrow-repeat spin" : "bi-trash-fill"}`}></i>
@@ -812,7 +2029,7 @@ function InvoiceManagement() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="12" className="text-center">
+                      <td colSpan="15" className="text-center">
                         No invoices found
                       </td>
                     </tr>
@@ -999,7 +2216,7 @@ function InvoiceManagement() {
                           .map((pkg) => (
                             <option key={pkg.id} value={pkg.id} style={{ backgroundColor: '#fff', color: '#000' }}>
                               {pkg.contract_name || pkg.name || `Package ${pkg.id}`} - ฿{pkg.price ? pkg.price.toLocaleString() : 'N/A'}
-                              {pkg.duration && ` (${pkg.duration} เดือน)`}
+                              {pkg.duration && ` (${pkg.duration} months)`}
                             </option>
                           ))
                       )}
@@ -1037,6 +2254,7 @@ function InvoiceManagement() {
                     {invForm.packageId && packages.find(p => p.id === Number(invForm.packageId))?.name}
                   </div>
                 </div>
+
 
                 {/* แถว 2: Water */}
                 <div className="col-md-6">
@@ -1084,8 +2302,8 @@ function InvoiceManagement() {
                     value={invForm.status}
                     onChange={(e) => setInvForm((p) => ({ ...p, status: e.target.value }))}
                   >
-                    <option value="Incomplete">Incomplete (ยังไม่ชำระ)</option>
-                    <option value="Complete">Complete (ชำระแล้ว)</option>
+                    <option value="Incomplete">Incomplete (Unpaid)</option>
+                    <option value="Complete">Complete (Paid)</option>
                   </select>
                 </div>
               </div>
@@ -1129,7 +2347,7 @@ function InvoiceManagement() {
               >
                 <option value="ALL">All</option>
                 <option value="Complete">Complete (ชำระแล้ว)</option>
-                <option value="Incomplete">Incomplete (ยังไม่ชำระ)</option>
+                <option value="Incomplete">Incomplete (Unpaid)</option>
               </select>
             </div>
 
@@ -1205,6 +2423,490 @@ function InvoiceManagement() {
           </div>
         </div>
       </div>
+
+      {/* CSV Import Modal */}
+      {showCsvModal && (
+        <div className="modal fade show" style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-file-earmark-spreadsheet me-2"></i>
+                  Import Utility Usage from CSV
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={closeCsvModal}
+                  disabled={csvUploading}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="mb-3">
+                  <h6>CSV Format Requirements:</h6>
+                  <div className="alert alert-info">
+                    <p className="mb-2"><strong>Required columns (in order):</strong></p>
+                    <ol className="mb-2">
+                      <li><strong>RoomNumber</strong> - Room number (e.g., "101", "A201")</li>
+                      <li><strong>WaterUsage</strong> - Water usage in units (e.g., 25)</li>
+                      <li><strong>ElectricityUsage</strong> - Electricity usage in units (e.g., 150)</li>
+                      <li><strong>BillingMonth</strong> - Billing month in YYYY-MM format (e.g., "2024-11")</li>
+                    </ol>
+                    <p className="mb-2"><strong>Optional columns:</strong></p>
+                    <ul className="mb-0">
+                      <li><strong>WaterRate</strong> - Water rate per unit (default: 20 THB/unit)</li>
+                      <li><strong>ElectricityRate</strong> - Electricity rate per unit (default: 8 THB/unit)</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="alert alert-warning">
+                    <h6><i className="bi bi-exclamation-triangle me-1"></i> Sample CSV Format:</h6>
+                    <pre className="mb-0" style={{ fontSize: '0.85em' }}>
+{`RoomNumber,WaterUsage,ElectricityUsage,BillingMonth,WaterRate,ElectricityRate
+101,25,150,2024-11,20,8
+102,30,180,2024-11,20,8
+A201,22,140,2024-11,20,8`}
+                    </pre>
+                  </div>
+                </div>
+
+                <div className="mb-3">
+                  <label htmlFor="csvFile" className="form-label">
+                    <strong>Select CSV File:</strong>
+                  </label>
+                  <input
+                    type="file"
+                    className="form-control"
+                    id="csvFile"
+                    accept=".csv"
+                    onChange={handleCsvFileChange}
+                    disabled={csvUploading}
+                  />
+                </div>
+
+                {csvFile && (
+                  <div className="alert alert-success">
+                    <i className="bi bi-file-check me-1"></i>
+                    Selected file: <strong>{csvFile.name}</strong> ({(csvFile.size / 1024).toFixed(2)} KB)
+                  </div>
+                )}
+
+                {csvResult && (
+                  <div className="mb-3">
+                    <label className="form-label"><strong>Import Result:</strong></label>
+                    <textarea
+                      className="form-control"
+                      rows="8"
+                      value={csvResult}
+                      readOnly
+                      style={{ fontSize: '0.9em', fontFamily: 'monospace' }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={closeCsvModal}
+                  disabled={csvUploading}
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-success"
+                  onClick={handleCsvImport}
+                  disabled={!csvFile || csvUploading}
+                >
+                  {csvUploading ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                      Importing...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-upload me-1"></i>
+                      Import CSV
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Payment Management Modal ===== */}
+      {showPaymentModal && selectedInvoice && (
+        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-xl">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  <i className="bi bi-credit-card-fill me-2"></i>
+                  Payment Management - Invoice #{selectedInvoice.id}
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close" 
+                  onClick={() => setShowPaymentModal(false)}
+                ></button>
+              </div>
+              
+              <div className="modal-body">
+                {/* Invoice Summary */}
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <div className="card">
+                      <div className="card-body">
+                        <h6 className="card-title">Invoice Information</h6>
+                        <p className="mb-1"><strong>Customer:</strong> {selectedInvoice.firstName} {selectedInvoice.lastName}</p>
+                        <p className="mb-1"><strong>Room:</strong> {selectedInvoice.floor}/{selectedInvoice.room}</p>
+                        <p className="mb-1"><strong>Total:</strong> <span className="text-primary fw-bold">{selectedInvoice.amount?.toLocaleString()} THB</span></p>
+                        <p className="mb-0">
+                          <strong>Status:</strong> 
+                          <span className={`badge ms-2 ${selectedInvoice.status === 'Complete' ? 'bg-success' : 'bg-warning text-dark'}`}>
+                            {selectedInvoice.status === 'Complete' ? 'Paid' : 'Unpaid'}
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* <div className="col-md-6">
+                    <div className="card">
+                      <div className="card-body">
+                        <h6 className="card-title">สรุปการชำระ</h6>
+                        {selectedInvoice.totalPaidAmount !== undefined ? (
+                          <>
+                            <p className="mb-1"><strong>ชำระแล้ว:</strong> <span className="text-success fw-bold">{selectedInvoice.totalPaidAmount?.toLocaleString()} บาท</span></p>
+                            <p className="mb-1"><strong>รอยืนยัน:</strong> <span className="text-warning fw-bold">{selectedInvoice.totalPendingAmount?.toLocaleString()} บาท</span></p>
+                            <p className="mb-0"><strong>คงเหลือ:</strong> <span className="text-danger fw-bold">{selectedInvoice.remainingAmount?.toLocaleString()} บาท</span></p>
+                          </>
+                        ) : (
+                          <p className="text-muted">กำลังโหลดข้อมูล...</p>
+                        )}
+                      </div>
+                    </div>
+                  </div> */}
+                </div>
+
+                {/* Add Payment Form */}
+                <div className="card mb-4">
+                  <div className="card-header">
+                    <h6 className="mb-0"><i className="bi bi-plus-circle me-2"></i>Add Payment Record</h6>
+                  </div>
+                  <div className="card-body">
+                    <form onSubmit={handleAddPayment}>
+                      <div className="row g-3">
+                        <div className="col-md-3">
+                          <label className="form-label">Amount *</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            value={paymentForm.paymentAmount}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, paymentAmount: e.target.value }))}
+                            step="0.01"
+                            min="0"
+                            required
+                          />
+                        </div>
+                        
+                        <div className="col-md-3">
+                          <label className="form-label">Payment Method *</label>
+                          <select
+                            className="form-select"
+                            value={paymentForm.paymentMethod}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                            required
+                          >
+                            {Object.entries(paymentMethods).map(([key, value]) => (
+                              <option key={key} value={key}>{value}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
+                        <div className="col-md-3">
+                          <label className="form-label">Payment Date *</label>
+                          <input
+                            type="datetime-local"
+                            className="form-control"
+                            value={paymentForm.paymentDate}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, paymentDate: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        
+                        <div className="col-md-3">
+                          <label className="form-label">Reference Number</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={paymentForm.transactionReference}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, transactionReference: e.target.value }))}
+                            placeholder="Transfer number"
+                          />
+                        </div>
+                        
+                        <div className="col-md-9">
+                          <label className="form-label">Notes</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={paymentForm.notes}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, notes: e.target.value }))}
+                            placeholder="Additional notes"
+                          />
+                        </div>
+                        
+                        <div className="col-md-3">
+                          <label className="form-label">Recorded By</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={paymentForm.recordedBy}
+                            onChange={(e) => setPaymentForm(prev => ({ ...prev, recordedBy: e.target.value }))}
+                            required
+                          />
+                        </div>
+                        
+                        <div className="col-12">
+                          <button
+                            type="submit"
+                            className="btn btn-success"
+                            disabled={savingPayment}
+                          >
+                            {savingPayment ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm me-2"></span>
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <i className="bi bi-plus-circle me-2"></i>
+                                Add Payment Record
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                {/* File Upload Section for Payment Proofs */}
+                <div className="card mb-4">
+                  <div className="card-header">
+                    <h6 className="mb-0">
+                      <i className="bi bi-cloud-upload me-2"></i>
+                      Upload Payment Proof (Optional)
+                    </h6>
+                  </div>
+                  <div className="card-body">
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label">Select File</label>
+                        <input
+                          type="file"
+                          className="form-control"
+                          accept="image/*,.pdf"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              // Validate file size
+                              if (file.size > 5 * 1024 * 1024) {
+                                showMessageError('ขนาดไฟล์ไม่ควรเกิน 5MB');
+                                e.target.value = '';
+                                return;
+                              }
+                              
+                              // Validate file type
+                              const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+                              if (!allowedTypes.includes(file.type)) {
+                                showMessageError('รองรับเฉพาะไฟล์ JPG, PNG, GIF และ PDF');
+                                e.target.value = '';
+                                return;
+                              }
+                              
+                              setSelectedFile(file);
+                            }
+                          }}
+                        />
+                        <div className="form-text">
+                          รองรับ: รูปภาพ (JPG, PNG, GIF), PDF | ขนาดไม่เกิน 5MB
+                          {selectedFile && (
+                            <div className="mt-1">
+                              <span className="badge bg-info">
+                                📎 {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="col-md-3">
+                        <label className="form-label">Proof Type</label>
+                        <select 
+                          className="form-select"
+                          value={proofType}
+                          onChange={(e) => setProofType(e.target.value)}
+                        >
+                          <option value="BANK_SLIP">Bank Slip</option>
+                          <option value="RECEIPT">Receipt</option>
+                          <option value="BANK_STATEMENT">Bank Statement</option>
+                          <option value="OTHER">Other</option>
+                        </select>
+                      </div>
+
+                      <div className="col-md-3">
+                        <label className="form-label">&nbsp;</label>
+                        <div>
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary"
+                            onClick={handleUploadProof}
+                            disabled={!selectedFile || uploadingProof}
+                          >
+                            {uploadingProof ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm me-2"></span>
+                                Uploading...
+                              </>
+                            ) : (
+                              <>
+                                <i className="bi bi-upload me-2"></i>
+                                Upload
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="col-12">
+                        <label className="form-label">Additional Details</label>
+                        <textarea
+                          className="form-control"
+                          rows="2"
+                          value={proofDescription}
+                          onChange={(e) => setProofDescription(e.target.value)}
+                          placeholder="Additional details about the proof (if any)"
+                        ></textarea>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Records List */}
+                <div className="card">
+                  <div className="card-header">
+                    <h6 className="mb-0"><i className="bi bi-list me-2"></i>Payment History</h6>
+                  </div>
+                  <div className="card-body">
+                    {loadingPayments ? (
+                      <div className="text-center py-3">
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Loading data...
+                      </div>
+                    ) : paymentRecords.length > 0 ? (
+                      <div className="table-responsive">
+                        <table className="table table-hover">
+                          <thead>
+                            <tr>
+                              <th>Payment Date</th>
+                              <th>Amount</th>
+                              <th>Payment Method</th>
+                              <th>Status</th>
+                              <th>Reference Number</th>
+                              <th>Proof</th>
+                              <th>Notes</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paymentRecords.map((payment) => (
+                              <tr key={payment.id}>
+                                <td>{new Date(payment.paymentDate).toLocaleString('th-TH')}</td>
+                                <td className="fw-bold text-success">{payment.paymentAmount?.toLocaleString()} THB</td>
+                                <td>{payment.paymentMethodDisplay}</td>
+                                <td>
+                                  <select
+                                    className={`form-select form-select-sm ${
+                                      payment.paymentStatus === 'CONFIRMED' ? 'text-success' :
+                                      payment.paymentStatus === 'PENDING' ? 'text-warning' : 'text-danger'
+                                    }`}
+                                    value={payment.paymentStatus}
+                                    onChange={(e) => handleUpdatePaymentStatus(payment.id, e.target.value)}
+                                  >
+                                    {Object.entries(paymentStatuses).map(([key, value]) => (
+                                      <option key={key} value={key}>{value}</option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td>{payment.transactionReference}</td>
+                                <td>
+                                  {payment.paymentProofs && payment.paymentProofs.length > 0 ? (
+                                    <div>
+                                      <span className="badge bg-info me-1">
+                                        <i className="bi bi-paperclip me-1"></i>
+                                        {payment.paymentProofs.length} ไฟล์
+                                      </span>
+                                      {payment.paymentProofs.map((proof, index) => (
+                                        <div key={proof.id} className="small d-flex align-items-center gap-2 mt-1">
+                                          <span>📎 {proof.fileName}</span>
+                                          <span className="badge bg-secondary">{proof.proofTypeDisplay}</span>
+                                          <button
+                                            className="btn btn-sm btn-outline-success"
+                                            onClick={() => handleViewProof(proof.id, proof.fileName)}
+                                            title="Download proof"
+                                          >
+                                            <i className="bi bi-download"></i>
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted small">No proof</span>
+                                  )}
+                                </td>
+                                <td>{payment.notes}</td>
+                                <td>
+                                  <button
+                                    className="btn btn-sm btn-outline-danger"
+                                    onClick={() => handleDeletePayment(payment.id)}
+                                    title="Delete record"
+                                  >
+                                    <i className="bi bi-trash"></i>
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-3 text-muted">
+                        <i className="bi bi-inbox display-6"></i>
+                        <p>No payment records yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="modal-footer">
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowPaymentModal(false)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

@@ -41,4 +41,70 @@
   color: #888;
 }
 
+/* QR Code Payment Styles */
+.qr-code-container {
+  background: linear-gradient(145deg, #f8f9fa 0%, #e9ecef 100%);
+}
+
+.qr-placeholder {
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.qr-placeholder:hover {
+  background-color: #e9ecef !important;
+  border-color: #adb5bd !important;
+}
+
+/* Payment Information Card Enhancements */
+.card .label {
+  color: #6c757d;
+  font-weight: 500;
+  min-width: 120px;
+  display: inline-block;
+}
+
+.card .value {
+  color: #212529;
+  font-weight: 400;
+}
+
+.card .value.fw-bold {
+  color: #0d6efd;
+  font-weight: 600;
+}
+
+/* Bank Information Styling */
+.card-title {
+  color: #0d6efd;
+  font-weight: 600;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 8px;
+  margin-bottom: 20px;
+}
+
+/* Payment Instructions */
+.alert-info ul {
+  padding-left: 20px;
+}
+
+.alert-info li {
+  margin-bottom: 5px;
+}
+
+/* Mobile Responsiveness for Payment Section */
+@media (max-width: 768px) {
+  .qr-code-container {
+    margin-top: 20px;
+  }
+  
+  .qr-placeholder {
+    height: 120px !important;
+  }
+  
+  .qr-placeholder i {
+    font-size: 2rem !important;
+  }
+}
+
 

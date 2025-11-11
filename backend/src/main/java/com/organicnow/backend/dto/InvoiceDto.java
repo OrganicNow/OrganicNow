@@ -1,7 +1,9 @@
 package com.organicnow.backend.dto;
 
 import lombok.*;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -24,6 +26,18 @@ public class InvoiceDto {
     private Integer penaltyTotal;
     private Integer netAmount;
     private LocalDateTime penaltyAppliedAt;
+    
+    // ✅ Outstanding Balance fields
+    private Integer previousBalance; // ยอดค้างจากเดือนก่อน
+    private Integer paidAmount; // ยอดที่ชำระแล้ว
+    private Integer outstandingBalance; // ยอดคงเหลือ
+    private Boolean hasOutstandingBalance; // มียอดค้างหรือไม่
+    
+    // Payment Information
+    private List<PaymentRecordDto> paymentRecords;
+    private BigDecimal totalPaidAmount;
+    private BigDecimal totalPendingAmount;
+    private BigDecimal remainingAmount;
 
     // ข้อมูลเพิ่มเติมสำหรับ frontend
     private String firstName;

@@ -5,7 +5,9 @@ import { Avatar } from "primereact/avatar";
 import { Menu } from "primereact/menu";
 import { profileMenuItems, settingsMenuItems } from "./menuitem";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import NotificationBell from "./NotificationBell";
+import useMessage from "./useMessage";
 
 import "primereact/resources/themes/lara-light-indigo/theme.css";
 import "primereact/resources/primereact.min.css";
@@ -16,16 +18,19 @@ export default function Topbar({ title = "", icon = "" }) {
   const profileMenu = useRef(null);
   const settingsMenu = useRef(null);
   const navigate = useNavigate();
+  const { logout, user } = useAuth();
+  const { showMessageConfirmProcess } = useMessage();
 
-  const handleLogout = () => {
-    // ✅ แจ้งเตือนก่อน logout (ถ้าต้องการ)
-    if (window.confirm("Are you sure you want to logout?")) {
-      // ไม่มี auth context แล้ว สามารถ navigate ไปหน้าอื่นได้เลย
-      navigate("/dashboard", { replace: true });
+  const handleLogout = async () => {
+    // แจ้งเตือนก่อน logout ด้วย SweetAlert2
+    const result = await showMessageConfirmProcess("Are you sure you want to logout?");
+    if (result.isConfirmed) {
+      logout();
+      navigate("/login", { replace: true });
     }
   };
 
-  // ✅ Enhanced profile menu with logout
+  // Enhanced profile menu with logout
   const enhancedProfileMenuItems = [
     ...profileMenuItems.filter(item => item.label !== "Logout"), // กรอง Logout ออกจาก profileMenuItems
     { separator: true },
@@ -50,7 +55,7 @@ export default function Topbar({ title = "", icon = "" }) {
         <div className="topbar-right">
           <NotificationBell />
 
-          <span>
+          {/* <span>
             <Button
               icon="pi pi-cog"
               className="p-button-rounded p-button-text topbar-btn"
@@ -60,14 +65,21 @@ export default function Topbar({ title = "", icon = "" }) {
               tooltipOptions={{ position: "bottom" }}
             />
             <Menu model={settingsMenuItems} popup ref={settingsMenu} appendTo={document.body} />
-          </span>
+          </span> */}
 
           <div
             className="topbar-profile"
             onClick={(e) => profileMenu.current.toggle(e)}
           >
             <Avatar icon="pi pi-user" shape="circle" className="topbar-avatar" />
-            <span className="topbar-username">Admin User</span>
+            <span className="topbar-username">
+              {user ? user.adminUsername : "Admin User"}
+              {user && (
+                <small style={{ display: 'block', fontSize: '0.7rem', color: '#666' }}>
+                  {user.adminRole === 1 ? 'Super Admin' : 'Admin'}
+                </small>
+              )}
+            </span>
             <Menu model={enhancedProfileMenuItems} popup ref={profileMenu} appendTo={document.body} />
           </div>
         </div>

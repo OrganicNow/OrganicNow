@@ -25,6 +25,7 @@
     "framer-motion": "^12.23.24",
     "primeicons": "^7.0.0",
     "primereact": "^10.9.7",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1",
     "react-apexcharts": "^1.8.0",
     "react-chartjs-2": "^5.3.0",

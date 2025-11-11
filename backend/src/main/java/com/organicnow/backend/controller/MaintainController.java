@@ -8,6 +8,8 @@ import com.organicnow.backend.dto.UpdateMaintainRequest;
 import com.organicnow.backend.service.MaintainRoomService;  // ใช้ MaintainRoomService
 import com.organicnow.backend.service.MaintainService;  // ใช้ MaintainService
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -64,6 +66,26 @@ public class MaintainController {
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Delete failed: " + e.getMessage());
+        }
+    }
+
+    // ✅ PDF Generation Endpoint
+    @GetMapping("/{id}/report-pdf")
+    public ResponseEntity<byte[]> generateMaintenanceReportPdf(@PathVariable Long id) {
+        try {
+            byte[] pdfBytes = maintainService.generateMaintenanceReportPdf(id);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("attachment", "maintenance-report-" + id + ".pdf");
+            
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .body(pdfBytes);
+                    
+        } catch (Exception e) {
+            System.err.println("PDF generation failed: " + e.getMessage());
+            return ResponseEntity.badRequest().build();
         }
     }
 }

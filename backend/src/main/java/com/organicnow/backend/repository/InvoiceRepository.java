@@ -3,9 +3,12 @@ package com.organicnow.backend.repository;
 import com.organicnow.backend.model.Invoice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
@@ -55,6 +58,26 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
         ORDER BY i.invoice_id DESC
     """, nativeQuery = true)
     List<Object[]> findAllInvoicesWithTenantDetails();
+<<<<<<< HEAD
+    
+    // เพิ่มสำหรับ CSV Import
+    @Query("SELECT i FROM Invoice i WHERE i.contact.id = :contractId " +
+           "AND i.createDate BETWEEN :startDate AND :endDate")
+    Optional<Invoice> findByContractAndDateRange(@Param("contractId") Long contractId, 
+                                               @Param("startDate") LocalDateTime startDate, 
+                                               @Param("endDate") LocalDateTime endDate);
+
+    // ✅ สำหรับ Outstanding Balance Service
+    List<Invoice> findByContact_IdAndInvoiceStatusOrderByCreateDateAsc(Long contractId, Integer invoiceStatus);
+    
+    List<Invoice> findByContact_IdAndRemainingBalanceGreaterThanOrderByCreateDateAsc(Long contractId, Integer remainingBalance);
+    
+    // ✅ ดึง invoice ที่เลยวันครบกำหนดแล้ว
+    @Query("SELECT i FROM Invoice i WHERE i.contact.id = :contractId " +
+           "AND i.invoiceStatus = 0 AND i.dueDate < :currentDate")
+    List<Invoice> findOverdueInvoicesByContract(@Param("contractId") Long contractId, 
+                                              @Param("currentDate") LocalDateTime currentDate);
+=======
 
     @Query(value = """
     SELECT 
@@ -70,4 +93,5 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     ORDER BY r.room_number, month
 """, nativeQuery = true)
     List<Object[]> findRoomUsageSummary();
+>>>>>>> f88e7a40f80460f3b336a41bbe20336a38657894
 }

@@ -4,7 +4,6 @@ import axios from "axios";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
 import Pagination from "../component/pagination";
-import { useToast } from "../component/Toast.jsx";
 import { pageSize as defaultPageSize, apiPath } from "../config_variable";
 import useMessage from "../component/useMessage";
 import "../assets/css/roommanagement.css";
@@ -174,6 +173,16 @@ function RoomManagement() {
   );
 
   const handleDeleteRoom = async (roomId) => {
+<<<<<<< HEAD
+    const result = await showMessageConfirmDelete(`room #${roomId}`);
+    if (!result.isConfirmed) return;
+
+    try {
+      await axios.delete(`${apiPath}/room/${roomId}`, { withCredentials: true });
+      showMessageSave();
+      await fetchRooms();              // ✅ refresh rooms
+      await fetchAvailableAssets();    // ✅ refresh asset list
+=======
 
     try {
       await axios.delete(`${apiPath}/room/${roomId}`, {
@@ -182,6 +191,7 @@ function RoomManagement() {
       showMessageSave("Room deleted successfully!");
       await fetchRooms(); // ✅ refresh rooms
       await fetchAvailableAssets(); // ✅ refresh asset list
+>>>>>>> f88e7a40f80460f3b336a41bbe20336a38657894
     } catch (err) {
       console.error("Error deleting room:", err);
       showMessageError("Failed to delete room.");

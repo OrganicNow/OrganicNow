@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
-import { useToast } from "../component/Toast.jsx";
+import useMessage from "../component/useMessage";
 import * as bootstrap from "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
@@ -20,7 +20,7 @@ function MaintenanceDetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const { showSuccess, showError, showWarning, showInfo } = useToast();
+  const { showMessageError, showMessageSave, showMessageConfirmDelete } = useMessage();
 
   // รองรับรับ id ได้ทั้งจาก state และ query (?id=1)
   const idFromState = location.state?.id;
@@ -273,16 +273,16 @@ function MaintenanceDetails() {
       // ✅ Enhanced success notifications based on changes
       if (statusChanged) {
         if (newStatus === "Complete") {
-          showSuccess(`✅ Maintenance Request #${maintainId} marked as Complete!`);
+          showMessageSave();
         } else if (newStatus === "In Progress" && previousStatus === "Not Started") {
-          showInfo(`🔄 Maintenance Request #${maintainId} started - Status: In Progress`);
+          showMessageSave();
         } else if (newStatus === "Not Started" && previousStatus === "Complete") {
-          showWarning(`⚠️ Maintenance Request #${maintainId} reverted to Not Started`);
+          showMessageSave();
         } else {
-          showSuccess(`✅ Maintenance Request #${maintainId} status updated to ${newStatus}`);
+          showMessageSave();
         }
       } else {
-        showSuccess(`✅ Maintenance Request #${maintainId} updated successfully!`);
+        showMessageSave();
       }
 
       // ✅ ปิด modal อย่างสมบูรณ์
@@ -322,14 +322,16 @@ function MaintenanceDetails() {
       
     } catch (e2) {
       console.error("❌ Update error:", e2);
-      showError(`❌ Update failed: ${e2.message}`);
+      showMessageError(`Update failed: ${e2.message}`);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Delete maintenance #${maintainId}?`)) return;
+    const result = await showMessageConfirmDelete(`maintenance #${maintainId}`);
+    if (!result.isConfirmed) return;
+    
     try {
       const res = await fetch(`${API_BASE}/maintain/${maintainId}`, {
         method: "DELETE",
@@ -337,10 +339,39 @@ function MaintenanceDetails() {
       });
       if (!res.ok) throw new Error(await res.text());
       
-      showSuccess(`✅ Maintenance Request #${maintainId} deleted successfully!`);
+      showMessageSave();
       navigate("/maintenancerequest");
     } catch (e) {
-      showError(`❌ Delete failed: ${e.message}`);
+      showMessageError(`Delete failed: ${e.message}`);
+    }
+  };
+
+  // ✅ PDF Download function
+  const handleDownloadPdf = async () => {
+    if (!maintainId) {
+      showMessageError("ไม่พบข้อมูลงานซ่อมบำรุง");
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE}/maintain/${maintainId}/report-pdf`, {
+        method: "GET",
+        credentials: "include",
+      });
+      
+      if (!res.ok) throw new Error("ไม่สามารถสร้างรายงาน PDF ได้");
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `maintenance-report-${maintainId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      showMessageError(`Download failed: ${e.message}`);
     }
   };
 
@@ -369,10 +400,10 @@ function MaintenanceDetails() {
       if (!res.ok) throw new Error(await res.text());
       
       await fetchOne(); // Refresh data
-      showSuccess(`✅ Maintenance Request #${maintainId} marked as Complete!`);
+      showMessageSave();
       
     } catch (e2) {
-      showError(`❌ Mark complete failed: ${e2.message}`);
+      showMessageError(`Mark complete failed: ${e2.message}`);
     } finally {
       setSaving(false);
     }
@@ -402,10 +433,10 @@ function MaintenanceDetails() {
       if (!res.ok) throw new Error(await res.text());
       
       await fetchOne(); // Refresh data
-      showInfo(`🔄 Maintenance Request #${maintainId} started - Status: In Progress`);
+      showMessageSave();
       
     } catch (e2) {
-      showError(`❌ Start work failed: ${e2.message}`);
+      showMessageError(`Start work failed: ${e2.message}`);
     } finally {
       setSaving(false);
     }

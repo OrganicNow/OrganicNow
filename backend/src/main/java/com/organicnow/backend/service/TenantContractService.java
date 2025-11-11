@@ -154,7 +154,10 @@ public class TenantContractService {
         if (!invoices.isEmpty()) {
             invoiceRepository.deleteAll(invoices);
         }
-        // แล้วค่อยลบสัญญา
+        
+        
+            
+        // จากนั้นลบ contract
         contractRepository.deleteById(contractId);
     }
 

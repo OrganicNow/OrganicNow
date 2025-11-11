@@ -50,6 +50,18 @@ public class Invoice {
     @Column(name = "net_amount", nullable = false)
     private Integer netAmount; // ยอดสุทธิ
 
+    @PositiveOrZero
+    @Column(name = "previous_balance")
+    private Integer previousBalance; // ยอดค้างจากใบแจ้งหนี้ก่อนหน้า
+
+    @PositiveOrZero
+    @Column(name = "paid_amount")
+    private Integer paidAmount; // ยอดที่ชำระแล้วในใบแจ้งหนี้นี้
+
+    @PositiveOrZero
+    @Column(name = "remaining_balance")
+    private Integer remainingBalance; // ยอดคงเหลือที่ยังไม่ได้ชำระ
+
     @Column(name = "penalty_applied_at")
     private LocalDateTime penaltyAppliedAt; // วันที่เพิ่ม penalty
 
@@ -84,6 +96,9 @@ public class Invoice {
         if (subTotal == null) subTotal = 0;
         if (penaltyTotal == null) penaltyTotal = 0;
         if (netAmount == null) netAmount = 0;
+        if (previousBalance == null) previousBalance = 0;
+        if (paidAmount == null) paidAmount = 0;
+        if (remainingBalance == null) remainingBalance = 0;
         if (invoiceStatus == null) invoiceStatus = 0; // ยังไม่ชำระ
     }
 }

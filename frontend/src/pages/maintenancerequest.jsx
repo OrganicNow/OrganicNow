@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
 import Pagination from "../component/pagination";
-import { useToast } from "../component/Toast.jsx";
+import useMessage from "../component/useMessage";
 import { pageSize as defaultPageSize } from "../config_variable";
 import * as bootstrap from "bootstrap"; // <-- ใช้ตัวนี้สำหรับควบคุมโมดัลแบบโปรแกรม
 import "bootstrap/dist/css/bootstrap.min.css";
@@ -25,7 +25,7 @@ const d2ldt = (d) => (d ? `${d}T00:00:00` : null);
 function MaintenanceRequest() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { showSuccess, showError } = useToast();
+  const { showMessageError, showMessageSave, showMessageConfirmDelete } = useMessage();
 
   // ✅ Room data from backend
   const [rooms, setRooms] = useState([]);
@@ -168,7 +168,9 @@ function MaintenanceRequest() {
     setSelected((prev) => (prev.length === rows.length ? [] : rows.map((r) => r.id)));
 
   const removeRow = async (row) => {
-    if (!confirm(`Delete request #${row.id}?`)) return;
+    const result = await showMessageConfirmDelete(`request #${row.id}`);
+    if (!result.isConfirmed) return;
+    
     try {
       const res = await fetch(`${API_BASE}/maintain/${row.id}`, {
         method: "DELETE",
@@ -176,9 +178,49 @@ function MaintenanceRequest() {
       });
       if (!res.ok) throw new Error(await res.text());
       await fetchData();
-      showSuccess("✅ ลบ Maintenance Request สำเร็จ!");
+      showMessageSave();
     } catch (e) {
-      showError(`❌ ลบ Maintenance Request ไม่สำเร็จ: ${e.message}`);
+      showMessageError(`ลบ Maintenance Request ไม่สำเร็จ: ${e.message}`);
+    }
+  };
+
+  // ✅ Download Maintenance Report PDF
+  const handleDownloadPdf = async (maintain) => {
+    try {
+      showMessageSave(`กำลังสร้าง PDF สำหรับงานซ่อมบำรุง #${maintain.id}...`);
+      
+      const response = await fetch(`${API_BASE}/maintain/${maintain.id}/report-pdf`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // ตั้งชื่อไฟล์ตามข้อมูล Maintenance
+        const fileName = `Maintenance_Report_${maintain.id}_${maintain.issueTitle?.replace(/[^a-zA-Z0-9]/g, '_') || 'Report'}.pdf`;
+        link.download = fileName;
+        
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        
+        showMessageSave(`ดาวน์โหลดรายงานการซ่อมบำรุง #${maintain.id} สำเร็จ`);
+      } else {
+        console.error(`Failed to download PDF for maintain ${maintain.id}: ${response.status} ${response.statusText}`);
+        showMessageError(`Cannot generate PDF: ${response.status} ${response.statusText}`);
+      }
+      
+    } catch (error) {
+      console.error('Maintenance PDF Download Error:', error);
+      showMessageError(`ดาวน์โหลด PDF ล้มเหลว: ${error.message}`);
     }
   };
 
@@ -318,11 +360,11 @@ function MaintenanceRequest() {
       
       resetForm();
       closeModal(); // ปิดโมดัลหลังบันทึกสำเร็จ
-      showSuccess("✅ สร้าง Maintenance Request สำเร็จ!");
+      showMessageSave();
       
     } catch (e2) {
       console.error("❌ Create failed:", e2);
-      showError(`❌ สร้าง Maintenance Request ไม่สำเร็จ: ${e2.message}`);
+      showMessageError(`สร้าง Maintenance Request ไม่สำเร็จ: ${e2.message}`);
     } finally {
       setSaving(false);
     }
@@ -447,6 +489,13 @@ function MaintenanceRequest() {
                                 title="View / Edit"
                               >
                                 <i className="bi bi-eye-fill" />
+                              </button>
+                              <button
+                                className="border-0 bg-transparent p-1 me-1"
+                                onClick={() => handleDownloadPdf(row)}
+                                title="Download Report PDF"
+                              >
+                                <i className="bi bi-file-earmark-pdf-fill" />
                               </button>
                               <button
                                 className="btn btn-sm form-Button-Del"

@@ -1,4 +1,4 @@
-package com.organicnow.backend.web;
+package com.organicnow.backend.controller;
 
 import com.organicnow.backend.dto.NotificationDueDto;
 import com.organicnow.backend.service.NotificationService;

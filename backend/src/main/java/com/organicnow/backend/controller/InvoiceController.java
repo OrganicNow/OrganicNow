@@ -4,11 +4,14 @@ import com.organicnow.backend.dto.CreateInvoiceRequest;
 import com.organicnow.backend.dto.InvoiceDto;
 import com.organicnow.backend.dto.UpdateInvoiceRequest;
 import com.organicnow.backend.service.InvoiceService;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @RestController
@@ -190,12 +193,21 @@ public class InvoiceController {
 
     // Delete invoice
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Void> deleteInvoice(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> deleteInvoice(@PathVariable Long id) {
         try {
             invoiceService.deleteInvoice(id);
-            return ResponseEntity.ok().build();
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "ลบใบแจ้งหนี้สำเร็จ");
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "ไม่สามารถลบใบแจ้งหนี้ได้: " + e.getMessage());
+            error.put("error", e.getClass().getSimpleName());
+            System.err.println("❌ Delete Invoice Error: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.badRequest().body(error);
         }
     }
 
@@ -224,6 +236,48 @@ public class InvoiceController {
             return ResponseEntity.ok(invoices);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    // ===== CSV Import Feature =====
+    
+    // Import utility usage from CSV file
+    @PostMapping("/import-csv")
+    public ResponseEntity<?> importUtilityUsageFromCsv(@RequestParam("file") MultipartFile file) {
+        try {
+            if (file.isEmpty()) {
+                return ResponseEntity.badRequest().body("Please select a file to upload");
+            }
+            
+            if (!file.getOriginalFilename().toLowerCase().endsWith(".csv")) {
+                return ResponseEntity.badRequest().body("Please upload a CSV file");
+            }
+            
+            String result = invoiceService.importUtilityUsageFromCsv(file);
+            return ResponseEntity.ok().body(result);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Failed to import CSV: " + e.getMessage());
+        }
+    }
+
+    // ===== PDF Generation Feature =====
+    
+    // Generate and download invoice PDF
+    @GetMapping("/pdf/{id}")
+    public ResponseEntity<byte[]> generateInvoicePdf(@PathVariable Long id) {
+        try {
+            byte[] pdfBytes = invoiceService.generateInvoicePdf(id);
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("attachment", "invoice_" + id + ".pdf");
+            headers.setCacheControl("must-revalidate, post-check=0, pre-check=0");
+            
+            return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+        } catch (Exception e) {
+            System.err.println("Error generating PDF for invoice " + id + ": " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 }

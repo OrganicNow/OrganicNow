@@ -23,6 +23,8 @@ public class CorsConfig implements WebMvcConfigurer {
                 // ✅ เพิ่ม origin ของ production เข้าไปด้วย
                 .allowedOrigins(
                         "http://localhost:5173",        // dev
+                        "http://localhost:3000",        // alternative dev
+                        "http://localhost:4173",        // vite preview
                         "http://app.localtest.me"       // prod (K8s)
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
@@ -38,6 +40,8 @@ public class CorsConfig implements WebMvcConfigurer {
         // ✅ ใส่ทั้ง dev และ prod
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
+                "http://localhost:3000",
+                "http://localhost:4173",
                 "http://app.localtest.me"
         ));
 
