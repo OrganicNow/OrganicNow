@@ -21,6 +21,7 @@ public class TenantDetailDto {
     private String room;
 
     // Package
+    private Long contractTypeId;
     private String packageName;
     private BigDecimal packagePrice;
 

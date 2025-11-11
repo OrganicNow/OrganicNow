@@ -8,6 +8,7 @@ import "../assets/css/tenantdetail.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
+import useMessage from "../component/useMessage";
 
 function TenantDetail() {
   const tenantInfoRef = useRef(null);
@@ -28,10 +29,12 @@ function TenantDetail() {
   const navigate = useNavigate();
   const { contractId } = useParams();
 
-  const [alertMessage, setAlertMessage] = useState("");
-  const [alertType, setAlertType] = useState("");
-  const [showAlert, setShowAlert] = useState(false);
+  // ✅ ต้องวาง Hook ตรงนี้ก่อนการ return หรือเงื่อนไขใด ๆ
+  const { showMessageError, showMessageSave } = useMessage();
 
+  // ----------------------------------------------------
+  // Auto resize listener
+  // ----------------------------------------------------
   useEffect(() => {
     if (!tenantInfoRef.current) return;
     const observer = new ResizeObserver(([entry]) => {
@@ -41,6 +44,9 @@ function TenantDetail() {
     return () => observer.disconnect();
   }, []);
 
+  // ----------------------------------------------------
+  // Fetch tenant detail
+  // ----------------------------------------------------
   const fetchTenantDetail = async () => {
     try {
       const res = await axios.get(`${apiPath}/tenant/${contractId}`, {
@@ -67,6 +73,9 @@ function TenantDetail() {
     if (contractId) fetchTenantDetail();
   }, [contractId]);
 
+  // ----------------------------------------------------
+  // Helpers
+  // ----------------------------------------------------
   const mapStatus = (status) => {
     switch (status) {
       case 0:
@@ -86,35 +95,66 @@ function TenantDetail() {
     }
     switch (status) {
       case 0:
-        return "status-warning"; // Unpaid
+        return "status-warning";
       case 1:
-        return "status-complete"; // Paid
+        return "status-complete";
       case 2:
-        return "status-danger"; // Overdue
+        return "status-danger";
       default:
         return "status-default";
     }
   };
 
-  if (!tenant) {
-    return (
-      <Layout title="Tenant Management" icon="pi pi-user">
-        <div className="p-4">Loading...</div>
-      </Layout>
-    );
-  }
+  // ----------------------------------------------------
+  // Validation
+  // ----------------------------------------------------
+  const checkValidation = (payload) => {
+    if (!payload.firstName) {
+      showMessageError("กรุณากรอก First Name");
+      return false;
+    }
+    if (!payload.lastName) {
+      showMessageError("กรุณากรอก Last Name");
+      return false;
+    }
+    if (!payload.phoneNumber) {
+      showMessageError("กรุณากรอก Phone Number");
+      return false;
+    }
+    if (!/^\d{10}$/.test(payload.phoneNumber)) {
+      showMessageError("Phone Number ต้องเป็นตัวเลข 10 หลัก");
+      return false;
+    }
+    if (!payload.email) {
+      showMessageError("กรุณากรอก Email");
+      return false;
+    }
 
-  const showMessageError = (msg) => {
-    setAlertMessage("❌ Error: " + msg);
-    setAlertType("error");
-    setShowAlert(true);
-  };
-  const showMessageSave = (msg = "✅ Success!") => {
-    setAlertMessage(msg);
-    setAlertType("success");
-    setShowAlert(true);
+    const sign = new Date(payload.signDate);
+    const start = new Date(payload.startDate);
+    if (start < sign) {
+      showMessageError("Start Date ต้องมากกว่าหรือเท่ากับ Sign Date");
+      return false;
+    }
+
+    if (tenant?.contractTypeId === 4 && payload.startDate && payload.endDate) {
+      const startDateObj = new Date(payload.startDate);
+      const endDateObj = new Date(payload.endDate);
+      const oneYearLater = new Date(startDateObj);
+      oneYearLater.setFullYear(startDateObj.getFullYear() + 1);
+
+      if (endDateObj < oneYearLater) {
+        showMessageError("End Date ต้องไม่น้อยกว่า 1 ปีหลังจาก Start Date");
+        return false;
+      }
+    }
+
+    return true;
   };
 
+  // ----------------------------------------------------
+  // Update Tenant
+  // ----------------------------------------------------
   const handleSaveUpdate = async () => {
     if (!contractId) {
       showMessageError("Missing contractId");
@@ -156,37 +196,16 @@ function TenantDetail() {
     }
   };
 
-  const checkValidation = (payload) => {
-    if (!payload.firstName) {
-      showMessageError("กรุณากรอก First Name");
-      return false;
-    }
-    if (!payload.lastName) {
-      showMessageError("กรุณากรอก Last Name");
-      return false;
-    }
-    if (!payload.phoneNumber) {
-      showMessageError("กรุณากรอก Phone Number");
-      return false;
-    }
-    if (!/^\d{10}$/.test(payload.phoneNumber)) {
-      showMessageError("Phone Number ต้องเป็นตัวเลข 10 หลัก");
-      return false;
-    }
-    if (!payload.email) {
-      showMessageError("กรุณากรอก Email");
-      return false;
-    }
-
-    const sign = new Date(payload.signDate);
-    const start = new Date(payload.startDate);
-    if (start < sign) {
-      showMessageError("Start Date ต้องมากกว่าหรือเท่ากับ Sign Date");
-      return false;
-    }
-
-    return true;
-  };
+  // ----------------------------------------------------
+  // Render
+  // ----------------------------------------------------
+  if (!tenant) {
+    return (
+      <Layout title="Tenant Management" icon="pi pi-user">
+        <div className="p-4">Loading...</div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout title="Tenant Management" icon="pi pi-user" notifications={3}>
@@ -198,7 +217,6 @@ function TenantDetail() {
             <div className="toolbar-wrapper card border-0 bg-white">
               <div className="card-header bg-white border-0 rounded-3">
                 <div className="tm-toolbar d-flex justify-content-between align-items-center">
-                  {/* Breadcrumb */}
                   <div className="d-flex align-items-center gap-2">
                     <span
                       className="breadcrumb-link text-primary"
@@ -212,7 +230,6 @@ function TenantDetail() {
                       {tenant?.firstName} {tenant?.lastName}
                     </span>
                   </div>
-                  {/* Right cluster */}
                   <div className="d-flex align-items-center gap-2">
                     <button
                       type="button"
@@ -231,28 +248,15 @@ function TenantDetail() {
             <div className="table-wrapper-detail rounded-0">
               <div className="row g-4">
                 {/* Tenant Info */}
-                <div className="col-lg-4 d-flex flex-column">
-                  {/* ✅ Tenant Information */}
+                <div className="col-lg-4 d-flex flex-column" ref={tenantInfoRef}>
                   <div className="card border-0 shadow-sm rounded-3 mb-3 flex-fill">
                     <div className="card-body">
                       <h5 className="card-title">Tenant Information</h5>
-                      <p>
-                        <strong>First Name:</strong> {tenant?.firstName || "-"}
-                      </p>
-                      <p>
-                        <strong>Last Name:</strong> {tenant?.lastName || "-"}
-                      </p>
-                      <p>
-                        <strong>National ID:</strong>{" "}
-                        {tenant?.nationalId || "-"}
-                      </p>
-                      <p>
-                        <strong>Phone Number:</strong>{" "}
-                        {tenant?.phoneNumber || "-"}
-                      </p>
-                      <p>
-                        <strong>Email:</strong> {tenant?.email || "-"}
-                      </p>
+                      <p><strong>First Name:</strong> {tenant?.firstName || "-"}</p>
+                      <p><strong>Last Name:</strong> {tenant?.lastName || "-"}</p>
+                      <p><strong>National ID:</strong> {tenant?.nationalId || "-"}</p>
+                      <p><strong>Phone Number:</strong> {tenant?.phoneNumber || "-"}</p>
+                      <p><strong>Email:</strong> {tenant?.email || "-"}</p>
                       <p>
                         <strong>Package:</strong>{" "}
                         <span className="badge bg-primary">
@@ -268,17 +272,13 @@ function TenantDetail() {
                       <p>
                         <strong>Sign Date:</strong>{" "}
                         {tenant?.signDate
-                          ? new Date(tenant.signDate).toLocaleDateString(
-                              "th-TH"
-                            )
+                          ? new Date(tenant.signDate).toLocaleDateString("th-TH")
                           : "-"}
                       </p>
                       <p>
                         <strong>Start Date:</strong>{" "}
                         {tenant?.startDate
-                          ? new Date(tenant.startDate).toLocaleDateString(
-                              "th-TH"
-                            )
+                          ? new Date(tenant.startDate).toLocaleDateString("th-TH")
                           : "-"}
                       </p>
                       <p>
@@ -290,16 +290,11 @@ function TenantDetail() {
                     </div>
                   </div>
 
-                  {/* ✅ Room Information */}
                   <div className="card border-0 shadow-sm rounded-3 flex-fill">
                     <div className="card-body">
                       <h5 className="card-title">Room Information</h5>
-                      <p>
-                        <strong>Floor:</strong> {tenant?.floor || "-"}
-                      </p>
-                      <p>
-                        <strong>Room:</strong> {tenant?.room || "-"}
-                      </p>
+                      <p><strong>Floor:</strong> {tenant?.floor || "-"}</p>
+                      <p><strong>Room:</strong> {tenant?.room || "-"}</p>
                     </div>
                   </div>
                 </div>
@@ -308,11 +303,7 @@ function TenantDetail() {
                 <div className="col-lg-8 d-flex flex-column">
                   <div className="card border-0 shadow-sm flex-grow-1 rounded-2">
                     <div className="card-body d-flex flex-column overflow-hidden">
-                      <ul
-                        className="nav nav-tabs bg-white"
-                        id="historyTabs"
-                        role="tablist"
-                      >
+                      <ul className="nav nav-tabs bg-white" id="historyTabs" role="tablist">
                         <li className="nav-item" role="presentation">
                           <button
                             className="nav-link active"
@@ -328,13 +319,9 @@ function TenantDetail() {
                       </ul>
 
                       <div className="tab-content mt-3 flex-grow-1">
-                        <div
-                          className="tab-pane fade show active"
-                          id="payment"
-                          role="tabpanel"
-                        >
+                        <div className="tab-pane fade show active" id="payment" role="tabpanel">
                           <div className="row row-cols-1 row-cols-md-2 g-3">
-                            {tenant?.invoices?.length > 0 ? (
+                            {Array.isArray(tenant?.invoices) && tenant.invoices.length > 0 ? (
                               tenant.invoices.map((inv, idx) => (
                                 <div className="col-lg-12" key={idx}>
                                   <div
@@ -345,26 +332,18 @@ function TenantDetail() {
                                   >
                                     <div className="row mb-1">
                                       <div className="col-4">
-                                        <span className="label">
-                                          Invoice date:{" "}
-                                        </span>
+                                        <span className="label">Invoice date: </span>
                                         <span className="value">
                                           {inv.dueDate?.split("T")[0] || "-"}
                                         </span>
                                       </div>
                                       <div className="col-4">
-                                        <span className="label">
-                                          Invoice ID:{" "}
-                                        </span>
-                                        <span className="value">
-                                          {inv.invoiceId}
-                                        </span>
+                                        <span className="label">Invoice ID: </span>
+                                        <span className="value">{inv.invoiceId}</span>
                                       </div>
                                       <div className="col-4">
                                         <span className="label">NET: </span>
-                                        <span className="value">
-                                          {inv.netAmount} Baht
-                                        </span>
+                                        <span className="value">{inv.netAmount} Baht</span>
                                       </div>
                                     </div>
                                     <div className="row">
@@ -375,9 +354,7 @@ function TenantDetail() {
                                         </span>
                                       </div>
                                       <div className="col-4">
-                                        <span className="label">
-                                          Pay date:{" "}
-                                        </span>
+                                        <span className="label">Pay date: </span>
                                         <span className="value">
                                           {inv.payDate?.split("T")[0] || "-"}
                                         </span>
@@ -408,7 +385,7 @@ function TenantDetail() {
         </div>
       </div>
 
-      {/* Modal (แก้ไข Tenant) */}
+      {/* Modal (Edit Tenant) */}
       <Modal
         id="exampleModal"
         title="Edit Tenant"
@@ -546,12 +523,29 @@ function TenantDetail() {
               </div>
               <div className="col-md-6">
                 <label className="form-label">End Date</label>
-                <input
-                  type="date"
-                  className="form-control"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
+                <div className="position-relative">
+                  <input
+                    type="date"
+                    className="form-control"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    readOnly={tenant?.contractTypeId !== 4}
+                    style={{
+                      backgroundColor:
+                        tenant?.contractTypeId !== 4 ? "#f5f5f5" : "white",
+                      cursor:
+                        tenant?.contractTypeId !== 4 ? "not-allowed" : "text",
+                    }}
+                  />
+                  {tenant?.contractTypeId !== 4 && (
+                    <small
+                      className="text-muted position-absolute"
+                      style={{ bottom: "-18px", left: "2px" }}
+                    >
+                      (แก้ไขได้เฉพาะสัญญา 1 ปี)
+                    </small>
+                  )}
+                </div>
               </div>
               <div className="col-md-6">
                 <label className="form-label">Deposit</label>
@@ -581,25 +575,6 @@ function TenantDetail() {
           </div>
         </form>
       </Modal>
-      {showAlert && (
-        <div className="custom-alert-overlay">
-          <div className="custom-alert-box">
-            <div className={`custom-alert-icon ${alertType}`}>
-              {alertType === "success" ? "✔️" : "❌"}
-            </div>
-            <div className="custom-alert-title">
-              {alertType === "success" ? "Success" : "Error"}
-            </div>
-            <div className="custom-alert-message">{alertMessage}</div>
-            <button
-              className="custom-alert-btn"
-              onClick={() => setShowAlert(false)}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
     </Layout>
   );
 }

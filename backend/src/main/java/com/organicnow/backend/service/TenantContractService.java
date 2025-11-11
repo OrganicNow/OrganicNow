@@ -196,6 +196,7 @@ public class TenantContractService {
                 .nationalId(tenant.getNationalId())
                 .floor(room.getRoomFloor())
                 .room(room.getRoomNumber())
+                .contractTypeId(plan.getContractType().getId())
                 .packageName(plan.getContractType().getName())
                 .packagePrice(plan.getPrice())
                 .signDate(contract.getSignDate())

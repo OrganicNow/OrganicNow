@@ -632,10 +632,10 @@ function TenantManagement() {
                     </th>
                     <th className="text-center align-top header-color">Rent</th>
                     <th className="text-center align-top header-color">
-                      End date
+                      Start Date
                     </th>
                     <th className="text-center align-top header-color">
-                      Phone Number
+                      End date
                     </th>
                     <th className="text-center align-top header-color">
                       Action
@@ -699,10 +699,10 @@ function TenantManagement() {
                                 : "-"}
                             </td>
                             <td className="align-top text-start">
-                              {formatDate(item.endDate)}
+                              {formatDate(item.startDate)}
                             </td>
                             <td className="align-top text-start">
-                              {item.phoneNumber || "-"}
+                              {formatDate(item.endDate)}
                             </td>
 
                             <td className="align-top text-center">
