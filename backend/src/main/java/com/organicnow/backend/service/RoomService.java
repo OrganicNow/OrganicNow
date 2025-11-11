@@ -277,14 +277,17 @@ public class RoomService {
         return roomRepository.save(room);
     }
 
-    // ✅ ลบห้อง
+    // ✅ ลบห้อง (แก้ไขเพิ่มลบ event ก่อน)
     @Transactional
     public void deleteRoom(Long id) {
         Room room = roomRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Room not found with ID: " + id));
 
-        List<RoomAsset> roomAssets = roomAssetRepository.findByRoomId(id);
+        // ✅ ลบ event ทั้งหมดที่อ้างถึงห้องนี้ก่อน
+        assetEventRepository.deleteByRoom_Id(id);
 
+        // ✅ ลบความสัมพันธ์ room ↔ asset ก่อน (เหมือนเดิม)
+        List<RoomAsset> roomAssets = roomAssetRepository.findByRoomId(id);
         if (!roomAssets.isEmpty()) {
             for (RoomAsset ra : roomAssets) {
                 Asset asset = ra.getAsset();
@@ -296,6 +299,7 @@ public class RoomService {
             roomAssetRepository.deleteAll(roomAssets);
         }
 
+        // ✅ แล้วค่อยลบห้อง
         roomRepository.delete(room);
     }
 }
