@@ -172,31 +172,20 @@ function RoomManagement() {
     </span>
   );
 
-  const handleDeleteRoom = async (roomId) => {
-<<<<<<< HEAD
-    const result = await showMessageConfirmDelete(`room #${roomId}`);
-    if (!result.isConfirmed) return;
+    const handleDeleteRoom = async (roomId) => {
 
-    try {
-      await axios.delete(`${apiPath}/room/${roomId}`, { withCredentials: true });
-      showMessageSave();
-      await fetchRooms();              // ✅ refresh rooms
-      await fetchAvailableAssets();    // ✅ refresh asset list
-=======
-
-    try {
-      await axios.delete(`${apiPath}/room/${roomId}`, {
-        withCredentials: true,
-      });
-      showMessageSave("Room deleted successfully!");
-      await fetchRooms(); // ✅ refresh rooms
-      await fetchAvailableAssets(); // ✅ refresh asset list
->>>>>>> f88e7a40f80460f3b336a41bbe20336a38657894
-    } catch (err) {
-      console.error("Error deleting room:", err);
-      showMessageError("Failed to delete room.");
-    }
-  };
+        try {
+            await axios.delete(`${apiPath}/room/${roomId}`, {
+                withCredentials: true,
+            });
+            showMessageSave("Room deleted successfully!");
+            await fetchRooms(); // ✅ refresh rooms
+            await fetchAvailableAssets(); // ✅ refresh asset list
+        } catch (err) {
+            console.error("Error deleting room:", err);
+            showMessageError("Failed to delete room.");
+        }
+    };
 
   // ✅ เลือก asset
   const handleAssetSelect = (e, assetId) => {
