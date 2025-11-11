@@ -5,7 +5,7 @@ import com.organicnow.backend.model.Maintain;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-
+import org.springframework.data.jpa.repository.Modifying;
 import java.util.List;
 
 public interface MaintainRepository extends JpaRepository<Maintain, Long> {
@@ -40,4 +40,9 @@ public interface MaintainRepository extends JpaRepository<Maintain, Long> {
         ORDER BY month
     """, nativeQuery = true)
     List<Object[]> countRequestsLast12Months();
+
+    @Modifying
+    @Query("DELETE FROM Maintain m WHERE m.room.id = :roomId")
+    void deleteAllByRoomId(@Param("roomId") Long roomId);
+
 }

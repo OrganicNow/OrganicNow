@@ -285,6 +285,11 @@ public class RoomService {
 
         // ✅ ลบ event ทั้งหมดที่อ้างถึงห้องนี้ก่อน
         assetEventRepository.deleteByRoom_Id(id);
+        // ✅ ลบ maintenance request ทั้งหมดที่อ้างถึงห้องนี้ (ป้องกัน constraint error)
+        var requests = maintainRepository.findRequestsByRoomId(id);
+        if (!requests.isEmpty()) {
+            maintainRepository.deleteAllByRoomId(id);
+        }
 
         // ✅ ลบความสัมพันธ์ room ↔ asset ก่อน (เหมือนเดิม)
         List<RoomAsset> roomAssets = roomAssetRepository.findByRoomId(id);
