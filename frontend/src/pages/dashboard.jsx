@@ -11,9 +11,13 @@ function Dashboard() {
   const [rooms, setRooms] = useState([]);
   const [maintains, setMaintains] = useState([]);
   const [finances, setFinances] = useState([]);
-  const [usages, setUsages] = useState({}); // ✅ ใช้เก็บข้อมูลน้ำ/ไฟทั้งหมด
+  const [usages, setUsages] = useState({});
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [visibleRoom, setVisibleRoom] = useState(null);
+
+  // ✅ dropdown เดือน
+  const [months, setMonths] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState("");
 
   // ✅ ดึงข้อมูลจาก backend
   useEffect(() => {
@@ -24,13 +28,23 @@ function Dashboard() {
         setRooms(data.rooms || []);
         setMaintains(data.maintains || []);
         setFinances(data.finances || []);
-        setUsages(data.usages || {}); // ✅ ดึงข้อมูล usage ทั้งหมด
+        setUsages(data.usages || {});
+
+        // ✅ สร้าง dropdown เดือน (จาก finance หรือ maintain)
+        const uniqueMonths = [
+          ...new Set((data.finances || []).map((f) => f.month)),
+        ];
+        setMonths(uniqueMonths);
+        if (uniqueMonths.length > 0)
+          setSelectedMonth(uniqueMonths[uniqueMonths.length - 1]); // ค่าเริ่มต้น = เดือนล่าสุด
       })
       .catch((err) => console.error("Failed to fetch dashboard:", err));
   }, []);
 
   // ✅ ใช้ room_floor จาก backend โดยตรง
-  const floors = [...new Set(rooms.map((r) => r.room_floor))].sort((a, b) => a - b);
+  const floors = [...new Set(rooms.map((r) => r.room_floor))].sort(
+    (a, b) => a - b
+  );
 
   // ✅ toggle graph + delay animation
   const handleRoomClick = (roomNumber) => {
@@ -48,31 +62,46 @@ function Dashboard() {
     }
   };
 
-  // ✅ ดึงข้อมูลน้ำ/ไฟจาก usages
-  const getRoomUsageData = (roomNumber) => {
-    const usage = usages?.[roomNumber];
-    if (!usage) {
-      return {
-        title: `Room ${roomNumber} - Usage`,
-        categories: [],
-        series: [],
-        yTitle: "Usage",
-        csvCategoryName: "Month",
-      };
-    }
+  // ✅ ฟังก์ชันโหลด CSV
+// ✅ ฟังก์ชันโหลด CSV
+const handleDownloadCsv = async () => {
+  if (!selectedMonth) {
+    alert("⚠️ กรุณาเลือกเดือนก่อนดาวน์โหลด");
+    return;
+  }
 
-    return {
-      title: `Room ${roomNumber} - Usage`,
-      categories: usage.categories || [],
-      series: usage.series || [],
-      yTitle: "Usage",
-      csvCategoryName: "Month",
-    };
-  };
+  // 🔧 เปลี่ยน "Nov 2025" → "Nov_2025" เพื่อให้ URL ใช้งานได้
+  const formattedMonth = selectedMonth.replace(" ", "_");
+
+  try {
+    const res = await fetch(
+      `http://localhost:8080/dashboard/export/${formattedMonth}`
+    );
+    if (!res.ok) throw new Error("Failed to download CSV");
+
+    // ✅ แปลง blob เป็นไฟล์ CSV
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Usage_Report_${selectedMonth}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+
+    // ✅ แจ้งผลลัพธ์เมื่อสำเร็จ
+    alert(`✅ ดาวน์โหลดไฟล์สำเร็จ: Usage_Report_${selectedMonth}.csv`);
+  } catch (error) {
+    console.error("❌ Download error:", error);
+    alert("ไม่สามารถดาวน์โหลดไฟล์ได้");
+  }
+};
+
 
   // ✅ Request Overview (รวม)
   const maintainCategories = maintains.map((m) => m.month);
-  const maintainSeries = [{ name: "Requests", data: maintains.map((m) => m.total) }];
+  const maintainSeries = [
+    { name: "Requests", data: maintains.map((m) => m.total) },
+  ];
 
   // ✅ Finance Overview (รวม)
   const financeCategories = finances.map((f) => f.month);
@@ -85,6 +114,36 @@ function Dashboard() {
   return (
     <Layout title="Dashboard" icon="pi pi-home" notifications={3}>
       <div className="container-fluid p-4">
+        {/* 🔽 ส่วนดาวน์โหลด CSV */}
+        <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
+          <h4 className="fw-semibold mb-0">
+            Dashboard Overview
+          </h4>
+          <div className="d-flex align-items-center gap-2">
+            <select
+              className="form-select"
+              style={{ width: "200px" }}
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+            >
+              <option value="">Select Month</option>
+              {months.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+
+            <button
+              className="btn btn-outline-primary d-flex align-items-center gap-2"
+              onClick={handleDownloadCsv}
+            >
+              <i className="bi bi-download"></i>
+              Download CSV
+            </button>
+          </div>
+        </div>
+
         <div className="row g-4">
           {/* 🏠 Room Overview */}
           <div className="col-12">
@@ -100,7 +159,10 @@ function Dashboard() {
                     <div className="d-flex flex-wrap gap-3 py-2 px-1">
                       {rooms
                         .filter((r) => r.room_floor === floor)
-                        .sort((a, b) => Number(a.roomNumber) - Number(b.roomNumber))
+                        .sort(
+                          (a, b) =>
+                            Number(a.roomNumber) - Number(b.roomNumber)
+                        )
                         .map((room) => (
                           <button
                             key={room.roomNumber}
@@ -116,7 +178,8 @@ function Dashboard() {
                                   : room.status === 1
                                   ? "#ef4444"
                                   : "#facc15",
-                              transition: "transform 0.15s ease, box-shadow 0.15s",
+                              transition:
+                                "transform 0.15s ease, box-shadow 0.15s",
                               transform:
                                 selectedRoom === room.roomNumber
                                   ? "scale(1.08)"
@@ -149,10 +212,70 @@ function Dashboard() {
                             transition={{ duration: 0.4, ease: "easeInOut" }}
                             className="mt-3"
                           >
-                            <h6 className="fw-semibold text-primary mb-2">
+                            <h6 className="fw-semibold text-primary mb-3">
                               Usage for Room {visibleRoom}
                             </h6>
-                            <LineChart {...getRoomUsageData(visibleRoom)} /> {/* ✅ ใช้ LineChart */}
+
+                            {(() => {
+                              const usage = usages?.[visibleRoom];
+                              if (!usage)
+                                return (
+                                  <p className="text-muted fst-italic">
+                                    No usage data available
+                                  </p>
+                                );
+
+                              const categories = usage.categories || [];
+                              const waterSeries = usage.series.find((s) =>
+                                s.name.includes("Water")
+                              );
+                              const electricSeries = usage.series.find((s) =>
+                                s.name.includes("Electricity")
+                              );
+
+                              return (
+                                <div className="row">
+                                  {/* 💧 Water Chart */}
+<div className="col-12 col-md-6 mb-4">
+  <div className="card border-0 shadow-sm rounded-3 h-100">
+    <div className="card-body">
+      <h6 className="card-title text-info fw-semibold">
+        Water Usage (m³)
+      </h6>
+      <LineChart
+        title=""
+        categories={categories}
+        series={[waterSeries]}
+        colors={["#3b82f6"]} // 💧 สีน้ำฟ้า
+        yTitle="Water (m³)"
+        csvCategoryName="Month"
+      />
+    </div>
+  </div>
+</div>
+
+{/* ⚡ Electricity Chart */}
+<div className="col-12 col-md-6 mb-4">
+  <div className="card border-0 shadow-sm rounded-3 h-100">
+    <div className="card-body">
+      <h6 className="card-title text-warning fw-semibold">
+        Electricity Usage (kWh)
+      </h6>
+      <LineChart
+        title=""
+        categories={categories}
+        series={[electricSeries]}
+        colors={["#facc15"]} // ⚡ สีเหลือง
+        yTitle="Electricity (kWh)"
+        csvCategoryName="Month"
+      />
+    </div>
+  </div>
+</div>
+
+                                </div>
+                              );
+                            })()}
                           </motion.div>
                         )}
                     </AnimatePresence>
@@ -198,7 +321,7 @@ function Dashboard() {
             <div className="card border-0 shadow-sm rounded-3 h-100">
               <div className="card-body">
                 <h5 className="card-title mb-3">
-                  Request Overview (Last 12 months)
+                  Request Overview (Last 6 months)
                 </h5>
                 <LineChart
                   title="Maintenance Requests"
@@ -214,7 +337,7 @@ function Dashboard() {
             <div className="card border-0 shadow-sm rounded-3 h-100">
               <div className="card-body">
                 <h5 className="card-title mb-3">
-                  Finance History (Last 12 months)
+                  Finance History (Last 6 months)
                 </h5>
                 <BarChart
                   title="Finance History"

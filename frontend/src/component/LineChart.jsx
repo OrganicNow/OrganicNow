@@ -6,7 +6,8 @@ const LineChart = ({
   title = "Line Chart",
   categories = [],
   series = [],
-  categoryLabel = "Month", // ✅ เพิ่ม prop ใหม่สำหรับชื่อ category column
+  colors = [], // ✅ เพิ่ม prop สำหรับรับสีเส้น
+  categoryLabel = "Month",
 }) => {
   const options = {
     chart: {
@@ -18,21 +19,18 @@ const LineChart = ({
         tools: { download: true },
         export: {
           csv: {
-            filename: title.replace(/\s+/g, "_"), // ใช้ชื่อกราฟเป็นชื่อไฟล์
-            headerCategory: categoryLabel, // ✅ ใช้ชื่อ category ที่ส่งมา
-            headerValue: "Value", // สามารถแก้เป็น “Requests”, “Amount” ฯลฯ ก็ได้
-          },
-          svg: {
             filename: title.replace(/\s+/g, "_"),
+            headerCategory: categoryLabel,
+            headerValue: "Value",
           },
-          png: {
-            filename: title.replace(/\s+/g, "_"),
-          },
+          svg: { filename: title.replace(/\s+/g, "_") },
+          png: { filename: title.replace(/\s+/g, "_") },
         },
       },
     },
+    colors: colors.length > 0 ? colors : undefined, // ✅ ใช้สีที่ส่งมา หรือ default ถ้าไม่มี
     dataLabels: { enabled: false },
-    stroke: { curve: "smooth" },
+    stroke: { curve: "smooth", width: 3 },
     grid: {
       row: { colors: ["#f3f3f3", "transparent"], opacity: 0.5 },
     },
@@ -42,24 +40,22 @@ const LineChart = ({
     },
     yaxis: {
       labels: {
-        // ✅ แสดงเฉพาะจำนวนเต็ม
-        formatter: (value) => (Number.isInteger(value) ? value : ""),
+        formatter: (value) => (Number.isInteger(value) ? value : ""), // ✅ แสดงเฉพาะจำนวนเต็ม
       },
       tickAmount: 5,
       min: 0,
       forceNiceScale: true,
     },
     legend: { position: "top" },
+    markers: {
+      size: 4,
+      hover: { sizeOffset: 3 },
+    },
   };
 
   return (
     <div className="apex-line-chart w-100">
-      <ReactApexChart
-        options={options}
-        series={series}
-        type="line"
-        height={350}
-      />
+      <ReactApexChart options={options} series={series} type="line" height={350} />
     </div>
   );
 };
