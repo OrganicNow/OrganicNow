@@ -18,25 +18,38 @@ public class AssetGroupService {
     private final AssetGroupRepository assetGroupRepository;
     private final AssetRepository assetRepository;
 
-    // ✅ Dropdown
+    // ✅ สำหรับ Dropdown (ใช้เฉพาะบางหน้า)
     @Transactional(readOnly = true)
     public List<AssetGroupDropdownDto> getAllGroupsForDropdown() {
         return assetGroupRepository.findAll().stream()
                 .map(group -> AssetGroupDropdownDto.builder()
                         .id(group.getId())
                         .name(group.getAssetGroupName())
+                        .threshold(5)
+                        .monthlyAddonFee(group.getMonthlyAddonFee())
+                        .oneTimeDamageFee(group.getOneTimeDamageFee())
+                        .freeReplacement(group.getFreeReplacement())
+                        .updatedAt(group.getUpdatedAt())
                         .build())
                 .toList();
     }
 
-    // ✅ เพิ่ม threshold ให้ทุก group = 5 ในการดึงข้อมูลทั้งหมด
+    // ✅ ดึงข้อมูลทั้งหมด (ใช้ในหน้า asset management)
     public List<AssetGroupDropdownDto> getAllGroups() {
         return assetGroupRepository.findAll().stream()
-                .map(g -> new AssetGroupDropdownDto(g.getId(), g.getAssetGroupName(), 5)) // ใช้ threshold = 5 ตลอด
+                .map(g -> AssetGroupDropdownDto.builder()
+                        .id(g.getId())
+                        .name(g.getAssetGroupName())
+                        .threshold(5)
+                        .monthlyAddonFee(g.getMonthlyAddonFee())
+                        .oneTimeDamageFee(g.getOneTimeDamageFee())
+                        .freeReplacement(g.getFreeReplacement())
+                        .updatedAt(g.getUpdatedAt())
+                        .build())
                 .toList();
     }
 
-    // ✅ Get all (Entity)
+    // ✅ ดึง Entity ทั้งหมด (ไม่ผ่าน DTO)
     public List<AssetGroup> getAllAssetGroups() {
         return assetGroupRepository.findAll();
     }
@@ -47,7 +60,7 @@ public class AssetGroupService {
             throw new RuntimeException("duplicate_group_name");
         }
 
-        // ถ้ายังไม่ได้กำหนดค่า ให้ใส่ค่า default
+        // ตั้งค่า default ถ้ายังไม่ได้กำหนด
         if (assetGroup.getMonthlyAddonFee() == null) {
             assetGroup.setMonthlyAddonFee(java.math.BigDecimal.ZERO);
         }
@@ -61,7 +74,7 @@ public class AssetGroupService {
         return assetGroupRepository.save(assetGroup);
     }
 
-    // ✅ Update (รองรับฟิลด์ใหม่)
+    // ✅ Update (รองรับฟิลด์ใหม่ครบ)
     public AssetGroup updateAssetGroup(Long id, AssetGroup assetGroup) {
         AssetGroup existingAssetGroup = assetGroupRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Asset Group not found with id " + id));
@@ -81,7 +94,7 @@ public class AssetGroupService {
         return assetGroupRepository.save(existingAssetGroup);
     }
 
-    // ✅ Delete group + assets
+    // ✅ Delete group พร้อม assets ภายใน
     public int deleteAssetGroup(Long id) {
         List<Asset> assets = assetRepository.findByAssetGroupId(id);
         int deletedCount = assets.size();

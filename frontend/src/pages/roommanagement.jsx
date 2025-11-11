@@ -28,13 +28,12 @@ function RoomManagement() {
     search: "",
   });
 
-    const {
-      showMessagePermission,
-      showMessageError,
-      showMessageSave,
-      showMessageConfirmDelete,
-    } = useMessage();
-
+  const {
+    showMessagePermission,
+    showMessageError,
+    showMessageSave,
+    showMessageConfirmDelete,
+  } = useMessage();
 
   const [modalAssets, setModalAssets] = useState([]);
   const [selectedAsset, setSelectedAsset] = useState([]);
@@ -47,7 +46,9 @@ function RoomManagement() {
   // ✅ ดึงข้อมูลห้อง
   const fetchRooms = async () => {
     try {
-      const res = await axios.get(`${apiPath}/room/list`, { withCredentials: true });
+      const res = await axios.get(`${apiPath}/room/list`, {
+        withCredentials: true,
+      });
       if (Array.isArray(res.data)) {
         const sortedData = [...res.data].sort(
           (a, b) => parseInt(a.roomNumber, 10) - parseInt(b.roomNumber, 10)
@@ -65,7 +66,9 @@ function RoomManagement() {
   // ✅ ดึงข้อมูล asset ที่ available
   const fetchAvailableAssets = async () => {
     try {
-      const res = await axios.get(`${apiPath}/assets/available`, { withCredentials: true });
+      const res = await axios.get(`${apiPath}/assets/available`, {
+        withCredentials: true,
+      });
       if (res.data && Array.isArray(res.data.result)) {
         setModalAssets(res.data.result);
         setSelectedAsset([]); // 🧹 ล้าง checkbox ทุกครั้งหลังโหลด assets ใหม่
@@ -112,7 +115,9 @@ function RoomManagement() {
     let filtered = [...data];
 
     if (filters.floor !== "ALL")
-      filtered = filtered.filter((room) => String(room.roomFloor) === filters.floor);
+      filtered = filtered.filter(
+        (room) => String(room.roomFloor) === filters.floor
+      );
 
     if (filters.status !== "ALL")
       filtered = filtered.filter((room) => room.status === filters.status);
@@ -159,11 +164,16 @@ function RoomManagement() {
           : "bg-success"
       }`}
     >
-      {status === "repair" ? "Repair" : status === "occupied" ? "Unavailable" : "Available"}
+      {status === "repair"
+        ? "Repair"
+        : status === "occupied"
+        ? "Unavailable"
+        : "Available"}
     </span>
   );
 
   const handleDeleteRoom = async (roomId) => {
+<<<<<<< HEAD
     const result = await showMessageConfirmDelete(`room #${roomId}`);
     if (!result.isConfirmed) return;
 
@@ -172,6 +182,16 @@ function RoomManagement() {
       showMessageSave();
       await fetchRooms();              // ✅ refresh rooms
       await fetchAvailableAssets();    // ✅ refresh asset list
+=======
+
+    try {
+      await axios.delete(`${apiPath}/room/${roomId}`, {
+        withCredentials: true,
+      });
+      showMessageSave("Room deleted successfully!");
+      await fetchRooms(); // ✅ refresh rooms
+      await fetchAvailableAssets(); // ✅ refresh asset list
+>>>>>>> f88e7a40f80460f3b336a41bbe20336a38657894
     } catch (err) {
       console.error("Error deleting room:", err);
       showMessageError("Failed to delete room.");
@@ -222,7 +242,6 @@ function RoomManagement() {
       // ✅ แสดงการ์ด success
       showMessageSave("บันทึกข้อมูลสำเร็จ");
 
-
       await fetchRooms();
       await fetchAvailableAssets();
 
@@ -232,7 +251,6 @@ function RoomManagement() {
       setRoomSize("");
       setSelectedFloor("");
       setSelectedAsset([]);
-
     } catch (err) {
       console.error("Error adding room:", err);
 
@@ -240,7 +258,6 @@ function RoomManagement() {
       showMessageError("เกิดข้อผิดพลาดในการเพิ่มห้อง");
     }
   };
-
 
   return (
     <Layout title="Room Management" icon="bi bi-building" notifications={3}>
@@ -260,7 +277,10 @@ function RoomManagement() {
                       <i className="bi bi-filter me-1"></i> Filter
                     </button>
 
-                    <button className="btn btn-link tm-link p-0" onClick={handleSort}>
+                    <button
+                      className="btn btn-link tm-link p-0"
+                      onClick={handleSort}
+                    >
                       <i className="bi bi-arrow-down-up me-1"></i> Sort
                     </button>
 
@@ -273,7 +293,9 @@ function RoomManagement() {
                         className="form-control border-start-0"
                         placeholder="Search"
                         value={filters.search}
-                        onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                        onChange={(e) =>
+                          setFilters({ ...filters, search: e.target.value })
+                        }
                       />
                     </div>
                   </div>
@@ -286,7 +308,9 @@ function RoomManagement() {
                       data-bs-target="#addRoomModal"
                       onClick={() => {
                         setSelectedAsset([]);
-                        console.log("🧹 Cleared selectedAsset when opening modal");
+                        console.log(
+                          "🧹 Cleared selectedAsset when opening modal"
+                        );
                       }}
                     >
                       <i className="bi bi-plus-lg me-1"></i> Add Room
@@ -313,42 +337,52 @@ function RoomManagement() {
                 </thead>
                 <tbody>
                   {filteredData.length > 0 ? (
-                    filteredData.slice(startIdx, startIdx + pageSize).map((item, idx) => (
-                      <tr key={item.roomId || item.id}>
-                        <td>{startIdx + idx + 1}</td>
-                        <td>{item.roomNumber}</td>
-                        <td>{item.roomFloor}</td>
-                        <td>{item.roomSize || "-"}</td>
-                        <td><StatusPill status={item.status} /></td>
-                        <td className="text-center">{getPendingRequestsCount(item)}</td>
-                        <td>
-                          <div className="d-flex gap-2">
-                            <button
-                              className="btn btn-sm form-Button-Edit"
-                              onClick={() => navigate(`/roomdetail/${item.roomId || item.id}`)}
-                            >
-                              <i className="bi bi-eye-fill" />
-                            </button>
+                    filteredData
+                      .slice(startIdx, startIdx + pageSize)
+                      .map((item, idx) => (
+                        <tr key={item.roomId || item.id}>
+                          <td>{startIdx + idx + 1}</td>
+                          <td>{item.roomNumber}</td>
+                          <td>{item.roomFloor}</td>
+                          <td>{item.roomSize || "-"}</td>
+                          <td>
+                            <StatusPill status={item.status} />
+                          </td>
+                          <td className="text-center">
+                            {getPendingRequestsCount(item)}
+                          </td>
+                          <td>
+                            <div className="d-flex gap-2">
+                              <button
+                                className="btn btn-sm form-Button-Edit"
+                                onClick={() =>
+                                  navigate(
+                                    `/roomdetail/${item.roomId || item.id}`
+                                  )
+                                }
+                              >
+                                <i className="bi bi-eye-fill" />
+                              </button>
 
-                            {/* 🗑️ ปุ่มลบ */}
-                           <button
-                             className="btn btn-sm form-Button-Del"
-                             onClick={async () => {
-                               const result = await showMessageConfirmDelete(item.roomNumber);
-                               if (result.isConfirmed) {
-                                 handleDeleteRoom(item.roomId);
-                               }
-                             }}
-                             aria-label="Delete"
-                           >
-                             <i className="bi bi-trash-fill"></i>
-                           </button>
-
-
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                              {/* 🗑️ ปุ่มลบ */}
+                              <button
+                                className="btn btn-sm form-Button-Del"
+                                onClick={async () => {
+                                  const result = await showMessageConfirmDelete(
+                                    item.roomNumber
+                                  );
+                                  if (result.isConfirmed) {
+                                    handleDeleteRoom(item.roomId);
+                                  }
+                                }}
+                                aria-label="Delete"
+                              >
+                                <i className="bi bi-trash-fill"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
                   ) : (
                     <tr>
                       <td colSpan="7" className="text-center py-3 text-muted">
@@ -372,7 +406,12 @@ function RoomManagement() {
       </div>
 
       {/* ✅ Modal: Add Room */}
-      <Modal id="addRoomModal" title="Add Room" icon="bi bi-building" size="modal-lg">
+      <Modal
+        id="addRoomModal"
+        title="Add Room"
+        icon="bi bi-building"
+        size="modal-lg"
+      >
         <form onSubmit={handleSaveRoom}>
           <div className="mb-3">
             <label className="form-label">Room Number</label>
@@ -427,7 +466,10 @@ function RoomManagement() {
                         checked={selectedAsset.includes(id)}
                         onChange={(e) => handleAssetSelect(e, id)}
                       />
-                      <label className="form-check-label" htmlFor={`asset-${id}`}>
+                      <label
+                        className="form-check-label"
+                        htmlFor={`asset-${id}`}
+                      >
                         {asset.assetName}
                       </label>
                     </div>
@@ -454,114 +496,118 @@ function RoomManagement() {
           </div>
         </form>
       </Modal>
-       {/* ✅ Offcanvas Filter */}
-            <div
-              className="offcanvas offcanvas-end"
-              tabIndex="-1"
-              id="roomFilterCanvas"
-              data-bs-backdrop="static"
+      {/* ✅ Offcanvas Filter */}
+      <div
+        className="offcanvas offcanvas-end"
+        tabIndex="-1"
+        id="roomFilterCanvas"
+        data-bs-backdrop="static"
+      >
+        <div className="offcanvas-header">
+          <h5 className="mb-0">
+            <i className="bi bi-filter me-2"></i> Filters
+          </h5>
+          <button
+            type="button"
+            className="btn-close"
+            data-bs-dismiss="offcanvas"
+          ></button>
+        </div>
+
+        <div className="offcanvas-body">
+          {/* 🟦 Floor */}
+          <div className="mb-3">
+            <label className="form-label">Floor</label>
+            <select
+              className="form-select"
+              value={filters.floor}
+              onChange={(e) =>
+                setFilters({ ...filters, floor: e.target.value })
+              }
             >
-              <div className="offcanvas-header">
-                <h5 className="mb-0">
-                  <i className="bi bi-filter me-2"></i> Filters
-                </h5>
-                <button type="button" className="btn-close" data-bs-dismiss="offcanvas"></button>
-              </div>
+              <option value="ALL">All</option>
+              {[...new Set(data.map((r) => r.roomFloor))].map((floor) => (
+                <option key={floor} value={floor}>
+                  {floor}
+                </option>
+              ))}
+            </select>
+          </div>
 
-              <div className="offcanvas-body">
-                {/* 🟦 Floor */}
-                <div className="mb-3">
-                  <label className="form-label">Floor</label>
-                  <select
-                    className="form-select"
-                    value={filters.floor}
-                    onChange={(e) =>
-                      setFilters({ ...filters, floor: e.target.value })
-                    }
-                  >
-                    <option value="ALL">All</option>
-                    {[...new Set(data.map((r) => r.roomFloor))].map((floor) => (
-                      <option key={floor} value={floor}>
-                        {floor}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+          {/* 🟦 Room Size */}
+          <div className="mb-3">
+            <label className="form-label">Room Size</label>
+            <select
+              className="form-select"
+              value={filters.roomSize}
+              onChange={(e) =>
+                setFilters({ ...filters, roomSize: e.target.value })
+              }
+            >
+              <option value="ALL">All</option>
+              {[...new Set(data.map((r) => r.roomSize || "-"))].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </div>
 
-                {/* 🟦 Room Size */}
-                <div className="mb-3">
-                  <label className="form-label">Room Size</label>
-                  <select
-                    className="form-select"
-                    value={filters.roomSize}
-                    onChange={(e) =>
-                      setFilters({ ...filters, roomSize: e.target.value })
-                    }
-                  >
-                    <option value="ALL">All</option>
-                    {[...new Set(data.map((r) => r.roomSize || "-"))].map((size) => (
-                      <option key={size} value={size}>
-                        {size}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+          {/* 🟦 Status */}
+          <div className="mb-3">
+            <label className="form-label">Status</label>
+            <select
+              className="form-select"
+              value={filters.status}
+              onChange={(e) =>
+                setFilters({ ...filters, status: e.target.value })
+              }
+            >
+              <option value="ALL">All</option>
+              <option value="available">Available</option>
+              <option value="occupied">Occupied</option>
+              <option value="repair">Repair</option>
+            </select>
+          </div>
 
-                {/* 🟦 Status */}
-                <div className="mb-3">
-                  <label className="form-label">Status</label>
-                  <select
-                    className="form-select"
-                    value={filters.status}
-                    onChange={(e) =>
-                      setFilters({ ...filters, status: e.target.value })
-                    }
-                  >
-                    <option value="ALL">All</option>
-                    <option value="available">Available</option>
-                    <option value="occupied">Occupied</option>
-                    <option value="repair">Repair</option>
-                  </select>
-                </div>
+          {/* 🟦 Pending Requests */}
+          <div className="mb-3">
+            <label className="form-label">Pending Requests</label>
+            <select
+              className="form-select"
+              value={filters.pendingRequests}
+              onChange={(e) =>
+                setFilters({ ...filters, pendingRequests: e.target.value })
+              }
+            >
+              <option value="ALL">All</option>
+              <option value="pending">Pending Only</option>
+              <option value="none">No Pending</option>
+            </select>
+          </div>
 
-                {/* 🟦 Pending Requests */}
-                <div className="mb-3">
-                  <label className="form-label">Pending Requests</label>
-                  <select
-                    className="form-select"
-                    value={filters.pendingRequests}
-                    onChange={(e) =>
-                      setFilters({ ...filters, pendingRequests: e.target.value })
-                    }
-                  >
-                    <option value="ALL">All</option>
-                    <option value="pending">Pending Only</option>
-                    <option value="none">No Pending</option>
-                  </select>
-                </div>
-
-                {/* 🟦 Buttons */}
-                <div className="d-flex justify-content-between mt-4">
-                  <button
-                    className="btn btn-outline-secondary"
-                    onClick={() =>
-                      setFilters({
-                        floor: "ALL",
-                        roomSize: "ALL",
-                        status: "ALL",
-                        pendingRequests: "ALL",
-                        search: "",
-                      })
-                    }
-                  >
-                    Clear
-                  </button>
-                  <button className="btn btn-primary" data-bs-dismiss="offcanvas">
-                    Apply
-                  </button>
-                </div>
-              </div>
-            </div>
+          {/* 🟦 Buttons */}
+          <div className="d-flex justify-content-between mt-4">
+            <button
+              className="btn btn-outline-secondary"
+              onClick={() =>
+                setFilters({
+                  floor: "ALL",
+                  roomSize: "ALL",
+                  status: "ALL",
+                  pendingRequests: "ALL",
+                  search: "",
+                })
+              }
+            >
+              Clear
+            </button>
+            <button className="btn btn-primary" data-bs-dismiss="offcanvas">
+              Apply
+            </button>
+          </div>
+        </div>
+      </div>
     </Layout>
   );
 }
