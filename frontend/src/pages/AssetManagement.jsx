@@ -447,7 +447,7 @@ function AssetManagement() {
           <div className="col-lg-3">
             <div className="sidebar-modern card border-0 shadow-sm rounded-4 p-3">
               <h6 className="fw-semibold text-primary mb-3">
-                <i className="bi bi-diagram-3 me-2"></i>Asset Groups
+                <i className="bi bi-box me-2"></i>Asset Groups
               </h6>
 
               <div className="list-group modern-list">
@@ -458,7 +458,7 @@ function AssetManagement() {
                   }`}
                   onClick={() => setSelectedGroupId("ALL")}
                 >
-                  <i className="bi bi-collection me-2"></i> All Groups
+                  <i className></i> All Groups
                 </button>
 
                 {filteredGroups.map((g) => {
@@ -540,9 +540,9 @@ function AssetManagement() {
                   <tr>
                     <th className="text-center">Order</th>
                     <th>Asset Name</th>
-                    <th>Group</th>
-                    <th>Floor</th>
                     <th>Room</th>
+                    <th>Monthly</th>
+                    <th>OneTime</th>
                     <th>Status</th>
                     <th className="text-center">Actions</th>
                   </tr>
@@ -553,12 +553,15 @@ function AssetManagement() {
                       <tr key={row.assetId}>
                         <td className="text-center">{startIndex + idx + 1}</td>
                         <td>{row.assetName}</td>
+                        <td>{row.room || "-"}</td>
                         <td>
                           {assetGroups.find((g) => g.id === row.assetGroupId)
-                            ?.name || "-"}
+                            ?.monthlyAddonFee ?? "-"}
                         </td>
-                        <td>{row.floor || "-"}</td>
-                        <td>{row.room || "-"}</td>
+                        <td>
+                          {assetGroups.find((g) => g.id === row.assetGroupId)
+                            ?.oneTimeDamageFee ?? "-"}
+                        </td>
                         <td>
                           <span
                             className={`badge rounded-pill ${
