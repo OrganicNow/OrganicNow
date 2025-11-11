@@ -154,23 +154,24 @@ function RoomManagement() {
 
   const handleSort = () => setSortAsc((prev) => !prev);
 
-  const StatusPill = ({ status }) => (
+  const StatusPill = ({ status, hasPending }) => (
     <span
       className={`badge rounded-pill ${
-        status === "repair"
+        status === "repair" || (status === "available" && hasPending)
           ? "bg-warning text-dark"
           : status === "occupied"
           ? "bg-danger"
           : "bg-success"
       }`}
     >
-      {status === "repair"
+      {status === "repair" || (status === "available" && hasPending)
         ? "Repair"
         : status === "occupied"
         ? "Unavailable"
         : "Available"}
     </span>
   );
+
 
     const handleDeleteRoom = async (roomId) => {
 
@@ -185,6 +186,7 @@ function RoomManagement() {
             console.error("Error deleting room:", err);
             showMessageError("Failed to delete room.");
         }
+
     };
 
   // ✅ เลือก asset
@@ -335,7 +337,11 @@ function RoomManagement() {
                           <td>{item.roomFloor}</td>
                           <td>{item.roomSize || "-"}</td>
                           <td>
-                            <StatusPill status={item.status} />
+                            <StatusPill
+                              status={item.status}
+                              hasPending={item.requests?.some((req) => req.finishDate === null)}
+                            />
+
                           </td>
                           <td className="text-center">
                             {getPendingRequestsCount(item)}
@@ -357,13 +363,12 @@ function RoomManagement() {
                               <button
                                 className="btn btn-sm form-Button-Del"
                                 onClick={async () => {
-                                  const result = await showMessageConfirmDelete(
-                                    item.roomNumber
-                                  );
+                                  const result = await showMessageConfirmDelete(item.roomNumber);
                                   if (result.isConfirmed) {
-                                    handleDeleteRoom(item.roomId);
+                                    handleDeleteRoom(item.roomId || item.id);
                                   }
                                 }}
+
                                 aria-label="Delete"
                               >
                                 <i className="bi bi-trash-fill"></i>
