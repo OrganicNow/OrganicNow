@@ -5,9 +5,41 @@ import { useAuth } from '../contexts/AuthContext';
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
+
+  // รอให้ auth check เสร็จก่อน
+  if (isLoading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        flexDirection: 'column'
+      }}>
+        <div style={{
+          width: '40px',
+          height: '40px',
+          border: '3px solid #f3f3f3',
+          borderTop: '3px solid #007bff',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <p style={{ marginTop: '1rem', color: '#666' }}>กำลังตรวจสอบสิทธิ์...</p>
+        <style>
+          {`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}
+        </style>
+      </div>
+    );
+  }
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
@@ -78,15 +110,16 @@ const Login = () => {
             />
           </div>
           
-          <div style={{ marginBottom: '1.5rem' }}>
+          <div style={{ marginBottom: '1.5rem', position: 'relative' }}>
             <input
-              type="password"
+              type={showPassword ? "text" : "password"}
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.75rem',
+                paddingRight: '2.5rem', // เพิ่มพื้นที่สำหรับปุ่มลูกตา
                 border: '1px solid #ddd',
                 borderRadius: '4px',
                 fontSize: '1rem',
@@ -94,6 +127,27 @@ const Login = () => {
               }}
               required
             />
+            {/* ปุ่มลูกตาเพื่อแสดง/ซ่อน password */}
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{
+                position: 'absolute',
+                right: '0.5rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                color: '#666',
+                padding: '0.25rem',
+                fontFamily: 'Arial, sans-serif'
+              }}
+              aria-label={showPassword ? "ซ่อน password" : "แสดง password"}
+            >
+              {showPassword ? 'ซ่อน' : 'แสดง'}
+            </button>
           </div>
           
           <button
@@ -113,12 +167,6 @@ const Login = () => {
             {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
           </button>
         </form>
-        
-        <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#666' }}>
-          <p style={{ textAlign: 'center', margin: '0.5rem 0' }}><strong>บัญชีทดสอบ:</strong></p>
-          <p style={{ margin: '0.25rem 0' }}>Admin: admin / admin123</p>
-          <p style={{ margin: '0.25rem 0' }}>Super Admin: superadmin / admin123</p>
-        </div>
       </div>
     </div>
   );

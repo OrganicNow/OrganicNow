@@ -227,17 +227,29 @@ public class PaymentService {
      */
     private void updateInvoiceStatus(Invoice invoice) {
         BigDecimal totalPaid = paymentRecordRepository.calculateTotalPaidAmount(invoice.getId());
-        BigDecimal invoiceAmount = BigDecimal.valueOf(invoice.getNetAmount());
+        
+        // ✅ คำนวณ NET amount จริงเหมือนกับ InvoiceServiceImpl.convertToDto
+        int realSubTotal = invoice.getSubTotal() != null ? invoice.getSubTotal() : 0;
+        int realPenalty = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
+        BigDecimal realNetAmount = BigDecimal.valueOf(realSubTotal + realPenalty);
 
-        if (totalPaid.compareTo(invoiceAmount) >= 0) {
+        System.out.println("💰 Updating Invoice #" + invoice.getId() + 
+                         " Status - Paid: " + totalPaid + 
+                         ", NET Required: " + realNetAmount + 
+                         ", SubTotal: " + realSubTotal + 
+                         ", Penalty: " + realPenalty);
+
+        if (totalPaid.compareTo(realNetAmount) >= 0) {
             // ชำระครบแล้ว
             invoice.setInvoiceStatus(1); // Complete
             if (invoice.getPayDate() == null) {
                 invoice.setPayDate(LocalDateTime.now());
             }
+            System.out.println("✅ Invoice #" + invoice.getId() + " marked as COMPLETE");
         } else if (totalPaid.compareTo(BigDecimal.ZERO) > 0) {
-            // ชำระบางส่วน (ถ้าต้องการมีสถานะนี้)
-            // invoice.setInvoiceStatus(3); // Partial Payment
+            // ชำระบางส่วนแล้ว แต่ยังไม่ครบ - ให้คงสถานะเป็น Incomplete
+            invoice.setInvoiceStatus(0); // Incomplete
+            System.out.println("⏳ Invoice #" + invoice.getId() + " remains INCOMPLETE (partial payment)");
         }
 
         invoiceRepository.save(invoice);

@@ -11,7 +11,8 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DashboardDto {
-    private List<Map<String, Object>> rooms;         // ห้องกับสถานะ
-    private List<MaintainMonthlyDto> maintains;      // รีเควสซ่อมย้อนหลัง 12 เดือน
-    private List<FinanceMonthlyDto> finances;       // การเงินย้อนหลัง 12 เดือน
+    private List<Map<String, Object>> rooms;          // ห้องกับสถานะ
+    private List<MaintainMonthlyDto> maintains;       // รีเควสซ่อมย้อนหลัง 12 เดือน
+    private List<FinanceMonthlyDto> finances;         // การเงินย้อนหลัง 12 เดือน
+    private Map<String, Object> usages;               // ✅ การใช้น้ำ/ไฟของแต่ละห้อง
 }
