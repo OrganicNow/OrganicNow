@@ -45,7 +45,7 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
             r.room_floor, r.room_number,
             ct.contract_name, pp.price,
             c.sign_date, c.start_date, c.end_date
-        FROM invoice i
+        FROM invoice 
         INNER JOIN contract c ON i.contract_id = c.contract_id
         INNER JOIN room r ON c.room_id = r.room_id
         INNER JOIN tenant t ON c.tenant_id = t.tenant_id
@@ -55,4 +55,19 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
         ORDER BY i.invoice_id DESC
     """, nativeQuery = true)
     List<Object[]> findAllInvoicesWithTenantDetails();
+
+    @Query(value = """
+    SELECT 
+        r.room_number,
+        to_char(i.create_date, 'YYYY-MM') AS month,
+        COALESCE(SUM(i.requested_water_unit), 0) AS water_unit,
+        COALESCE(SUM(i.requested_electricity_unit), 0) AS electricity_unit
+    FROM invoice i
+    INNER JOIN contract c ON i.contract_id = c.contract_id
+    INNER JOIN room r ON c.room_id = r.room_id
+    WHERE i.create_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '11 months'
+    GROUP BY r.room_number, to_char(i.create_date, 'YYYY-MM')
+    ORDER BY r.room_number, month
+""", nativeQuery = true)
+    List<Object[]> findRoomUsageSummary();
 }

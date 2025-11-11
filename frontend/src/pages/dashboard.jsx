@@ -1,4 +1,3 @@
-// frontend/src/pages/Dashboard.jsx
 import React, { useEffect, useState } from "react";
 import LineChart from "../component/LineChart.jsx";
 import BarChart from "../component/BarChart.jsx";
@@ -12,6 +11,7 @@ function Dashboard() {
   const [rooms, setRooms] = useState([]);
   const [maintains, setMaintains] = useState([]);
   const [finances, setFinances] = useState([]);
+  const [usages, setUsages] = useState({}); // ✅ ใช้เก็บข้อมูลน้ำ/ไฟทั้งหมด
   const [selectedRoom, setSelectedRoom] = useState(null);
   const [visibleRoom, setVisibleRoom] = useState(null);
 
@@ -24,14 +24,13 @@ function Dashboard() {
         setRooms(data.rooms || []);
         setMaintains(data.maintains || []);
         setFinances(data.finances || []);
+        setUsages(data.usages || {}); // ✅ ดึงข้อมูล usage ทั้งหมด
       })
       .catch((err) => console.error("Failed to fetch dashboard:", err));
   }, []);
 
   // ✅ ใช้ room_floor จาก backend โดยตรง
-  const floors = [...new Set(rooms.map((r) => r.room_floor))].sort(
-    (a, b) => a - b
-  );
+  const floors = [...new Set(rooms.map((r) => r.room_floor))].sort((a, b) => a - b);
 
   // ✅ toggle graph + delay animation
   const handleRoomClick = (roomNumber) => {
@@ -49,22 +48,31 @@ function Dashboard() {
     }
   };
 
-  const getRoomUsageData = (roomNumber) => ({
-  title: `Room ${roomNumber} - Usage`,
-  categories: ["Jan", "Feb", "Mar", "Apr"],
-  series: [
-    { name: "Electricity (kWh)", data: [20, 30, 25, 40] },
-    { name: "Water (m³)", data: [5, 8, 6, 7] },
-  ],
-  yTitle: "Usage",
-  csvCategoryName: "Month",
-});
+  // ✅ ดึงข้อมูลน้ำ/ไฟจาก usages
+  const getRoomUsageData = (roomNumber) => {
+    const usage = usages?.[roomNumber];
+    if (!usage) {
+      return {
+        title: `Room ${roomNumber} - Usage`,
+        categories: [],
+        series: [],
+        yTitle: "Usage",
+        csvCategoryName: "Month",
+      };
+    }
+
+    return {
+      title: `Room ${roomNumber} - Usage`,
+      categories: usage.categories || [],
+      series: usage.series || [],
+      yTitle: "Usage",
+      csvCategoryName: "Month",
+    };
+  };
 
   // ✅ Request Overview (รวม)
   const maintainCategories = maintains.map((m) => m.month);
-  const maintainSeries = [
-    { name: "Requests", data: maintains.map((m) => m.total) },
-  ];
+  const maintainSeries = [{ name: "Requests", data: maintains.map((m) => m.total) }];
 
   // ✅ Finance Overview (รวม)
   const financeCategories = finances.map((f) => f.month);
@@ -88,14 +96,11 @@ function Dashboard() {
                   <div key={floor} className="mb-4">
                     <h6 className="fw-semibold mb-2">Floor {floor}</h6>
 
-                    {/* ✅ ใช้ room_floor แทนการคำนวณ */}
+                    {/* ✅ แสดงปุ่มห้อง */}
                     <div className="d-flex flex-wrap gap-3 py-2 px-1">
                       {rooms
                         .filter((r) => r.room_floor === floor)
-                        .sort(
-                          (a, b) =>
-                            Number(a.roomNumber) - Number(b.roomNumber)
-                        ) // ✅ แปลงเป็นตัวเลขก่อนเรียง
+                        .sort((a, b) => Number(a.roomNumber) - Number(b.roomNumber))
                         .map((room) => (
                           <button
                             key={room.roomNumber}
@@ -111,8 +116,7 @@ function Dashboard() {
                                   : room.status === 1
                                   ? "#ef4444"
                                   : "#facc15",
-                              transition:
-                                "transform 0.15s ease, box-shadow 0.15s",
+                              transition: "transform 0.15s ease, box-shadow 0.15s",
                               transform:
                                 selectedRoom === room.roomNumber
                                   ? "scale(1.08)"
@@ -129,7 +133,7 @@ function Dashboard() {
                         ))}
                     </div>
 
-                    {/* ✅ แสดงกราฟแบบ fade-in/out ทีละตัว */}
+                    {/* ✅ แสดงกราฟเส้นแบบ fade-in/out */}
                     <AnimatePresence mode="wait">
                       {visibleRoom &&
                         rooms.some(
@@ -148,7 +152,7 @@ function Dashboard() {
                             <h6 className="fw-semibold text-primary mb-2">
                               Usage for Room {visibleRoom}
                             </h6>
-                            <BarChart {...getRoomUsageData(visibleRoom)} />
+                            <LineChart {...getRoomUsageData(visibleRoom)} /> {/* ✅ ใช้ LineChart */}
                           </motion.div>
                         )}
                     </AnimatePresence>
@@ -159,16 +163,30 @@ function Dashboard() {
                 <div className="mt-4 small text-center">
                   <span className="me-3">
                     <span
-                        className="badge me-1"
-                        style={{ backgroundColor: "#22c55e" }}>&nbsp;</span> Available
+                      className="badge me-1"
+                      style={{ backgroundColor: "#22c55e" }}
+                    >
+                      &nbsp;
+                    </span>
+                    Available
                   </span>
                   <span className="me-3">
-                    <span className="badge me-1"
-                          style={{ backgroundColor: "#ef4444" }}>&nbsp;</span> Unavailable
+                    <span
+                      className="badge me-1"
+                      style={{ backgroundColor: "#ef4444" }}
+                    >
+                      &nbsp;
+                    </span>
+                    Unavailable
                   </span>
                   <span>
-                    <span className="badge me-1"
-                          style={{ backgroundColor: "#facc15" }}>&nbsp;</span> Repair
+                    <span
+                      className="badge me-1"
+                      style={{ backgroundColor: "#facc15" }}
+                    >
+                      &nbsp;
+                    </span>
+                    Repair
                   </span>
                 </div>
               </div>
