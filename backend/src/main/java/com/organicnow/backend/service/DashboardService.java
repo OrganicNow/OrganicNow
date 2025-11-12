@@ -9,6 +9,7 @@ import com.organicnow.backend.repository.ContractRepository;
 import com.organicnow.backend.repository.MaintainRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -159,9 +160,7 @@ public class DashboardService {
         );
     }
 
-    // ✅ Export CSV ของเดือนที่เลือก (เช่น "Nov 2025" หรือ "2025-11")
     public List<String[]> exportMonthlyUsageCsv(String yearMonthStr) {
-        // 🧩 รองรับทั้ง "Nov 2025" และ "2025-11"
         String yearMonthFormatted = normalizeYearMonth(yearMonthStr);
 
         List<Object[]> rows = invoiceRepository.findUsageByMonth(yearMonthFormatted);
@@ -171,19 +170,32 @@ public class DashboardService {
             String room = (String) r[0];
             String tenant = r[1] != null ? (String) r[1] : "ว่าง";
             String pkg = r[2] != null ? (String) r[2] : "-";
-            int water = r[3] != null ? ((Number) r[3]).intValue() : 0;
-            int elec = r[4] != null ? ((Number) r[4]).intValue() : 0;
+            int rent = r[3] != null ? ((Number) r[3]).intValue() : 0;
+            int waterUnit = r[4] != null ? ((Number) r[4]).intValue() : 0;
+            int water = r[5] != null ? ((Number) r[5]).intValue() : 0;
+            int elecUnit = r[6] != null ? ((Number) r[6]).intValue() : 0;
+            int elec = r[7] != null ? ((Number) r[7]).intValue() : 0;
+            int total = r[8] != null ? ((Number) r[8]).intValue() : 0;
 
             usageMap.put(room, Map.of(
                     "tenant", tenant,
                     "pkg", pkg,
+                    "rent", rent,
+                    "waterUnit", waterUnit,
                     "water", water,
-                    "elec", elec
+                    "elecUnit", elecUnit,
+                    "elec", elec,
+                    "total", total
             ));
         }
 
         List<String[]> csv = new ArrayList<>();
-        csv.add(new String[]{"Room", "Tenant", "Package", "Water (m³)", "Electricity (kWh)"});
+        csv.add(new String[]{
+                "Room", "Tenant", "Package",
+                "Rent (฿)", "Water Unit", "Water (฿)", "Electric Unit", "Electricity (฿)", "Total Amount (฿)"
+        });
+
+        AtomicInteger grandTotal = new AtomicInteger(0);
 
         roomRepository.findAll()
                 .stream()
@@ -191,17 +203,32 @@ public class DashboardService {
                 .forEach(r -> {
                     String room = r.getRoomNumber();
                     Map<String, Object> data = usageMap.get(room);
+                    int rent = data != null ? (int) data.get("rent") : 0;
+                    int waterUnit = data != null ? (int) data.get("waterUnit") : 0;
+                    int water = data != null ? (int) data.get("water") : 0;
+                    int elecUnit = data != null ? (int) data.get("elecUnit") : 0;
+                    int elec = data != null ? (int) data.get("elec") : 0;
+                    int total = data != null ? (int) data.get("total") : 0;
+
+                    grandTotal.addAndGet(total);
+
                     csv.add(new String[]{
                             room,
                             data != null ? (String) data.get("tenant") : "ว่าง",
                             data != null ? (String) data.get("pkg") : "-",
-                            data != null ? String.valueOf(data.get("water")) : "0",
-                            data != null ? String.valueOf(data.get("elec")) : "0"
+                            String.valueOf(rent),
+                            String.valueOf(waterUnit),
+                            String.valueOf(water),
+                            String.valueOf(elecUnit),
+                            String.valueOf(elec),
+                            String.valueOf(total)
                     });
                 });
 
+        csv.add(new String[]{"", "", "", "", "", "", "", "Grand Total", String.valueOf(grandTotal.get())});
         return csv;
     }
+
 
     // 🧩 แปลง "Nov 2025" → "2025-11" สำหรับใช้ query
     private String normalizeYearMonth(String input) {
