@@ -7,6 +7,7 @@ import com.organicnow.backend.repository.ContractRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -23,40 +24,38 @@ public class ContractFileService {
     private final ContractRepository contractRepository;
 
     /**
-     * ✅ อัปโหลดไฟล์ PDF ที่เซ็นแล้ว
+     * ✅ อัปโหลดไฟล์ PDF ที่เซ็นแล้ว (รองรับ re-upload แบบไม่พัง PostgreSQL LOB)
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void uploadSignedFile(Long contractId, MultipartFile file) throws IOException {
-        // ตรวจว่ามี Contract จริงไหม
         Contract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new IllegalArgumentException("Contract not found with ID: " + contractId));
 
-        // ถ้ามี record เดิมอยู่แล้วให้ update ทับ
-        ContractFile cf = contractFileRepository.findByContract(contract).orElse(null);
-        if (cf == null) {
-            cf = new ContractFile();
-            cf.setContract(contract);
-        }
+        // 🔹 ขั้นตอน 1: ลบไฟล์เก่าก่อน และบังคับ flush ให้ DB ลบทันที
+        contractFileRepository.findByContract(contract).ifPresent(existing -> {
+            log.info("♻️ Found existing signed contract — deleting old record for contractId = {}", contractId);
+            contractFileRepository.delete(existing);
+            contractFileRepository.flush(); // 💥 สำคัญมาก: บังคับให้ DELETE ทันที
+        });
 
-        // ✅ set binary data และ timestamp
-        byte[] fileBytes = file.getBytes();
-        cf.setSignedPdf(fileBytes);
-        cf.setUploadedAt(LocalDateTime.now());
+        // 🔹 ขั้นตอน 2: สร้าง record ใหม่
+        ContractFile newFile = new ContractFile();
+        newFile.setContract(contract);
+        newFile.setSignedPdf(file.getBytes());
+        newFile.setUploadedAt(LocalDateTime.now());
 
-        // 🧩 DEBUG log เพื่อดูชนิดข้อมูลก่อน save
+        // 🧩 DEBUG
         log.info(">>> [DEBUG] signedPdf type before save = {}",
-                (cf.getSignedPdf() == null ? "null" : cf.getSignedPdf().getClass().getName()));
-        log.info(">>> [DEBUG] file size = {} bytes", fileBytes.length);
+                (newFile.getSignedPdf() == null ? "null" : newFile.getSignedPdf().getClass().getName()));
+        log.info(">>> [DEBUG] file size = {} bytes", file.getSize());
 
-        // ✅ save ลง database
-        contractFileRepository.save(cf);
-
+        // ✅ Save ลง DB
+        contractFileRepository.saveAndFlush(newFile); // flush เพื่อ commit insert ใหม่ทันที
         log.info("✅ Signed contract uploaded successfully for contractId = {}", contractId);
     }
 
     /**
-     * ✅ ดึงไฟล์ PDF ที่เซ็นแล้ว (สำหรับดาวน์โหลด)
-     * แก้ไข: เพิ่ม @Transactional(readOnly = true)
-     * เพื่อให้ Hibernate session เปิดระหว่างอ่าน bytea
+     * ✅ ดึงไฟล์ PDF ที่เซ็นแล้ว
      */
     @Transactional(readOnly = true)
     public byte[] getSignedFile(Long contractId) {
@@ -87,9 +86,7 @@ public class ContractFileService {
      */
     public boolean hasSignedFile(Long contractId) {
         Optional<Contract> contractOpt = contractRepository.findById(contractId);
-        if (contractOpt.isEmpty()) {
-            return false;
-        }
+        if (contractOpt.isEmpty()) return false;
 
         boolean exists = contractFileRepository.existsByContract(contractOpt.get());
         log.debug("🔍 hasSignedFile(contractId={}) = {}", contractId, exists);
@@ -99,11 +96,13 @@ public class ContractFileService {
     /**
      * ✅ ลบไฟล์เซ็นแล้ว (เวลา contract ถูกลบ)
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void deleteByContractId(Long contractId) {
         Optional<Contract> contractOpt = contractRepository.findById(contractId);
         contractOpt.ifPresent(contract -> {
             log.info("🗑️ Deleting signed contract file for contractId = {}", contractId);
             contractFileRepository.deleteByContract(contract);
+            contractFileRepository.flush();
         });
     }
 }
