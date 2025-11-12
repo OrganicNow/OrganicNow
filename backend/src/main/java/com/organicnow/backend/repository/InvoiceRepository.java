@@ -93,30 +93,40 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     List<Object[]> findRoomUsageSummary();
 
     @Query(value = """
+    WITH month_range AS (
+        SELECT 
+            TO_DATE(:yearMonth || '-01', 'YYYY-MM-DD') AS start_of_month,
+            (TO_DATE(:yearMonth || '-01', 'YYYY-MM-DD') + INTERVAL '1 month' - INTERVAL '1 day') AS end_of_month
+    )
     SELECT 
         r.room_number,
         COALESCE(NULLIF(TRIM(CONCAT_WS(' ', t.first_name, t.last_name)), ''), 'ว่าง') AS tenant_name,
         COALESCE(ct.contract_name, '-') AS package_name,
-        COALESCE(i.requested_water_unit, 0) AS water_unit,
-        COALESCE(i.requested_electricity_unit, 0) AS electricity_unit
+        COALESCE(SUM(i.requested_rent), 0) AS rent_amount,
+        COALESCE(SUM(i.requested_water_unit), 0) AS water_unit,
+        COALESCE(SUM(i.requested_water_unit * i.requested_water), 0) AS water_amount,
+        COALESCE(SUM(i.requested_electricity_unit), 0) AS electricity_unit,
+        COALESCE(SUM(i.requested_electricity_unit * i.requested_electricity), 0) AS electricity_amount,
+        COALESCE(SUM(i.requested_rent 
+                    + (i.requested_water_unit * i.requested_water)
+                    + (i.requested_electricity_unit * i.requested_electricity)), 0) AS total_amount
     FROM room r
     LEFT JOIN contract c 
-        ON c.room_id = r.room_id 
-        AND (c.end_date IS NULL OR c.end_date >= CURRENT_DATE)
-    LEFT JOIN tenant t 
-        ON c.tenant_id = t.tenant_id
-    LEFT JOIN package_plan pp 
-        ON c.package_id = pp.package_id
-    LEFT JOIN contract_type ct 
-        ON pp.contract_type_id = ct.contract_type_id
+        ON c.room_id = r.room_id
+        AND EXISTS (
+            SELECT 1 FROM month_range m
+            WHERE (c.start_date <= m.end_of_month)
+              AND (c.end_date IS NULL OR c.end_date >= m.start_of_month)
+        )
+    LEFT JOIN tenant t ON c.tenant_id = t.tenant_id
+    LEFT JOIN package_plan pp ON c.package_id = pp.package_id
+    LEFT JOIN contract_type ct ON pp.contract_type_id = ct.contract_type_id
     LEFT JOIN invoice i 
         ON i.contract_id = c.contract_id 
         AND TO_CHAR(i.create_date, 'YYYY-MM') = :yearMonth
+    GROUP BY r.room_number, t.first_name, t.last_name, ct.contract_name
     ORDER BY r.room_number
 """, nativeQuery = true)
     List<Object[]> findUsageByMonth(@Param("yearMonth") String yearMonth);
-
-
-
 
 }
