@@ -65,6 +65,7 @@ function InvoiceDetails() {
     rent: Number(initial.rent) || 0,
     waterUnit: Number(initial.waterUnit) || 0,
     electricityUnit: Number(initial.electricityUnit) || 0,
+    addonAmount: Number(initial.addonAmount) || 0, // 🔥 เพิ่ม addon amount
     // derived
     water: Number(initial.water) || 0,
     electricity: Number(initial.electricity) || 0,
@@ -100,8 +101,9 @@ function InvoiceDetails() {
             const rentAmount = Number(apiData.rent) || 0;
             const waterAmount = Number(apiData.water) || 0;
             const electricityAmount = Number(apiData.electricity) || 0;
+            const addonAmount = Number(apiData.addonAmount) || 0; // 🔥 เพิ่ม addon amount
             const penaltyAmount = Number(apiData.penaltyTotal) || 0;
-            const correctNetAmount = rentAmount + waterAmount + electricityAmount + penaltyAmount;
+            const correctNetAmount = rentAmount + waterAmount + electricityAmount + addonAmount + penaltyAmount;
             const paidAmount = Number(apiData.paidAmount) || 0;
             
             // ✅ ใช้การคำนวณ Outstanding แบบเดียวกับ Invoice Management (ทบยอดจากเดือนก่อน)
@@ -112,7 +114,7 @@ function InvoiceDetails() {
               correctNetAmount - paidAmount;
             
             console.log("🔍 Invoice Details - Corrected Calculation:", {
-              components: { rent: rentAmount, water: waterAmount, electricity: electricityAmount, penalty: penaltyAmount },
+              components: { rent: rentAmount, water: waterAmount, electricity: electricityAmount, addon: addonAmount, penalty: penaltyAmount },
               correctNetAmount,
               paidAmount,
               backendOutstanding: Number(apiData.outstandingBalance),
@@ -125,6 +127,7 @@ function InvoiceDetails() {
             rent: rentAmount,
             water: waterAmount,
             electricity: electricityAmount,
+            addonAmount: addonAmount, // 🔥 เพิ่ม addon amount
             // ใช้ค่าจาก backend ถ้ามี ไม่ใช้ fallback ที่อาจผิด
             waterUnit: apiData.waterUnit !== undefined ? Number(apiData.waterUnit) : initial.waterUnit,
             electricityUnit: apiData.electricityUnit !== undefined ? Number(apiData.electricityUnit) : initial.electricityUnit,
@@ -158,6 +161,14 @@ function InvoiceDetails() {
     fetchInvoiceData();
   }, [invoiceId, initial.id]);
 
+  // ✅ Cleanup เมื่อ component unmount เพื่อป้องกันปัญหา modal ค้าง
+  useEffect(() => {
+    return () => {
+      // ✅ ทำ cleanup เมื่อออกจากหน้า
+      cleanupBackdrops();
+    };
+  }, []);
+
   // ===== helpers =====
   const toNumber = (v) => {
     const n = Number(v);
@@ -183,6 +194,27 @@ function InvoiceDetails() {
     return 0; // pending, overdue, incomplete → 0
   };
 
+  // ✅ ฟังก์ชันเปิด modal พร้อม cleanup ก่อน
+  const handleOpenEditModal = () => {
+    console.log("🎯 Opening edit modal...");
+    
+    // ✅ Cleanup ก่อนเปิด modal ใหม่เพื่อป้องกัน conflict
+    cleanupBackdrops();
+    
+    // ✅ รอ cleanup เสร็จแล้วค่อยเปิด modal
+    setTimeout(() => {
+      const modalElement = document.getElementById("editRequestModal");
+      if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement, {
+          backdrop: 'static', // ป้องกันปิดโดยการคลิกข้างนอก
+          keyboard: false // ป้องกันปิดด้วย ESC
+        });
+        modal.show();
+        console.log("✅ Edit modal opened");
+      }
+    }, 50);
+  };
+
   const d2str = (v) => {
     if (!v) return "";
     const s = String(v);
@@ -196,9 +228,10 @@ function InvoiceDetails() {
     const elecBill = round(toNumber(invoiceForm.electricityUnit) * RATE_ELEC_PER_UNIT);
     
     const rent = toNumber(invoiceForm.rent);
+    const addonAmount = toNumber(invoiceForm.addonAmount); // 🔥 เพิ่ม addon amount
     const penalty = toNumber(invoiceForm.penalty);
     
-    const subtotal = round(rent + waterBill + elecBill + SERVICE_FEE);
+    const subtotal = round(rent + waterBill + elecBill + addonAmount);
     const net = subtotal + penalty;
 
     // 🔍 Debug log เพื่อดูการคำนวณใน Invoice Details
@@ -208,6 +241,7 @@ function InvoiceDetails() {
       waterBill,
       electricityUnit: invoiceForm.electricityUnit,
       elecBill,
+      addonAmount, // 🔥 เพิ่ม addon ใน log
       penalty,
       subtotal,
       finalNet: net,
@@ -215,13 +249,17 @@ function InvoiceDetails() {
       source: 'calculated_from_units'
     });
 
-    // ✅ อัพเดทค่าใหม่เสมอเมื่อ units เปลี่ยน
-    setInvoiceForm((p) => ({
-      ...p,
-      water: waterBill,
-      electricity: elecBill,
-      amount: net,
-    }));
+    // ✅ อัพเดทค่าใหม่เสมอเมื่อ units เปลี่ยน (แต่ใช้ setTimeout เพื่อป้องกัน race condition)
+    const timeoutId = setTimeout(() => {
+      setInvoiceForm((p) => ({
+        ...p,
+        water: waterBill,
+        electricity: elecBill,
+        amount: net, // ✅ net รวม addon แล้วจากการคำนวณข้างบน
+      }));
+    }, 10); // รอ 10ms เพื่อให้ state update เสร็จ
+
+    return () => clearTimeout(timeoutId); // cleanup timeout
   }, [
     invoiceForm.waterUnit,
     invoiceForm.electricityUnit,
@@ -231,9 +269,38 @@ function InvoiceDetails() {
 
   //============= cleanupBackdrops =============//
   const cleanupBackdrops = () => {
-    document.querySelectorAll(".modal-backdrop").forEach((n) => n.remove());
+    console.log("🧹 Starting modal cleanup...");
+    
+    // ✅ Force remove all modal backdrops
+    const backdrops = document.querySelectorAll(".modal-backdrop, .modal-backdrop.fade, .modal-backdrop.show");
+    backdrops.forEach((backdrop, index) => {
+      console.log(`Removing backdrop ${index + 1}:`, backdrop);
+      backdrop.remove();
+    });
+    
+    // ✅ Force reset body styles
     document.body.classList.remove("modal-open");
-    document.body.style.removeProperty("paddingRight");
+    document.body.style.overflow = "";
+    document.body.style.paddingRight = "";
+    document.body.style.removeProperty("padding-right");
+    document.body.style.removeProperty("overflow");
+    
+    // ✅ Reset html styles
+    document.documentElement.style.overflow = "";
+    document.documentElement.style.removeProperty("overflow");
+    
+    // ✅ Force hide any open modals
+    const modals = document.querySelectorAll(".modal.show, .modal.fade.show");
+    modals.forEach((modal, index) => {
+      console.log(`Force hiding modal ${index + 1}:`, modal);
+      modal.style.display = "none";
+      modal.classList.remove("show");
+      modal.setAttribute("aria-hidden", "true");
+      modal.removeAttribute("aria-modal");
+      modal.removeAttribute("role");
+    });
+    
+    console.log("✅ Modal cleanup completed");
   };
 
   //============= handleSave (PUT /invoice/update/{id}) =============//
@@ -241,21 +308,44 @@ function InvoiceDetails() {
     e.preventDefault();
     console.log("🔧 handleSave called, current form:", invoiceForm);
 
-    // คำนวณค่า bill จาก unit ที่ผู้ใช้ป้อน
-    const waterBill = round(toNumber(invoiceForm.waterUnit) * RATE_WATER_PER_UNIT);
-    const elecBill = round(toNumber(invoiceForm.electricityUnit) * RATE_ELEC_PER_UNIT);
+    // ✅ คำนวณค่า bill จาก unit ที่ผู้ใช้ป้อนล่าสุด (เพื่อป้องกัน race condition)
+    const currentWaterUnit = Number(invoiceForm.waterUnit) || 0;
+    const currentElectricityUnit = Number(invoiceForm.electricityUnit) || 0;
+    const currentAddonAmount = Number(invoiceForm.addonAmount) || 0; // 🔥 เพิ่ม addon
+    const waterBill = round(currentWaterUnit * RATE_WATER_PER_UNIT);
+    const elecBill = round(currentElectricityUnit * RATE_ELEC_PER_UNIT);
     const rent = toNumber(invoiceForm.rent);
     const penalty = toNumber(invoiceForm.penalty);
     
+    // ✅ อัปเดต state ก่อน save เพื่อให้ UI แสดงค่าที่ถูกต้อง
+    setInvoiceForm(prev => ({
+      ...prev,
+      water: waterBill,
+      electricity: elecBill,
+      amount: rent + waterBill + elecBill + currentAddonAmount + penalty
+    }));
+    
     // แปลงค่าเป็น Integer ตาม DTO backend
-    const subTotalInt = Math.round(rent + waterBill + elecBill);
+    const subTotalInt = Math.round(rent + waterBill + elecBill + currentAddonAmount);
     const penaltyInt = Math.round(penalty);
     const netInt = Math.round(subTotalInt + penalty);
 
+    console.log("💡 Final calculation before save:", {
+      waterUnit: currentWaterUnit,
+      electricityUnit: currentElectricityUnit,
+      waterBill,
+      elecBill,
+      currentAddonAmount, // 🔥 เพิ่ม addon ใน log
+      rent,
+      penalty,
+      subTotalInt,
+      netInt
+    });
+
     const payload = {
       // ✅ ส่งข้อมูล unit ไปด้วยเพื่อให้ backend อัปเดต
-      waterUnit: Number(invoiceForm.waterUnit) || 0,
-      electricityUnit: Number(invoiceForm.electricityUnit) || 0,
+      waterUnit: currentWaterUnit,
+      electricityUnit: currentElectricityUnit,
       waterRate: RATE_WATER_PER_UNIT,
       electricityRate: RATE_ELEC_PER_UNIT,
       // dueDate: (ไม่มี UI ก็ไม่ส่ง)
@@ -301,78 +391,71 @@ function InvoiceDetails() {
       const updated = await res.json();
       console.log("✅ Updated data from backend:", updated);
 
-      // อัปเดต invoiceForm หลัง Save สำเร็จ
-      setInvoiceForm((prev) => ({
-        ...prev,
-        id: updated.id ?? prev.id,
-        createDate: d2str(updated.createDate) || prev.createDate,
-        rent: Number(updated.rent ?? invoiceForm.rent) || prev.rent,
-        waterUnit: updated.waterUnit !== undefined ? Number(updated.waterUnit) : Number(invoiceForm.waterUnit),
-        electricityUnit: updated.electricityUnit !== undefined ? Number(updated.electricityUnit) : Number(invoiceForm.electricityUnit),
-        water: Number(updated.water ?? waterBill) || prev.water,
-        electricity: Number(updated.electricity ?? elecBill) || prev.electricity,
-        amount: Number(updated.netAmount ?? updated.amount ?? netInt) || prev.amount,
+      // อัปเดต invoiceForm หลัง Save สำเร็จ - ใช้ข้อมูลที่คำนวณแล้ว + ข้อมูลจาก backend
+      const updatedFormData = {
+        id: updated.id ?? invoiceForm.id,
+        createDate: d2str(updated.createDate) || invoiceForm.createDate,
+        rent: Number(updated.rent ?? rent) || invoiceForm.rent,
+        waterUnit: updated.waterUnit !== undefined ? Number(updated.waterUnit) : currentWaterUnit,
+        electricityUnit: updated.electricityUnit !== undefined ? Number(updated.electricityUnit) : currentElectricityUnit,
+        water: Number(updated.water ?? waterBill) || waterBill,
+        electricity: Number(updated.electricity ?? elecBill) || elecBill,
+        addonAmount: Number(updated.addonAmount ?? currentAddonAmount) || currentAddonAmount, // 🔥 เพิ่ม addon amount
+        amount: netInt, // 🔥 ใช้ค่าที่คำนวณเองแทนค่าจาก backend
         status: (updated.status ?? updated.statusText ?? invoiceForm.status).toLowerCase(),
-        penalty: Number(updated.penaltyTotal ?? invoiceForm.penalty) || prev.penalty,
-        penaltyDate: d2str(updated.penaltyAppliedAt) || prev.penaltyDate,
-        payDate: d2str(updated.payDate) || prev.payDate,
+        penalty: Number(updated.penaltyTotal ?? penalty) || penalty,
+        penaltyDate: d2str(updated.penaltyAppliedAt) || invoiceForm.penaltyDate,
+        payDate: d2str(updated.payDate) || invoiceForm.payDate,
+        // Outstanding Balance fields ถ้ามี
+        previousBalance: Number(updated.previousBalance) || invoiceForm.previousBalance,
+        paidAmount: Number(updated.paidAmount) || invoiceForm.paidAmount,
+        outstandingBalance: Number(updated.outstandingBalance) || invoiceForm.outstandingBalance,
+        hasOutstandingBalance: Boolean(updated.hasOutstandingBalance) || invoiceForm.hasOutstandingBalance,
+      };
+
+      console.log("✅ Immediate update after save:", updatedFormData);
+
+      setInvoiceForm(prev => ({
+        ...prev,
+        ...updatedFormData
       }));
 
-      // ✅ ปิด modal อย่างถูกต้องและ cleanup
+      // ✅ Force close modal และ cleanup อย่างสมบูรณ์
+      console.log("🔄 Starting modal close process...");
+      
+      // ✅ ก่อนอื่นให้ cleanup ก่อน
+      cleanupBackdrops();
+      
       const modalElement = document.getElementById("editRequestModal");
       if (modalElement) {
-        const modalInstance = bootstrap.Modal.getInstance(modalElement);
-        if (modalInstance) {
-          modalInstance.hide();
-          // รอให้ modal ปิดเสร็จก่อน cleanup
-          modalElement.addEventListener('hidden.bs.modal', () => {
-            modalInstance.dispose();
-            cleanupBackdrops();
-          }, { once: true });
-        } else {
-          // ถ้าไม่มี instance แล้ว ให้ cleanup เลย
-          cleanupBackdrops();
-        }
-      }
-
-      // ✅ Fetch ข้อมูลใหม่หลัง Save เพื่อให้ penalty อัปเดต real-time
-      setTimeout(async () => {
+        console.log("🎯 Found modal element:", modalElement);
+        
         try {
-          const response = await fetch(`${API_BASE}/invoice/${invoiceId || invoiceForm.id}`, {
-            credentials: "include",
-          });
-          
-          if (response.ok) {
-            const freshData = await response.json();
-            console.log("Fresh data after save:", freshData);
-            console.log("🔍 Fresh waterUnit:", freshData.waterUnit);
-            console.log("🔍 Fresh electricityUnit:", freshData.electricityUnit);
-            
-            setInvoiceForm(prev => ({
-              ...prev,
-              rent: Number(freshData.rent) || prev.rent,
-              water: Number(freshData.water) || prev.water,
-              electricity: Number(freshData.electricity) || prev.electricity,
-              waterUnit: freshData.waterUnit !== undefined ? Number(freshData.waterUnit) : prev.waterUnit,
-              electricityUnit: freshData.electricityUnit !== undefined ? Number(freshData.electricityUnit) : prev.electricityUnit,
-              amount: Number(freshData.netAmount || freshData.amount) || prev.amount,
-              penalty: Number(freshData.penaltyTotal || freshData.penalty) || prev.penalty,
-              status: (freshData.invoiceStatus === 1 ? "complete" : 
-                      freshData.invoiceStatus === 2 ? "cancelled" : "pending"),
-              payDate: freshData.payDate ? d2str(freshData.payDate) : prev.payDate,
-              penaltyDate: freshData.penaltyAppliedAt ? d2str(freshData.penaltyAppliedAt) : prev.penaltyDate,
-              // Outstanding Balance fields
-              previousBalance: Number(freshData.previousBalance) || 0,
-              paidAmount: Number(freshData.paidAmount) || 0,
-              outstandingBalance: Number(freshData.outstandingBalance) || 0,
-              hasOutstandingBalance: Boolean(freshData.hasOutstandingBalance),
-            }));
+          const modalInstance = bootstrap.Modal.getInstance(modalElement);
+          if (modalInstance) {
+            console.log("🔧 Found modal instance, disposing...");
+            modalInstance.dispose();
           }
         } catch (error) {
-          console.error("Failed to refresh data after save:", error);
+          console.warn("Warning disposing modal instance:", error);
         }
-      }, 300);
+        
+        // ✅ Force hide modal element
+        modalElement.style.display = "none";
+        modalElement.classList.remove("show");
+        modalElement.setAttribute("aria-hidden", "true");
+        modalElement.removeAttribute("aria-modal");
+        modalElement.removeAttribute("role");
+        
+        console.log("✅ Modal element force hidden");
+      }
       
+      // ✅ Final cleanup หลังจากทุกอย่าง
+      setTimeout(() => {
+        cleanupBackdrops();
+        console.log("✅ Final cleanup completed");
+      }, 100);
+
       // แสดงข้อความสำเร็จ
       showMessageSave();
       
@@ -401,7 +484,7 @@ function InvoiceDetails() {
   };
 
   return (
-    <Layout title="Invoice Management" icon="bi bi-currency-dollar" notifications={3}>
+    <Layout title="Invoice Details" icon="bi bi-currency-dollar" notifications={3}>
       <div className="container-fluid">
         <div className="row min-vh-100">
           <div className="col-lg-11 p-4">
@@ -424,8 +507,7 @@ function InvoiceDetails() {
                     <button
                       type="button"
                       className="btn btn-primary"
-                      data-bs-toggle="modal"
-                      data-bs-target="#editRequestModal"
+                      onClick={handleOpenEditModal}
                     >
                       <i className="bi bi-pencil me-1"></i> Edit Invoice
                     </button>
@@ -481,14 +563,16 @@ function InvoiceDetails() {
                           <p><span className="label">Pay date:</span> <span className="value">{invoiceForm.payDate || "-"}</span></p>
                         </div>
                         <div className="col-6">
-                          <p><span className="label">Rent:</span> <span className="value">{invoiceForm.rent.toLocaleString()}</span></p>
-                          <p><span className="label">Water bill:</span> <span className="value">{invoiceForm.water.toLocaleString()}</span></p>
-                          <p><span className="label">Electricity bill:</span> <span className="value">{invoiceForm.electricity.toLocaleString()}</span></p>
+                          <p><span className="label">Rent:</span> <span className="value">{Math.round(invoiceForm.rent).toLocaleString()}</span></p>
+                          <p><span className="label">Water bill:</span> <span className="value">{Math.round(invoiceForm.water).toLocaleString()}</span></p>
+                          <p><span className="label">Electricity bill:</span> <span className="value">{Math.round(invoiceForm.electricity).toLocaleString()}</span></p>
+                          <p><span className="label">Add-on fee:</span> <span className="value">{Math.round(invoiceForm.addonAmount ?? 0).toLocaleString()}</span></p>
                           <p><span className="label">Penalty:</span> <span className={`value ${invoiceForm.penalty > 0 ? 'text-danger fw-bold' : ''}`}>
-                             {invoiceForm.penalty.toLocaleString()} THB
+                             {Math.round(invoiceForm.penalty).toLocaleString()} THB
                              {invoiceForm.penalty > 0 && <small className="text-muted"> (10%)</small>}
                            </span></p>
-                          <p><span className="label">NET:</span> <span className="value fw-bold text-primary">{invoiceForm.amount.toLocaleString()} THB</span></p>
+                          <p><span className="label">Penalty date:</span> <span className="value">{invoiceForm.penaltyDate || "-"}</span></p>
+                          <p><span className="label">NET:</span> <span className="value fw-bold text-primary">{Math.round(invoiceForm.amount).toLocaleString()} THB</span></p>
                         </div>
                       </div>
                       <div className="row mt-2">
@@ -506,20 +590,6 @@ function InvoiceDetails() {
                     </div>
                   </div>
 
-                  <div className="card border-0 shadow-sm rounded-2">
-                    <div className="card-body">
-                      <h5 className="card-title">Penalty Information</h5>
-                      <div className="row">
-                        <div className="col-6">
-                          <p><span className="label">Penalty:</span> <span className="value">{invoiceForm.penalty > 0 ? invoiceForm.penalty.toLocaleString() : "0"}</span></p>
-                        </div>
-                        <div className="col-6">
-                          <p><span className="label">Penalty date:</span> <span className="value">{invoiceForm.penaltyDate || "-"}</span></p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="card border-0 shadow-sm rounded-2 mt-3">
                     <div className="card-body">
                       <h5 className="card-title">
@@ -531,19 +601,19 @@ function InvoiceDetails() {
                           <p><span className="label">Previous Balance:</span> 
                              <span className="value">{invoiceForm.previousBalance.toLocaleString()} THB</span></p>
                           <p><span className="label">Paid Amount:</span> 
-                             <span className="value text-success">{invoiceForm.paidAmount.toLocaleString()} THB</span></p>
+                             <span className="value text-success">{Math.round(invoiceForm.paidAmount).toLocaleString()} THB</span></p>
                         </div>
                         <div className="col-6">
                           <p><span className="label">Outstanding Balance:</span> 
                              <span className={`value fw-bold ${invoiceForm.hasOutstandingBalance ? 'text-danger' : 'text-success'}`}>
-                               {invoiceForm.outstandingBalance.toLocaleString()} THB
+                               {Math.round(invoiceForm.outstandingBalance).toLocaleString()} THB
                              </span></p>
                           <p><span className="label">Outstanding Status:</span> 
                              <span className="value">
                                {invoiceForm.hasOutstandingBalance ? (
                                  <span className="badge bg-danger">
                                    <i className="bi bi-exclamation-triangle me-1"></i>
-                                   Outstanding {invoiceForm.outstandingBalance.toLocaleString()} THB
+                                   Outstanding {Math.round(invoiceForm.outstandingBalance).toLocaleString()} THB
                                  </span>
                                ) : (
                                  <span className="badge bg-success">
@@ -598,7 +668,7 @@ function InvoiceDetails() {
                               />
                             </div>
                             <small className="text-muted d-block mt-2">
-                              <strong>Amount:</strong> {invoiceForm.amount.toLocaleString()} THB<br />
+                              <strong>Amount:</strong> {Math.round(invoiceForm.amount).toLocaleString()} THB<br />
                               Scan with PromptPay compatible banking apps
                             </small>
                           </div>
@@ -741,7 +811,7 @@ function InvoiceDetails() {
 
                 <div className="col-md-6">
                   <label className="form-label">NET</label>
-                  <input type="text" className="form-control" value={invoiceForm.amount.toLocaleString()} disabled />
+                  <input type="text" className="form-control" value={Math.round(invoiceForm.amount).toLocaleString()} disabled />
                 </div>
 
                 <div className="col-md-6">
@@ -793,7 +863,7 @@ function InvoiceDetails() {
                   <input
                     type="text"
                     className="form-control text-success"
-                    value={`${invoiceForm.paidAmount.toLocaleString()} THB`}
+                    value={`${Math.round(invoiceForm.paidAmount).toLocaleString()} THB`}
                     disabled
                     title="Amount already paid (read-only)"
                   />

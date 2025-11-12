@@ -79,4 +79,15 @@ public interface AssetRepository extends JpaRepository<Asset, Long> {
         WHERE a.status = 'in_use'
     """)
     List<AssetDto> findInUseAssets();
+
+    // 🔥 คำนวณ Total Monthly Add-on Fee สำหรับห้อง
+    @Query(value = """
+        SELECT ag.monthly_addon_fee
+        FROM room_asset ra
+        JOIN asset a ON ra.asset_id = a.asset_id
+        JOIN asset_group ag ON a.asset_group_id = ag.asset_group_id
+        WHERE ra.room_id = :roomId 
+        AND ag.monthly_addon_fee > 0
+        """, nativeQuery = true)
+    List<Object[]> findMonthlyAddonFeeByRoomId(@Param("roomId") Long roomId);
 }

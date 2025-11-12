@@ -12,8 +12,15 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/maintain")
@@ -86,6 +93,68 @@ public class MaintainController {
         } catch (Exception e) {
             System.err.println("PDF generation failed: " + e.getMessage());
             return ResponseEntity.badRequest().build();
+        }
+    }
+
+    // ✅ อัพโหลดรูปภาพงานซ่อมบำรุง
+    @PostMapping("/{maintainId}/work-image")
+    public ResponseEntity<Map<String, String>> uploadWorkImage(
+            @PathVariable Long maintainId,
+            @RequestParam("file") MultipartFile file) {
+        
+        try {
+            // Validate file
+            if (file.isEmpty()) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "ไม่มีไฟล์ที่อัพโหลด");
+                return ResponseEntity.badRequest().body(error);
+            }
+            
+            // Check file size (5MB limit)
+            if (file.getSize() > 5 * 1024 * 1024) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "ขนาดไฟล์เกิน 5MB");
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            // Check file type
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                Map<String, String> error = new HashMap<>();
+                error.put("error", "ไฟล์ต้องเป็นรูปภาพเท่านั้น");
+                return ResponseEntity.badRequest().body(error);
+            }
+
+            // Create uploads directory if not exists
+            Path uploadDir = Paths.get("uploads/maintenance-photos");
+            if (!Files.exists(uploadDir)) {
+                Files.createDirectories(uploadDir);
+            }
+
+            // Generate unique filename
+            String originalFilename = file.getOriginalFilename();
+            String fileExtension = "";
+            if (originalFilename != null && originalFilename.contains(".")) {
+                fileExtension = originalFilename.substring(originalFilename.lastIndexOf("."));
+            }
+            String filename = "maintain_" + maintainId + "_" + System.currentTimeMillis() + fileExtension;
+            
+            // Save file
+            Path filePath = uploadDir.resolve(filename);
+            Files.copy(file.getInputStream(), filePath);
+
+            // Return success response with file path
+            Map<String, String> response = new HashMap<>();
+            response.put("url", "/uploads/maintenance-photos/" + filename);
+            response.put("filename", filename);
+            response.put("message", "อัพโหลดรูปภาพสำเร็จ");
+            
+            return ResponseEntity.ok(response);
+
+        } catch (IOException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "เกิดข้อผิดพลาดในการอัพโหลดไฟล์: " + e.getMessage());
+            return ResponseEntity.status(500).body(error);
         }
     }
 }

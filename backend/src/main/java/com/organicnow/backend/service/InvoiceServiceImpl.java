@@ -29,30 +29,57 @@ public class InvoiceServiceImpl implements InvoiceService {
     private final PaymentRecordRepository paymentRecordRepository;
     private final OutstandingBalanceService outstandingBalanceService;
     private final QRCodeService qrCodeService;
+    private final AssetRepository assetRepository;
+    private final AssetGroupRepository assetGroupRepository;
 
     public InvoiceServiceImpl(InvoiceRepository invoiceRepository,
                               ContractRepository contractRepository,
                               RoomRepository roomRepository,
                               PaymentRecordRepository paymentRecordRepository,
                               OutstandingBalanceService outstandingBalanceService,
-                              QRCodeService qrCodeService) {
+                              QRCodeService qrCodeService,
+                              AssetRepository assetRepository,
+                              AssetGroupRepository assetGroupRepository) {
         this.invoiceRepository = invoiceRepository;
         this.contractRepository = contractRepository;
         this.roomRepository = roomRepository;
         this.paymentRecordRepository = paymentRecordRepository;
         this.outstandingBalanceService = outstandingBalanceService;
         this.qrCodeService = qrCodeService;
+        this.assetRepository = assetRepository;
+        this.assetGroupRepository = assetGroupRepository;
     }
 
     // ===== CRUD =====
     @Override
     public List<InvoiceDto> getAllInvoices() {
+        System.out.println("🔍 [getAllInvoices] API Called - about to update penalties");
+        
         // อัปเดต penalty อัตโนมัติก่อนส่งข้อมูล
         updateOverduePenalties();
         
+        System.out.println("🔍 [getAllInvoices] Penalties updated, fetching all invoices");
+        
         // ✅ ใช้วิธีเดิม (รีเวิร์ท)
         List<Invoice> invoices = invoiceRepository.findAll();
-        return invoices.stream().map(this::convertToDto).toList();
+        
+        System.out.println("🔍 [getAllInvoices] Found " + invoices.size() + " invoices from DB");
+        
+        List<InvoiceDto> result = invoices.stream().map(this::convertToDto).toList();
+        
+        System.out.println("🔍 [getAllInvoices] Converted to " + result.size() + " DTOs");
+        System.out.println("🔍 [getAllInvoices] Returning " + result.size() + " invoices");
+        for (InvoiceDto dto : result.subList(0, Math.min(3, result.size()))) {
+            System.out.println("    - Invoice #" + dto.getId() + 
+                             ": rent=" + dto.getRent() + 
+                             ", water=" + dto.getWater() + 
+                             ", electricity=" + dto.getElectricity() + 
+                             ", addon=" + dto.getAddonAmount() + 
+                             ", penalty=" + dto.getPenaltyTotal() + 
+                             ", netAmount=" + dto.getNetAmount());
+        }
+        
+        return result;
     }
 
     @Override
@@ -387,8 +414,69 @@ public class InvoiceServiceImpl implements InvoiceService {
         }
     }
 
+    /**
+     * 🔥 คำนวณ Monthly Add-on Fee จาก AssetGroup ที่มี monthlyAddonFee > 0 ในห้อง
+     * ใช้ระบบ Asset Management ที่มีอยู่แล้ว
+     */
+    private int calculateMonthlyAddonFeeForRoom(Integer floor, String roomNumber) {
+        System.out.println("🔍 [calculateMonthlyAddonFeeForRoom] Called with floor: " + floor + ", room: " + roomNumber);
+        
+        if (floor == null || roomNumber == null) {
+            System.out.println("⚠️ [calculateMonthlyAddonFeeForRoom] Floor or room number is null, returning 0");
+            return 0;
+        }
+        
+        try {
+            // หา Room จาก floor และ roomNumber
+            Room room = roomRepository.findByRoomFloorAndRoomNumber(floor, roomNumber).orElse(null);
+            if (room == null) {
+                System.out.println("🔍 [calculateMonthlyAddonFeeForRoom] Room not found: " + floor + "-" + roomNumber + ", returning 0");
+                return 0;
+            }
+            
+            System.out.println("✅ [calculateMonthlyAddonFeeForRoom] Found room ID: " + room.getId());
+            
+            // คำนวณ addon fee จาก AssetGroup ที่เชื่อมกับ room ผ่าน room_asset 
+            // Query แบบ native SQL หรือ custom query เพื่อหา total monthly addon fee
+            List<Object[]> results = assetRepository.findMonthlyAddonFeeByRoomId(room.getId());
+            
+            System.out.println("🔍 [calculateMonthlyAddonFeeForRoom] Found " + results.size() + " addon fee records");
+            
+            int totalAddonFee = 0;
+            for (Object[] result : results) {
+                BigDecimal fee = (BigDecimal) result[0];
+                if (fee != null) {
+                    System.out.println("   - Adding addon fee: " + fee.intValue());
+                    totalAddonFee += fee.intValue();
+                }
+            }
+            
+            System.out.println("💰 [calculateMonthlyAddonFeeForRoom] Room " + floor + "-" + roomNumber + " total addon fee: " + totalAddonFee);
+            return totalAddonFee;
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error calculating addon fee for room " + floor + "-" + roomNumber + ": " + e.getMessage());
+            return 0;
+        }
+    }
+
     // แปลง Invoice -> InvoiceDto
     private InvoiceDto convertToDto(Invoice invoice) {
+        if (invoice == null) return null;
+
+        System.out.println("🔍 [convertToDto] Starting conversion for Invoice ID: " + invoice.getId());
+        System.out.println("🔍 [convertToDto] Raw invoice data:");
+        System.out.println("    - SubTotal from DB: " + invoice.getSubTotal());
+        System.out.println("    - PenaltyTotal from DB: " + invoice.getPenaltyTotal());
+        System.out.println("    - NetAmount from DB: " + invoice.getNetAmount());
+        System.out.println("    - RequestedRent: " + invoice.getRequestedRent());
+        System.out.println("    - RequestedWater: " + invoice.getRequestedWater());
+        System.out.println("    - RequestedElectricity: " + invoice.getRequestedElectricity());
+        System.out.println("    - RequestedWaterUnit: " + invoice.getRequestedWaterUnit());
+        System.out.println("    - RequestedElectricityUnit: " + invoice.getRequestedElectricityUnit());
+        System.out.println("    - RequestedFloor: " + invoice.getRequestedFloor());
+        System.out.println("    - RequestedRoom: " + invoice.getRequestedRoom());
+
         // ✅ ดึงข้อมูล tenant ล่าสุดจาก room assignment แทนการใช้ contract เก่า
         Contract currentContract = null;
         String currentFirstName = "N/A";
@@ -446,16 +534,35 @@ public class InvoiceServiceImpl implements InvoiceService {
                     invoice.getContact().getRentAmountSnapshot().intValue() : 0);
         int water = invoice.getRequestedWater() != null ? invoice.getRequestedWater() : 0;
         int electricity = invoice.getRequestedElectricity() != null ? invoice.getRequestedElectricity() : 0;
-        int realSubTotal = rent + water + electricity;
+        
+        System.out.println("🔧 [convertToDto] Calculated values:");
+        System.out.println("    - Rent: " + rent);
+        System.out.println("    - Water: " + water);
+        System.out.println("    - Electricity: " + electricity);
+        
+        // คำนวณ addon fee จาก Asset Management
+        int addonAmount = calculateMonthlyAddonFeeForRoom(
+                invoice.getRequestedFloor(), 
+                invoice.getRequestedRoom());
+        
+        System.out.println("    - Addon Amount: " + addonAmount);
+        
+        int realSubTotal = rent + water + electricity + addonAmount;
         int realPenalty = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
         int realNetAmount = realSubTotal + realPenalty;
+        
+        System.out.println("🔢 [convertToDto] Final calculations:");
+        System.out.println("    - Real SubTotal: " + realSubTotal + " (rent:" + rent + " + water:" + water + " + elec:" + electricity + " + addon:" + addonAmount + ")");
+        System.out.println("    - Real Penalty: " + realPenalty);
+        System.out.println("    - Real NetAmount: " + realNetAmount);
         
         BigDecimal invoiceAmount = BigDecimal.valueOf(realNetAmount);
         BigDecimal remainingAmount = invoiceAmount.subtract(totalReceived != null ? totalReceived : BigDecimal.ZERO);
         
         System.out.println("💰 Invoice #" + invoice.getId() + 
-                         " - Rent: " + rent + ", Water: " + water + ", Electricity: " + electricity +
-                         " - SubTotal: " + realSubTotal + ", Penalty: " + realPenalty + ", NetAmount: " + realNetAmount + 
+                         " - Rent: " + rent + ", Water: " + water + ", Electricity: " + electricity + 
+                         ", Addon: " + addonAmount + " - SubTotal: " + realSubTotal + 
+                         ", Penalty: " + realPenalty + ", NetAmount: " + realNetAmount + 
                          ", Paid: " + (totalReceived != null ? totalReceived.intValue() : 0) + 
                          ", Remaining: " + remainingAmount.intValue());
 
@@ -487,7 +594,13 @@ public class InvoiceServiceImpl implements InvoiceService {
                                         otherInvoice.getContact().getRentAmountSnapshot().intValue() : 0);
                         int otherWater = otherInvoice.getRequestedWater() != null ? otherInvoice.getRequestedWater() : 0;
                         int otherElectricity = otherInvoice.getRequestedElectricity() != null ? otherInvoice.getRequestedElectricity() : 0;
-                        int otherSubTotal = otherRent + otherWater + otherElectricity;
+                        
+                        // 🔥 เพิ่ม addon fee ในการคำนวณ Previous Balance
+                        int otherAddonFee = calculateMonthlyAddonFeeForRoom(
+                            otherInvoice.getRequestedFloor(), 
+                            otherInvoice.getRequestedRoom());
+                        
+                        int otherSubTotal = otherRent + otherWater + otherElectricity + otherAddonFee; // รวม addon ด้วย
                         int otherPenalty = otherInvoice.getPenaltyTotal() != null ? otherInvoice.getPenaltyTotal() : 0;
                         int otherNetAmount = otherSubTotal + otherPenalty;
                         
@@ -495,7 +608,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                         int otherRemaining = otherNetAmount - otherReceivedAmount;
                         
                         System.out.println("🔍 Previous Invoice #" + otherInvoice.getId() + 
-                                         " - Rent: " + otherRent + ", Water: " + otherWater + ", Electricity: " + otherElectricity +
+                                         " - Rent: " + otherRent + ", Water: " + otherWater + ", Electricity: " + otherElectricity + ", Addon: " + otherAddonFee +
                                          " - SubTotal: " + otherSubTotal + ", Penalty: " + otherPenalty + 
                                          ", NetAmount: " + otherNetAmount + ", Received: " + otherReceivedAmount + 
                                          ", Remaining: " + otherRemaining);
@@ -514,7 +627,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             System.err.println("❌ Error calculating outstanding balance for Invoice #" + invoice.getId() + ": " + e.getMessage());
         }
 
-        return InvoiceDto.builder()
+        InvoiceDto result = InvoiceDto.builder()
                 .id(invoice.getId())
                 .contractId(invoice.getContact() != null ? invoice.getContact().getId() : null)
                 .createDate(invoice.getCreateDate())
@@ -566,10 +679,23 @@ public class InvoiceServiceImpl implements InvoiceService {
                 .electricityUnit(invoice.getRequestedElectricityUnit() != null 
                         ? invoice.getRequestedElectricityUnit() 
                         : (electricity > 0 ? Math.round(electricity / 8.0f) : 0))
+                // 🔥 Add-on Fee จาก Asset Group - ใช้ค่าที่คำนวณแล้ว
+                .addonAmount(addonAmount)
                 // Penalty info
                 .penalty(invoice.getPenaltyTotal() != null && invoice.getPenaltyTotal() > 0 ? 1 : 0)
                 .penaltyDate(invoice.getPenaltyAppliedAt())
                 .build();
+
+        System.out.println("✅ [convertToDto] Final DTO built for Invoice #" + invoice.getId() + ":");
+        System.out.println("    - SubTotal in DTO: " + realSubTotal);
+        System.out.println("    - NetAmount in DTO: " + realNetAmount);
+        System.out.println("    - Rent: " + rent + ", Water: " + water + ", Electricity: " + electricity + ", Addon: " + addonAmount);
+        System.out.println("    - Floor: " + (invoice.getRequestedFloor() != null ? invoice.getRequestedFloor() : "null"));
+        System.out.println("    - Room: " + (invoice.getRequestedRoom() != null ? invoice.getRequestedRoom() : "null"));
+        System.out.println("    - Water Units: " + (invoice.getRequestedWaterUnit() != null ? invoice.getRequestedWaterUnit() : "calculated"));
+        System.out.println("    - Electricity Units: " + (invoice.getRequestedElectricityUnit() != null ? invoice.getRequestedElectricityUnit() : "calculated"));
+        
+        return result;
     }
 
     /**
@@ -827,6 +953,25 @@ public class InvoiceServiceImpl implements InvoiceService {
         Invoice invoice = invoiceRepository.findById(invoiceId)
                 .orElseThrow(() -> new RuntimeException("Invoice not found: " + invoiceId));
         
+        System.out.println(">>> [PDF] Original Invoice data from DB:");
+        System.out.println("    - SubTotal: " + invoice.getSubTotal());
+        System.out.println("    - PenaltyTotal: " + invoice.getPenaltyTotal());
+        System.out.println("    - NetAmount: " + invoice.getNetAmount());
+        System.out.println("    - RequestedRent: " + invoice.getRequestedRent());
+        System.out.println("    - RequestedWater: " + invoice.getRequestedWater());
+        System.out.println("    - RequestedElectricity: " + invoice.getRequestedElectricity());
+        System.out.println("    - RequestedWaterUnit: " + invoice.getRequestedWaterUnit());
+        System.out.println("    - RequestedElectricityUnit: " + invoice.getRequestedElectricityUnit());
+        
+        // รีเฟรชข้อมูลล่าสุดของ Invoice
+        invoiceRepository.flush();
+        invoice = invoiceRepository.findById(invoiceId)
+                .orElseThrow(() -> new RuntimeException("Invoice not found after refresh: " + invoiceId));
+        
+        System.out.println(">>> [PDF] Latest Invoice data - netAmount: " + invoice.getNetAmount() + 
+                          ", paidAmount: " + invoice.getPaidAmount() + 
+                          ", remainingBalance: " + invoice.getRemainingBalance());
+        
         Contract contract = invoice.getContact();
         if (contract == null) {
             throw new RuntimeException("Contract not found for invoice: " + invoiceId);
@@ -837,15 +982,15 @@ public class InvoiceServiceImpl implements InvoiceService {
             throw new RuntimeException("Tenant not found for contract: " + contract.getId());
         }
 
-        // ใช้ข้อมูลห้องและชั้นจาก 'requested' fields บนตัว invoice
+        // Use room and floor data from 'requested' fields on the invoice
         String floor = (invoice.getRequestedFloor() != null) ? String.valueOf(invoice.getRequestedFloor()) : "N/A";
         String roomNumber = (invoice.getRequestedRoom() != null) ? invoice.getRequestedRoom() : "N/A";
-        String roomDisplay = "ชั้น " + floor + " ห้อง " + roomNumber;
+        String roomDisplay = "Floor " + floor + " Room " + roomNumber;
 
-        // ข้อมูล Package ดึงจาก contract
+        // Package information from contract
         PackagePlan packagePlan = contract.getPackagePlan();
         String packageName = (packagePlan != null && packagePlan.getContractType() != null) ?
-                             packagePlan.getContractType().getName() : "ไม่ระบุ";
+                             packagePlan.getContractType().getName() : "Not Specified";
         
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
             // สร้าง PDF document
@@ -853,7 +998,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             PdfWriter.getInstance(document, baos);
             document.open();
             
-            // สร้างฟอนต์ที่ใช้ในระบบ (อ้างอิงจาก TenantContract)
+            // Create fonts used in the system (reference from TenantContract)
             Font[] fonts = PdfStyleService.createInvoiceFonts();
             Font titleFont = fonts[0];
             Font headerFont = fonts[1];
@@ -861,10 +1006,10 @@ public class InvoiceServiceImpl implements InvoiceService {
             Font normalFont = fonts[3];
             Font smallFont = fonts[4];
             
-            // เพิ่ม Company Header
+            // Add Company Header
             PdfStyleService.addCompanyHeader(document, titleFont, headerFont);
             
-            // หัวข้อใบแจ้งหนี้
+            // Invoice title
             Paragraph invoiceTitle = new Paragraph("SERVICE INVOICE", titleFont);
             invoiceTitle.setAlignment(Element.ALIGN_CENTER);
             invoiceTitle.setSpacingAfter(5);
@@ -877,13 +1022,13 @@ public class InvoiceServiceImpl implements InvoiceService {
             
             PdfStyleService.addSeparatorLine(document);
             
-            // ===== ข้อมูลใบแจ้งหนี้ =====
+            // ===== Invoice Information =====
             PdfPTable invoiceHeaderTable = new PdfPTable(2);
             invoiceHeaderTable.setWidthPercentage(100);
             invoiceHeaderTable.setWidths(new float[]{1, 1});
             invoiceHeaderTable.setSpacingAfter(20);
             
-            // ข้อมูลใบแจ้งหนี้
+            // Invoice information
             PdfPCell invoiceInfoCell = new PdfPCell();
             invoiceInfoCell.setBorder(Rectangle.BOX);
             invoiceInfoCell.setPadding(10);
@@ -900,7 +1045,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             invoiceHeaderTable.addCell(invoiceInfoCell);
             document.add(invoiceHeaderTable);
             
-            // ===== ข้อมูลผู้เช่า =====
+            // ===== Customer Information =====
             Paragraph customerHeader = new Paragraph("Customer Information", headerFont);
             customerHeader.setSpacingAfter(10);
             document.add(customerHeader);
@@ -928,7 +1073,7 @@ public class InvoiceServiceImpl implements InvoiceService {
             
             document.add(customerTable);
             
-            // ===== รายการค่าใช้จ่าย =====
+            // ===== Service Charges =====
             Paragraph expenseHeader = new Paragraph("Service Charges", headerFont);
             expenseHeader.setSpacingAfter(10);
             document.add(expenseHeader);
@@ -938,13 +1083,13 @@ public class InvoiceServiceImpl implements InvoiceService {
             expenseTable.setWidths(new float[]{3f, 1.5f, 1.5f, 2f});
             expenseTable.setSpacingAfter(15);
             
-            // Header ของตาราง
+            // Header of the table
             expenseTable.addCell(PdfStyleService.createHeaderCell("Description", labelFont));
             expenseTable.addCell(PdfStyleService.createHeaderCell("Qty/Unit", labelFont));
             expenseTable.addCell(PdfStyleService.createHeaderCell("Rate (THB)", labelFont));
             expenseTable.addCell(PdfStyleService.createHeaderCell("Amount (THB)", labelFont));
             
-            // ยอดค้างจากเดือนก่อน (ถ้ามี)
+            // Outstanding balance from previous month (if any)
             int previousBalance = invoice.getPreviousBalance() != null ? invoice.getPreviousBalance() : 0;
             if (previousBalance > 0) {
                 expenseTable.addCell(PdfStyleService.createDataCell("Outstanding Balance from Previous Month", normalFont));
@@ -953,35 +1098,63 @@ public class InvoiceServiceImpl implements InvoiceService {
                 expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(previousBalance), normalFont));
             }
             
-            // ค่าเช่า
+            // Room rental fee
             int rentAmount = invoice.getRequestedRent() != null ? invoice.getRequestedRent() : 0;
+            
+            System.out.println("📄 [PDF] Service charges calculation:");
+            System.out.println("    - Room rental: " + rentAmount);
+            
             expenseTable.addCell(PdfStyleService.createDataCell("Room Rental", normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell("1 month", normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(rentAmount), normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(rentAmount), normalFont));
             
-            // ค่าน้ำ
+            // Water fee
             int waterUnit = invoice.getRequestedWaterUnit() != null ? invoice.getRequestedWaterUnit() : 0;
             int waterAmount = invoice.getRequestedWater() != null ? invoice.getRequestedWater() : 0;
             int waterRate = (waterUnit > 0 && waterAmount > 0) ? (waterAmount / waterUnit) : 30;
+            
+            System.out.println("    - Water: " + waterAmount + " THB (" + waterUnit + " units x " + waterRate + ")");
             
             expenseTable.addCell(PdfStyleService.createDataCell("Water Supply", normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(waterUnit + " units", normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(String.valueOf(waterRate), normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(waterAmount), normalFont));
             
-            // ค่าไฟ
+            // Electricity fee
             int elecUnit = invoice.getRequestedElectricityUnit() != null ? invoice.getRequestedElectricityUnit() : 0;
             int elecAmount = invoice.getRequestedElectricity() != null ? invoice.getRequestedElectricity() : 0;
             int elecRate = (elecUnit > 0 && elecAmount > 0) ? (elecAmount / elecUnit) : 8;
+            
+            System.out.println("    - Electricity: " + elecAmount + " THB (" + elecUnit + " units x " + elecRate + ")");
             
             expenseTable.addCell(PdfStyleService.createDataCell("Electricity", normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(elecUnit + " units", normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(String.valueOf(elecRate), normalFont));
             expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(elecAmount), normalFont));
             
-            // ค่าปรับ (ถ้ามี)
+            // Monthly Add-on Fee (if any)
+            int addonFeeAmount = calculateMonthlyAddonFeeForRoom(
+                invoice.getRequestedFloor(),
+                invoice.getRequestedRoom()
+            );
+            
+            System.out.println("    - Monthly Add-on Fee: " + addonFeeAmount);
+            
+            if (addonFeeAmount > 0) {
+                expenseTable.addCell(PdfStyleService.createDataCell("Monthly Add-on Fee", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell("1 month", normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(addonFeeAmount), normalFont));
+                expenseTable.addCell(PdfStyleService.createDataCell(PdfStyleService.formatMoney(addonFeeAmount), normalFont));
+            }
+            
+            // Late payment penalty (if any)
             int penaltyAmount = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
+            
+            System.out.println("    - Penalty: " + penaltyAmount);
+            System.out.println("📄 [PDF] Current month charges: " + (rentAmount + waterAmount + elecAmount + addonFeeAmount));
+            System.out.println("📄 [PDF] Late Payment Penalty: " + penaltyAmount);
+            
             if (penaltyAmount > 0) {
                 expenseTable.addCell(PdfStyleService.createDataCell("Late Payment Penalty", normalFont));
                 expenseTable.addCell(PdfStyleService.createDataCell("1 item", normalFont));
@@ -991,17 +1164,51 @@ public class InvoiceServiceImpl implements InvoiceService {
             
             document.add(expenseTable);
             
-            // ===== สรุปยอดเงิน =====
+            // ===== Amount Summary =====
             PdfPTable summaryTable = new PdfPTable(2);
             summaryTable.setWidthPercentage(60);
             summaryTable.setWidths(new float[]{2, 1});
             summaryTable.setHorizontalAlignment(Element.ALIGN_RIGHT);
             summaryTable.setSpacingAfter(20);
+
+            // ✅ คำนวณค่าใช้จ่ายเดือนปัจจุบันจากข้อมูลจริง
+            int rent = invoice.getRequestedRent() != null ? invoice.getRequestedRent() : 0;
+            int water = invoice.getRequestedWater() != null ? invoice.getRequestedWater() : 0;
+            int electricity = invoice.getRequestedElectricity() != null ? invoice.getRequestedElectricity() : 0;
+            int addonFee = calculateMonthlyAddonFeeForRoom(
+                invoice.getRequestedFloor(),
+                invoice.getRequestedRoom()
+            );
             
-            int subTotal = invoice.getSubTotal() != null ? invoice.getSubTotal() : 0;
-            int previousBalanceAmount = invoice.getPreviousBalance() != null ? invoice.getPreviousBalance() : 0;
+            int currentMonthCharges = rent + water + electricity + addonFee;
             int penaltyTotalAmount = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
-            int netAmount = invoice.getNetAmount() != null ? invoice.getNetAmount() : (subTotal + previousBalanceAmount + penaltyTotalAmount);
+            
+            // 🔧 แก้ไข: ใช้การคำนวณใหม่แทนข้อมูลจาก DB
+            int correctNetAmount = currentMonthCharges + penaltyTotalAmount;
+            
+            System.out.println("📄 [PDF] Final calculation breakdown:");
+            System.out.println("    - Rent: " + rent);
+            System.out.println("    - Water: " + water);
+            System.out.println("    - Electricity: " + electricity);
+            System.out.println("    - AddOn: " + addonFee);
+            System.out.println("    - Current Month Total: " + currentMonthCharges);
+            System.out.println("    - Penalty: " + penaltyTotalAmount);
+            System.out.println("    - CORRECTED NetAmount: " + correctNetAmount + " (was: " + (invoice.getNetAmount() != null ? invoice.getNetAmount() : 0) + ")");
+            System.out.println("    - Water: " + water);
+            System.out.println("    - Electricity: " + electricity);
+            System.out.println("    - AddOn: " + addonFee);
+            System.out.println("    - Current Month Total: " + currentMonthCharges);
+            System.out.println("    - Penalty: " + penaltyTotalAmount);
+            System.out.println("    - Invoice NetAmount: " + correctNetAmount);
+            
+            // คำนวณยอดค้างจากเดือนก่อน = NetAmount - CurrentMonth - Penalty
+            int previousBalanceAmount = correctNetAmount - currentMonthCharges - penaltyTotalAmount;
+            if (previousBalanceAmount < 0) previousBalanceAmount = 0; // ป้องกันติดลบ
+            
+            System.out.println("📄 [PDF] Summary - NetAmount: " + correctNetAmount + 
+                              ", CurrentMonth: " + currentMonthCharges + 
+                              ", Penalty: " + penaltyTotalAmount + 
+                              ", PreviousBalance: " + previousBalanceAmount);
             
             // แสดงยอดค้างจากเดือนก่อน (ถ้ามี)
             if (previousBalanceAmount > 0) {
@@ -1009,9 +1216,11 @@ public class InvoiceServiceImpl implements InvoiceService {
                 summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(previousBalanceAmount) + " THB", normalFont));
             }
             
+            // แสดงค่าใช้จ่ายเดือนปัจจุบัน
             summaryTable.addCell(PdfStyleService.createSummaryLabelCell("Current Month Charges:", labelFont));
-            summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(subTotal) + " THB", normalFont));
+            summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(currentMonthCharges) + " THB", normalFont));
             
+            // แสดงค่าปรับ (ถ้ามี)
             if (penaltyTotalAmount > 0) {
                 summaryTable.addCell(PdfStyleService.createSummaryLabelCell("Late Payment Penalty:", labelFont));
                 summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(penaltyTotalAmount) + " THB", normalFont));
@@ -1027,12 +1236,66 @@ public class InvoiceServiceImpl implements InvoiceService {
             lineCell2.setFixedHeight(10);
             summaryTable.addCell(lineCell2);
             
+            // แสดงยอดรวมทั้งหมด
             summaryTable.addCell(PdfStyleService.createSummaryLabelCell("Total Amount:", titleFont));
-            summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(netAmount) + " THB", titleFont));
+            summaryTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(correctNetAmount) + " THB", titleFont));
             
             document.add(summaryTable);
             
-            // ===== สถานะการชำระเงิน =====
+            // ===== Payment Summary (แสดงถ้ามีการจ่ายเงิน) =====
+            // ดึงข้อมูลการชำระเงินจาก PaymentRecord
+            List<PaymentRecord> paymentRecords = paymentRecordRepository.findByInvoiceIdOrderByPaymentDateDesc(invoice.getId());
+            BigDecimal totalPaidBigDecimal = paymentRecordRepository.calculateTotalPaidAmount(invoice.getId());
+            BigDecimal totalReceivedBigDecimal = paymentRecordRepository.calculateTotalReceivedAmount(invoice.getId());
+            
+            int paidAmount = totalPaidBigDecimal != null ? totalPaidBigDecimal.intValue() : 0;
+            int totalReceived = totalReceivedBigDecimal != null ? totalReceivedBigDecimal.intValue() : 0;
+            int remainingBalance = correctNetAmount - totalReceived;
+            
+            if (paidAmount > 0 || remainingBalance != correctNetAmount) {
+                Paragraph paymentSummaryHeader = new Paragraph("Payment Summary", headerFont);
+                paymentSummaryHeader.setSpacingAfter(10);
+                document.add(paymentSummaryHeader);
+                
+                PdfPTable paymentTable = new PdfPTable(2);
+                paymentTable.setWidthPercentage(60);
+                paymentTable.setWidths(new float[]{2, 1});
+                paymentTable.setHorizontalAlignment(Element.ALIGN_RIGHT);
+                paymentTable.setSpacingAfter(20);
+                
+                paymentTable.addCell(PdfStyleService.createSummaryLabelCell("Total Amount:", labelFont));
+                paymentTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(correctNetAmount) + " THB", normalFont));
+                
+                if (paidAmount > 0) {
+                    paymentTable.addCell(PdfStyleService.createSummaryLabelCell("Paid Amount:", labelFont));
+                    paymentTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(paidAmount) + " THB", normalFont));
+                    
+                    // แสดงวันที่ชำระล่าสุด
+                    if (!paymentRecords.isEmpty() && paymentRecords.get(0).getPaymentDate() != null) {
+                        paymentTable.addCell(PdfStyleService.createSummaryLabelCell("Payment Date:", labelFont));
+                        paymentTable.addCell(PdfStyleService.createSummaryValueCell(paymentRecords.get(0).getPaymentDate().toLocalDate().toString(), normalFont));
+                    }
+                }
+                
+                // เส้นแบ่ง
+                PdfPCell lineCell3 = new PdfPCell(new Phrase("", normalFont));
+                lineCell3.setBorder(Rectangle.TOP);
+                lineCell3.setFixedHeight(10);
+                paymentTable.addCell(lineCell3);
+                PdfPCell lineCell4 = new PdfPCell(new Phrase("", normalFont));
+                lineCell4.setBorder(Rectangle.TOP);
+                lineCell4.setFixedHeight(10);
+                paymentTable.addCell(lineCell4);
+                
+                String balanceLabel = remainingBalance > 0 ? "Outstanding Balance:" : 
+                                     remainingBalance == 0 ? "Balance:" : "Overpaid:";
+                paymentTable.addCell(PdfStyleService.createSummaryLabelCell(balanceLabel, titleFont));
+                paymentTable.addCell(PdfStyleService.createSummaryValueCell(PdfStyleService.formatMoney(Math.abs(remainingBalance)) + " THB", titleFont));
+                
+                document.add(paymentTable);
+            }
+            
+            // ===== Payment Status =====
             Paragraph statusHeader = new Paragraph("Payment Status", headerFont);
             statusHeader.setSpacingAfter(10);
             document.add(statusHeader);
@@ -1041,33 +1304,31 @@ public class InvoiceServiceImpl implements InvoiceService {
             statusTable.setWidthPercentage(100);
             statusTable.setSpacingAfter(20);
             
+            // สร้าง status text โดยใช้ตัวแปรที่มีอยู่
             String statusText = "";
-            int status = invoice.getInvoiceStatus() != null ? invoice.getInvoiceStatus() : 0;
-            
-            switch (status) {
-                case 0:
-                    statusText = "Status: Unpaid";
-                    break;
-                case 1:
-                    statusText = "Status: Paid";
-                    if (invoice.getPayDate() != null) {
-                        statusText += "\nPayment Date: " + invoice.getPayDate().toLocalDate();
-                    }
-                    break;
-                case 2:
-                    statusText = "Status: Cancelled";
-                    break;
-                default:
-                    statusText = "Status: Unknown";
-                    break;
+            if (remainingBalance <= 0 && paidAmount > 0) {
+                statusText = "Status: Fully Paid";
+                // แสดงวันที่ชำระล่าสุด
+                if (!paymentRecords.isEmpty() && paymentRecords.get(0).getPaymentDate() != null) {
+                    statusText += "\nPayment Date: " + paymentRecords.get(0).getPaymentDate().toLocalDate();
+                }
+                if (remainingBalance < 0) {
+                    statusText += "\nOverpaid: " + PdfStyleService.formatMoney(Math.abs(remainingBalance)) + " THB";
+                }
+            } else if (paidAmount > 0 && remainingBalance > 0) {
+                statusText = "Status: Partially Paid";
+                statusText += "\nPaid: " + PdfStyleService.formatMoney(paidAmount) + " THB";
+                statusText += "\nRemaining: " + PdfStyleService.formatMoney(remainingBalance) + " THB";
+            } else {
+                statusText = "Status: Unpaid";
             }
             
-            PdfPCell statusCell = PdfStyleService.createStatusCell(statusText, status, labelFont);
+            PdfPCell statusCell = PdfStyleService.createStatusCell(statusText, remainingBalance > 0 ? 0 : 1, labelFont);
             statusTable.addCell(statusCell);
             document.add(statusTable);
             
-            // ===== หมายเหตุ =====
-            if (status == 0) { // ยังไม่ชำระ
+            // ===== Notes =====
+            if (remainingBalance > 0) { // Still has outstanding balance
                 Paragraph noteHeader = new Paragraph("Notes", headerFont);
                 noteHeader.setSpacingAfter(5);
                 document.add(noteHeader);
@@ -1077,21 +1338,24 @@ public class InvoiceServiceImpl implements InvoiceService {
                 note.add(new Phrase("• Late payment penalty: 10% of rental amount\n", normalFont));
                 note.add(new Phrase("• For bank transfers, please provide payment slip\n", normalFont));
                 note.add(new Phrase("• Contact: Phone 02-123-4567\n", normalFont));
+                if (paidAmount > 0) {
+                    note.add(new Phrase("• Outstanding balance: " + PdfStyleService.formatMoney(remainingBalance) + " THB\n", normalFont));
+                }
                 note.setSpacingAfter(20);
                 document.add(note);
                 
-                // ===== ข้อมูลการชำระเงิน =====
-                Paragraph paymentHeader = new Paragraph("Payment Information / ข้อมูลการชำระเงิน", headerFont);
+                // ===== Payment Information =====
+                Paragraph paymentHeader = new Paragraph("Payment Information", headerFont);
                 paymentHeader.setSpacingAfter(10);
                 document.add(paymentHeader);
                 
-                // ตารางข้อมูลธนาคาร
+                // Bank information table
                 PdfPTable paymentTable = new PdfPTable(2);
                 paymentTable.setWidthPercentage(100);
                 paymentTable.setWidths(new float[]{1, 1});
                 paymentTable.setSpacingAfter(15);
                 
-                // ข้อมูลธนาคาร
+                // Bank information
                 PdfPCell bankInfoCell = new PdfPCell();
                 bankInfoCell.setBorder(Rectangle.BOX);
                 bankInfoCell.setPadding(10);
@@ -1114,18 +1378,18 @@ public class InvoiceServiceImpl implements InvoiceService {
                 qrCodeCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
                 qrCodeCell.setMinimumHeight(120);
                 
-                qrCodeCell.addElement(new Paragraph("QR Code สำหรับชำระเงิน", labelFont));
+                qrCodeCell.addElement(new Paragraph("QR Code for Payment", labelFont));
                 qrCodeCell.addElement(new Paragraph("Scan to Pay", normalFont));
-                qrCodeCell.addElement(new Paragraph("จำนวนเงิน: " + PdfStyleService.formatMoney(netAmount) + " บาท", normalFont));
-                qrCodeCell.addElement(new Paragraph("รหัสอ้างอิง: INV-" + String.format("%06d", invoice.getId()), smallFont));
-                qrCodeCell.addElement(new Paragraph("QR Code แสดงด้านล่าง", smallFont));
+                qrCodeCell.addElement(new Paragraph("Amount: " + PdfStyleService.formatMoney(correctNetAmount) + " THB", normalFont));
+                qrCodeCell.addElement(new Paragraph("Reference: INV-" + String.format("%06d", invoice.getId()), smallFont));
+                qrCodeCell.addElement(new Paragraph("QR Code shown below", smallFont));
                 
                 paymentTable.addCell(qrCodeCell);
                 document.add(paymentTable);
                 
                 // เพิ่ม QR Code จริงหลัง payment table
                 try {
-                    Paragraph qrHeader = new Paragraph("QR Code สำหรับชำระเงิน", headerFont);
+                    Paragraph qrHeader = new Paragraph("QR Code for Payment", headerFont);
                     qrHeader.setAlignment(Element.ALIGN_CENTER);
                     qrHeader.setSpacingAfter(10);
                     document.add(qrHeader);
@@ -1156,13 +1420,13 @@ public class InvoiceServiceImpl implements InvoiceService {
                     document.add(qrTable);
                     
                     // ข้อมูลการชำระเงิน
-                    double amountValue = (double) netAmount;
-                    Paragraph qrInfo = new Paragraph("จำนวนเงิน: " + PdfStyleService.formatMoney(netAmount) + " บาท", normalFont);
+                    double amountValue = (double) correctNetAmount;
+                    Paragraph qrInfo = new Paragraph("Amount: " + PdfStyleService.formatMoney(correctNetAmount) + " THB", normalFont);
                     qrInfo.setAlignment(Element.ALIGN_CENTER);
                     qrInfo.setSpacingAfter(5);
                     document.add(qrInfo);
                     
-                    Paragraph qrRef = new Paragraph("รหัสอ้างอิง: INV-" + String.format("%06d", invoice.getId()), normalFont);
+                    Paragraph qrRef = new Paragraph("Reference: INV-" + String.format("%06d", invoice.getId()), normalFont);
                     qrRef.setAlignment(Element.ALIGN_CENTER);
                     qrRef.setSpacingAfter(5);
                     document.add(qrRef);
@@ -1200,12 +1464,12 @@ public class InvoiceServiceImpl implements InvoiceService {
                     
                     document.add(qrPlaceholderTable);
                     
-                    Paragraph qrInfo = new Paragraph("Scan to Pay - จำนวนเงิน: " + PdfStyleService.formatMoney(netAmount) + " บาท", normalFont);
+                    Paragraph qrInfo = new Paragraph("Scan to Pay - Amount: " + PdfStyleService.formatMoney(correctNetAmount) + " THB", normalFont);
                     qrInfo.setAlignment(Element.ALIGN_CENTER);
                     qrInfo.setSpacingAfter(5);
                     document.add(qrInfo);
                     
-                    Paragraph qrRef = new Paragraph("รหัสอ้างอิง: INV-" + String.format("%06d", invoice.getId()), normalFont);
+                    Paragraph qrRef = new Paragraph("Reference: INV-" + String.format("%06d", invoice.getId()), normalFont);
                     qrRef.setAlignment(Element.ALIGN_CENTER);
                     qrRef.setSpacingAfter(10);
                     document.add(qrRef);
@@ -1222,7 +1486,7 @@ public class InvoiceServiceImpl implements InvoiceService {
                 document.add(paymentInstructions);
                 
                 Paragraph instructions = new Paragraph();
-                instructions.add(new Phrase("1. Transfer the specified amount: " + PdfStyleService.formatMoney(netAmount) + " THB\n", normalFont));
+                instructions.add(new Phrase("1. Transfer the specified amount: " + PdfStyleService.formatMoney(correctNetAmount) + " THB\n", normalFont));
                 instructions.add(new Phrase("2. Reference Number: INV-" + String.format("%06d", invoice.getId()) + "\n", normalFont));
                 instructions.add(new Phrase("3. Save transfer receipt and send to staff\n", normalFont));
                 instructions.add(new Phrase("4. Payment verification within 1-2 business days\n", normalFont));

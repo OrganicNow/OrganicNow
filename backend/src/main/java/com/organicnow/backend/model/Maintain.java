@@ -66,4 +66,7 @@ public class Maintain {
     @Size(max = 20)
     @Column(name = "technician_phone", length = 20)
     private String technicianPhone; // เบอร์โทรช่าง
+
+    @Column(name = "work_image_url", length = 500)
+    private String workImageUrl; // URL รูปภาพหลักฐานการทำงาน
 }

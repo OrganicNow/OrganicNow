@@ -122,81 +122,39 @@ function InvoiceManagement() {
   };
 
   // map backend InvoiceDto -> row ใช้ในตาราง
-  // ✅ คำนวณ Previous Balance แบบ real-time
-  const calculateRealPreviousBalance = (currentInvoice, allInvoices) => {
-    const currentDate = new Date(currentInvoice.createDate);
-    const contractId = currentInvoice.contractId;
-    
-    // หาใบแจ้งหนี้ก่อนหน้าทั้งหมดของ contract เดียวกัน
-    const previousInvoices = allInvoices.filter(invoice => 
-      invoice.contractId === contractId && 
-      new Date(invoice.createDate) < currentDate
-    );
-    
-    // เรียงตามวันที่
-    previousInvoices.sort((a, b) => new Date(a.createDate) - new Date(b.createDate));
-    
-    let cumulativeOutstanding = 0;
-    
-    previousInvoices.forEach(prevInvoice => {
-      // คำนวณ NET amount จริงของ invoice ก่อนหน้า
-      const prevRent = Number(prevInvoice.rent || 0);
-      const prevWater = Number(prevInvoice.water || 0);  
-      const prevElectricity = Number(prevInvoice.electricity || 0);
-      const prevPenalty = Number(prevInvoice.penaltyTotal || 0);
-      const prevPaid = Number(prevInvoice.paidAmount || 0);
-      
-      const prevNetAmount = prevRent + prevWater + prevElectricity + prevPenalty;
-      const prevOutstanding = Math.max(0, prevNetAmount - prevPaid);
-      
-      cumulativeOutstanding += prevOutstanding;
-    });
-    
-    return cumulativeOutstanding;
-  };
-
   const mapDto = (it) => {
     // แยกเก็บส่วนประกอบแต่ละตัว
     const rentAmount = Number(it.rent ?? 0);
     const waterAmount = Number(it.water ?? 0);
     const electricityAmount = Number(it.electricity ?? 0);
+    const addonAmount = Number(it.addonAmount ?? 0); // 🔥 เพิ่ม addon amount
     const penaltyAmount = Number(it.penaltyTotal ?? 0);
-    const paidAmount = Number(it.paidAmount ?? 0);
     
-    // ✅ คำนวณ NET amount จริงเหมือนกับ Invoice Details
-    const calculatedNetAmount = rentAmount + waterAmount + electricityAmount + penaltyAmount;
+    // ✅ คำนวณ NET amount จริงเหมือนกับ Invoice Details (เพิ่ม addon)
+    const calculatedNetAmount = rentAmount + waterAmount + electricityAmount + addonAmount + penaltyAmount;
     
     // ใช้ค่าที่คำนวณเองแทน backend เพราะ backend ส่งผิด
     const correctNetAmount = calculatedNetAmount;
     
-    // ✅ คำนวณ Previous Balance แบบ real-time (จะคำนวณหลังจาก data โหลดเสร็จ)
-    // สำหรับตอนนี้ใช้ค่าจาก backend ก่อน แล้วจะมาปรับหลังจาก data โหลดครบ
-    const realPreviousBalance = Number(it.previousBalance ?? 0);
-    
-    // ✅ คำนวณ Outstanding Balance = Previous Balance + Current Outstanding
-    const currentOutstanding = Math.max(0, correctNetAmount - paidAmount);
-    const totalOutstandingBalance = realPreviousBalance + currentOutstanding;
-    
     // 🔍 Debug log เพื่อดูค่าจาก backend และการแก้ไข
     console.log(`🔍 Invoice #${it.id} - Fixed Calculation:`, {
       backendNetAmount: it.netAmount,
+      components: { rent: rentAmount, water: waterAmount, electricity: electricityAmount, addon: addonAmount, penalty: penaltyAmount },
       backendAmount: it.amount,
       backendOutstanding: it.outstandingBalance,
-      components: { rent: rentAmount, water: waterAmount, electricity: electricityAmount, penalty: penaltyAmount },
       calculated: calculatedNetAmount,
       finalDisplay: correctNetAmount,
-      paidAmount: paidAmount,
-      realPreviousBalance: realPreviousBalance,
-      currentOutstanding: currentOutstanding,
-      totalOutstandingBalance: totalOutstandingBalance,
+      paidAmount: Number(it.paidAmount ?? 0),
+      correctedOutstanding: Number(it.outstandingBalance ?? 0) > 0 ? 
+        Number(it.outstandingBalance) + (correctNetAmount - (it.netAmount ?? it.amount ?? 0)) :
+        correctNetAmount - Number(it.paidAmount ?? 0),
       difference: correctNetAmount - (it.netAmount ?? it.amount ?? 0),
-      useCumulativeOutstanding: true
+      useCumulativeOutstanding: Number(it.outstandingBalance ?? 0) > 0
     });
     
     
     return {
       id: it.id,
-      contractId: it.contractId || it.contact?.id,
       createDate: d2str(it.createDate),
       firstName: it.firstName ?? "",
       lastName: it.lastName ?? "",
@@ -218,18 +176,22 @@ function InvoiceManagement() {
       waterUnit: Number(it.waterUnit ?? 0),
       electricity: electricityAmount,
       electricityUnit: Number(it.electricityUnit ?? 0),
+      addonAmount: addonAmount, // 🔥 เพิ่ม addon amount
 
       status: (it.status ?? it.statusText ?? "").trim() || "Unknown",
       payDate: d2str(it.payDate),
       penalty: Number(it.penalty ?? ((it.penaltyTotal ?? 0) > 0 ? 1 : 0)),
       penaltyDate: d2str(it.penaltyAppliedAt),
-      penaltyTotal: penaltyAmount,
       
-      // Outstanding Balance fields - ใช้การคำนวณใหม่ที่ถูกต้อง
-      previousBalance: realPreviousBalance,
-      paidAmount: paidAmount,
-      outstandingBalance: totalOutstandingBalance,
-      hasOutstandingBalance: totalOutstandingBalance > 0,
+      // Outstanding Balance fields - ใช้การทบยอดจาก backend แต่ปรับตามส่วนประกอบที่ถูกต้อง
+      previousBalance: Number(it.previousBalance ?? 0),
+      paidAmount: Number(it.paidAmount ?? 0),
+      outstandingBalance: Number(it.outstandingBalance ?? 0) > 0 ? 
+        // ถ้า backend มีการทบยอดแล้ว ให้ปรับตามส่วนต่างของ NET ที่ถูกต้อง
+        Number(it.outstandingBalance) + (correctNetAmount - (it.netAmount ?? it.amount ?? 0)) :
+        // ถ้าไม่มีการทบยอด ใช้ NET ลบยอดที่จ่าย  
+        correctNetAmount - Number(it.paidAmount ?? 0),
+      hasOutstandingBalance: Number(it.outstandingBalance ?? correctNetAmount - Number(it.paidAmount ?? 0)) > 0,
     };
   };
 
@@ -495,58 +457,23 @@ function InvoiceManagement() {
       
       const rows = Array.isArray(json) ? json.map(mapDto) : [];
       
-      // ✅ คำนวณ Previous Balance แบบ real-time หลังจากได้ข้อมูลครบ
-      const correctedRows = rows.map(row => {
-        const realPreviousBalance = calculateRealPreviousBalance(row, rows);
-        const currentOutstanding = Math.max(0, row.amount - row.paidAmount);
-        const correctedOutstandingBalance = realPreviousBalance + currentOutstanding;
-        
-        console.log(`🔧 Invoice #${row.id} - Real-time Correction:`, {
-          originalPreviousBalance: row.previousBalance,
-          realPreviousBalance: realPreviousBalance,
-          currentOutstanding: currentOutstanding,
-          correctedOutstandingBalance: correctedOutstandingBalance
-        });
-        
-        return {
-          ...row,
-          previousBalance: realPreviousBalance,
-          outstandingBalance: correctedOutstandingBalance,
-          hasOutstandingBalance: correctedOutstandingBalance > 0
-        };
-      });
-      
-      // ✅ เรียงลำดับข้อมูลตาม createDate และ id เพื่อให้แสดงผลสม่ำเสมอ
-      correctedRows.sort((a, b) => {
-        // เรียงตาม createDate ก่อน (ข้อมูลเก่าอยู่บน ข้อมูลใหม่อยู่ล่าง)
-        if (a.createDate && b.createDate) {
-          const dateA = new Date(a.createDate);
-          const dateB = new Date(b.createDate);
-          if (dateA.getTime() !== dateB.getTime()) {
-            return dateA.getTime() - dateB.getTime();
-          }
-        }
-        // ถ้าวันที่เท่ากัน เรียงตาม id
-        return a.id - b.id;
-      });
-      
-      // ✅ เรียงลำดับข้อมูลตาม id หรือ createDate เพื่อให้แสดงผลสม่ำเสมอ
+      // ✅ เรียงลำดับข้อมูลแบบใหม่ล่าสุดขึ้นบน (newest first)
       rows.sort((a, b) => {
-        // เรียงตาม createDate ก่อน (ข้อมูลเก่าอยู่บน ข้อมูลใหม่อยู่ล่าง)
+        // เรียงตาม createDate ก่อน (ข้อมูลใหม่อยู่บน ข้อมูลเก่าอยู่ล่าง)
         if (a.createDate && b.createDate) {
           const dateA = new Date(a.createDate);
           const dateB = new Date(b.createDate);
           if (dateA.getTime() !== dateB.getTime()) {
-            return dateA.getTime() - dateB.getTime();
+            return dateB.getTime() - dateA.getTime(); // ✅ เปลี่ยนจาก dateA - dateB เป็น dateB - dateA
           }
         }
-        // ถ้าวันที่เท่ากัน เรียงตาม id
-        return a.id - b.id;
+        // ถ้าวันที่เท่ากัน เรียงตาม id แบบใหม่ขึ้นบน
+        return b.id - a.id; // ✅ เปลี่ยนจาก a.id - b.id เป็น b.id - a.id
       });
       
-      setData(correctedRows);
-      setTotalRecords(correctedRows.length);
-      setTotalPages(Math.max(1, Math.ceil(correctedRows.length / pageSize)));
+      setData(rows);
+      setTotalRecords(rows.length);
+      setTotalPages(Math.max(1, Math.ceil(rows.length / pageSize)));
       setCurrentPage(1);
       
       // ✅ คืนตำแหน่ง scroll หลัง refresh ถ้าต้องการ
@@ -1921,6 +1848,7 @@ function InvoiceManagement() {
                     <th className="text-start align-middle header-color">Rent</th>
                     <th className="text-start align-middle header-color">Water</th>
                     <th className="text-start align-middle header-color">Electricity</th>
+                    <th className="text-start align-middle header-color">Add-on</th>
                     <th className="text-start align-middle header-color">NET</th>
                     <th className="text-start align-middle header-color">Status</th>
                     <th className="text-start align-middle header-color">Pay date</th>
@@ -1955,10 +1883,11 @@ function InvoiceManagement() {
                         <td className="align-middle text-start">{item.firstName}</td>
                         <td className="align-middle text-start">{item.floor}</td>
                         <td className="align-middle text-start">{item.room}</td>
-                        <td className="align-middle text-start">{item.rent.toLocaleString()}</td>
-                        <td className="align-middle text-start">{item.water.toLocaleString()}</td>
-                        <td className="align-middle text-start">{item.electricity.toLocaleString()}</td>
-                        <td className="align-middle text-start ">{item.amount.toLocaleString()} THB</td>
+                        <td className="align-middle text-start">{Math.round(item.rent).toLocaleString()}</td>
+                        <td className="align-middle text-start">{Math.round(item.water).toLocaleString()}</td>
+                        <td className="align-middle text-start">{Math.round(item.electricity).toLocaleString()}</td>
+                        <td className="align-middle text-start">{Math.round(item.addonAmount ?? 0).toLocaleString()}</td>
+                        <td className="align-middle text-start ">{Math.round(item.amount).toLocaleString()} THB</td>
                         <td className="align-middle text-start">
                           <span
                             className={`badge ${
@@ -1982,7 +1911,7 @@ function InvoiceManagement() {
                           {item.hasOutstandingBalance ? (
                             <span className="text-danger fw-bold">
                               <i className="bi bi-exclamation-triangle-fill me-1"></i>
-                              {item.outstandingBalance.toLocaleString()} THB
+                              {Math.round(item.outstandingBalance).toLocaleString()} THB
                             </span>
                           ) : (
                             <span className="text-success">

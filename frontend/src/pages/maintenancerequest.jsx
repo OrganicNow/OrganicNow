@@ -72,6 +72,39 @@ function MaintenanceRequest() {
     }
   };
 
+  // ---------------- Assets for room ----------------
+  const [assets, setAssets] = useState([]);
+  const [loadingAssets, setLoadingAssets] = useState(false);
+
+  const fetchAssets = async (roomId) => {
+    if (!roomId) {
+      console.log("❌ fetchAssets: No roomId provided");
+      setAssets([]);
+      return;
+    }
+    
+    try {
+      console.log("🔍 fetchAssets: Fetching assets for roomId:", roomId);
+      setLoadingAssets(true);
+      const res = await fetch(`${API_BASE}/assets/${roomId}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      console.log("📡 fetchAssets: Response status:", res.status);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json(); // ApiResponse<List<AssetDto>>
+      console.log("✅ fetchAssets: Full response:", json);
+      console.log("✅ fetchAssets: Response.result:", json.result);
+      console.log("✅ fetchAssets: Assets array length:", (json.result || []).length);
+      setAssets(json.result || []); // ✅ ใช้ json.result แทน json.data
+    } catch (e) {
+      console.error("❌ fetchAssets: Failed to fetch assets:", e);
+      setAssets([]);
+    } finally {
+      setLoadingAssets(false);
+    }
+  };
+
   // ---------------- Pagination ----------------
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -114,7 +147,22 @@ function MaintenanceRequest() {
         maintainDate: m.scheduledDate ? m.scheduledDate.slice(0, 10) : "-",
         completeDate: m.finishDate ? m.finishDate.slice(0, 10) : "-",
         state: m.finishDate ? "Complete" : "Not Started",
+        createDate: m.createDate, // ✅ เก็บ createDate สำหรับเรียงลำดับ
       }));
+
+      // ✅ เรียงลำดับข้อมูลแบบใหม่ล่าสุดขึ้นบน (newest first) เหมือน Invoice table
+      mapped.sort((a, b) => {
+        // เรียงตาม createDate ก่อน (ข้อมูลใหม่อยู่บน ข้อมูลเก่าอยู่ล่าง)
+        if (a.createDate && b.createDate) {
+          const dateA = new Date(a.createDate);
+          const dateB = new Date(b.createDate);
+          if (dateA.getTime() !== dateB.getTime()) {
+            return dateB.getTime() - dateA.getTime(); // newest first
+          }
+        }
+        // ถ้าวันที่เท่ากัน เรียงตาม id แบบใหม่ขึ้นบน
+        return b.id - a.id; // newest first
+      });
 
       setRows(mapped);
       setTotalRecords(mapped.length);
@@ -266,6 +314,32 @@ function MaintenanceRequest() {
       ...(name === "target" ? { issue: "" } : {}), // ✅ Clear issue when target changes
       ...(name === "state" && value !== "Complete" ? { completeDate: "" } : {}),
     }));
+
+    // ✅ Fetch assets when target changes to "asset" and room is already selected
+    if (name === "target" && value === "asset" && form.room) {
+      const selectedRoom = rooms.find(r => r.roomNumber === form.room);
+      if (selectedRoom) {
+        fetchAssets(selectedRoom.roomId); // ✅ ใช้ roomId แทน id
+      }
+    }
+
+    // ✅ Clear assets when target changes to "building"
+    if (name === "target" && value === "building") {
+      setAssets([]);
+    }
+
+    // ✅ Fetch assets when room changes and target is "asset"
+    if (name === "room" && form.target === "asset" && value) {
+      const selectedRoom = rooms.find(r => r.roomNumber === value);
+      if (selectedRoom) {
+        fetchAssets(selectedRoom.roomId); // ✅ ใช้ roomId แทน id
+      }
+    }
+
+    // ✅ Clear assets when room changes and target is "asset" but no room selected
+    if (name === "room" && form.target === "asset" && !value) {
+      setAssets([]);
+    }
   };
 
   const isFormValid = useMemo(() => {
@@ -602,18 +676,37 @@ function MaintenanceRequest() {
                             onChange={onFormChange}
                             placeholder="Enter building issue"
                           />
+                        ) : form.target === "asset" ? (
+                          <select
+                            name="issue"
+                            className="form-select"
+                            value={form.issue}
+                            onChange={onFormChange}
+                            disabled={loadingAssets}
+                          >
+                            <option value="">
+                              {loadingAssets 
+                                ? "Loading assets..." 
+                                : assets.length === 0 
+                                  ? (form.room ? "No assets in this room" : "Select room first")
+                                  : "Select asset"
+                              }
+                            </option>
+                            {assets.map((asset) => (
+                              <option key={asset.assetId} value={asset.assetName}>
+                                {asset.assetName} ({asset.assetGroupName})
+                              </option>
+                            ))}
+                          </select>
                         ) : (
                           <select
                             name="issue"
                             className="form-select"
                             value={form.issue}
                             onChange={onFormChange}
+                            disabled
                           >
-                            <option value="">Select Issue</option>
-                            <option value="air">Air conditioner</option>
-                            <option value="light">Light</option>
-                            <option value="wall">Wall</option>
-                            <option value="plumbing">Plumbing</option>
+                            <option value="">Select target first</option>
                           </select>
                         )}
                       </div>
