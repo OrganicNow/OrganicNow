@@ -63,38 +63,38 @@ function Dashboard() {
   };
 
   // ✅ ฟังก์ชันโหลด CSV
-// ✅ ฟังก์ชันโหลด CSV
-const handleDownloadCsv = async () => {
-  if (!selectedMonth) {
-    alert("⚠️ กรุณาเลือกเดือนก่อนดาวน์โหลด");
-    return;
-  }
+  // ✅ ฟังก์ชันโหลด CSV
+  const handleDownloadCsv = async () => {
+    if (!selectedMonth) {
+      alert("⚠️ กรุณาเลือกเดือนก่อนดาวน์โหลด");
+      return;
+    }
 
-  // 🔧 เปลี่ยน "Nov 2025" → "Nov_2025" เพื่อให้ URL ใช้งานได้
-  const formattedMonth = selectedMonth.replace(" ", "_");
+    // 🔧 เปลี่ยน "Nov 2025" → "Nov_2025" เพื่อให้ URL ใช้งานได้
+    const formattedMonth = selectedMonth.replace(" ", "_");
 
-  try {
-    const res = await fetch(
-      `http://localhost:8080/dashboard/export/${formattedMonth}`
-    );
-    if (!res.ok) throw new Error("Failed to download CSV");
+    try {
+      const res = await fetch(
+        `http://localhost:8080/dashboard/export/${formattedMonth}`
+      );
+      if (!res.ok) throw new Error("Failed to download CSV");
 
-    // ✅ แปลง blob เป็นไฟล์ CSV
-    const blob = await res.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Usage_Report_${selectedMonth}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+      // ✅ แปลง blob เป็นไฟล์ CSV
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Usage_Report_${selectedMonth}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
 
-    // ✅ แจ้งผลลัพธ์เมื่อสำเร็จ
-    alert(`✅ ดาวน์โหลดไฟล์สำเร็จ: Usage_Report_${selectedMonth}.csv`);
-  } catch (error) {
-    console.error("❌ Download error:", error);
-    alert("ไม่สามารถดาวน์โหลดไฟล์ได้");
-  }
-};
+      // ✅ แจ้งผลลัพธ์เมื่อสำเร็จ
+      alert(`✅ ดาวน์โหลดไฟล์สำเร็จ: Usage_Report_${selectedMonth}.csv`);
+    } catch (error) {
+      console.error("❌ Download error:", error);
+      alert("ไม่สามารถดาวน์โหลดไฟล์ได้");
+    }
+  };
 
 
   // ✅ Request Overview (รวม)
@@ -176,8 +176,8 @@ const handleDownloadCsv = async () => {
                                 room.status === 0
                                   ? "#22c55e"
                                   : room.status === 1
-                                  ? "#ef4444"
-                                  : "#facc15",
+                                    ? "#ef4444"
+                                    : "#facc15",
                               transition:
                                 "transform 0.15s ease, box-shadow 0.15s",
                               transform:
@@ -236,42 +236,44 @@ const handleDownloadCsv = async () => {
                               return (
                                 <div className="row">
                                   {/* 💧 Water Chart */}
-<div className="col-12 col-md-6 mb-4">
-  <div className="card border-0 shadow-sm rounded-3 h-100">
-    <div className="card-body">
-      <h6 className="card-title text-info fw-semibold">
-        Water Usage (m³)
-      </h6>
-      <LineChart
-        title=""
-        categories={categories}
-        series={[waterSeries]}
-        colors={["#3b82f6"]} // 💧 สีน้ำฟ้า
-        yTitle="Water (m³)"
-        csvCategoryName="Month"
-      />
-    </div>
-  </div>
-</div>
+                                  <div className="col-12 col-md-6 mb-4">
+                                    <div className="card border-0 shadow-sm rounded-3 h-100">
+                                      <div className="card-body">
+                                        <h6 className="card-title text-info fw-semibold">
+                                          Water Usage
+                                        </h6>
+                                        <LineChart
+                                          title=""
+                                          categories={categories}
+                                          series={[waterSeries]}
+                                          colors={["#3b82f6"]}
+                                          yTitle="Water Unit"
+                                          csvCategoryName="Month"
+                                          fileName={`Water_Usage_Room_${visibleRoom}`}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
 
-{/* ⚡ Electricity Chart */}
-<div className="col-12 col-md-6 mb-4">
-  <div className="card border-0 shadow-sm rounded-3 h-100">
-    <div className="card-body">
-      <h6 className="card-title text-warning fw-semibold">
-        Electricity Usage (kWh)
-      </h6>
-      <LineChart
-        title=""
-        categories={categories}
-        series={[electricSeries]}
-        colors={["#facc15"]} // ⚡ สีเหลือง
-        yTitle="Electricity (kWh)"
-        csvCategoryName="Month"
-      />
-    </div>
-  </div>
-</div>
+                                  {/* ⚡ Electricity Chart */}
+                                  <div className="col-12 col-md-6 mb-4">
+                                    <div className="card border-0 shadow-sm rounded-3 h-100">
+                                      <div className="card-body">
+                                        <h6 className="card-title text-warning fw-semibold">
+                                          Electricity Usage
+                                        </h6>
+                                        <LineChart
+                                          title=""
+                                          categories={categories}
+                                          series={[electricSeries]}
+                                          colors={["#facc15"]}
+                                          yTitle="Electricity Unit"
+                                          csvCategoryName="Month"
+                                          fileName={`Electricity_Usage_Room_${visibleRoom}`}
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
 
                                 </div>
                               );
@@ -327,6 +329,7 @@ const handleDownloadCsv = async () => {
                   title="Maintenance Requests"
                   categories={maintainCategories}
                   series={maintainSeries}
+                  fileName={`Maintenance_request_6_month`}
                 />
               </div>
             </div>

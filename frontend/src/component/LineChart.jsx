@@ -6,9 +6,12 @@ const LineChart = ({
   title = "Line Chart",
   categories = [],
   series = [],
-  colors = [], // ✅ เพิ่ม prop สำหรับรับสีเส้น
+  colors = [],
   categoryLabel = "Month",
+  fileName = "Chart",
 }) => {
+  const safeFileName = fileName.replace(/\s+/g, "_");
+
   const options = {
     chart: {
       type: "line",
@@ -19,16 +22,16 @@ const LineChart = ({
         tools: { download: true },
         export: {
           csv: {
-            filename: title.replace(/\s+/g, "_"),
+            filename: safeFileName,
             headerCategory: categoryLabel,
             headerValue: "Value",
           },
-          svg: { filename: title.replace(/\s+/g, "_") },
-          png: { filename: title.replace(/\s+/g, "_") },
+          svg: { filename: safeFileName },
+          png: { filename: safeFileName },
         },
       },
     },
-    colors: colors.length > 0 ? colors : undefined, // ✅ ใช้สีที่ส่งมา หรือ default ถ้าไม่มี
+    colors: colors.length > 0 ? colors : undefined,
     dataLabels: { enabled: false },
     stroke: { curve: "smooth", width: 3 },
     grid: {
@@ -40,7 +43,7 @@ const LineChart = ({
     },
     yaxis: {
       labels: {
-        formatter: (value) => (Number.isInteger(value) ? value : ""), // ✅ แสดงเฉพาะจำนวนเต็ม
+        formatter: (value) => (Number.isInteger(value) ? value : ""),
       },
       tickAmount: 5,
       min: 0,
