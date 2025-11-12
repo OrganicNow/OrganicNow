@@ -17,6 +17,20 @@ function TenantManagement() {
 
   // 📦 Pagination & Data
   const [data, setData] = useState([]);
+
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.innerHTML = `
+      .swal2-container {
+        z-index: 20000 !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(defaultPageSize);
   const [totalPages, setTotalPages] = useState(0);
@@ -293,9 +307,12 @@ function TenantManagement() {
       document.body.appendChild(link);
       link.click();
       link.remove();
+
+      // ✅ SweetAlert แจ้งผล
+      showMessageSave("✅ ดาวน์โหลดสัญญาที่ยังไม่เซ็นเรียบร้อยแล้ว!");
     } catch (err) {
       console.error("Error downloading unsigned PDF:", err);
-      showError("❌ ไม่สามารถดาวน์โหลดสัญญาที่ยังไม่เซ็นได้");
+      showMessageError("❌ ไม่สามารถดาวน์โหลดสัญญาที่ยังไม่เซ็นได้");
     }
   };
 
@@ -316,19 +333,23 @@ function TenantManagement() {
       document.body.appendChild(link);
       link.click();
       link.remove();
+
+      // ✅ SweetAlert แจ้งผล
+      showMessageSave("✅ ดาวน์โหลดสัญญาที่เซ็นเรียบร้อยแล้ว!");
     } catch (err) {
       if (err.response && err.response.status === 404) {
-        showWarning("⚠️ ยังไม่มีไฟล์สัญญาที่เซ็นแล้วในระบบ");
+        showMessageError("⚠️ ยังไม่มีไฟล์สัญญาที่เซ็นแล้วในระบบ");
       } else {
         console.error("Error downloading signed PDF:", err);
-        showError("❌ ไม่สามารถดาวน์โหลดสัญญาที่เซ็นแล้วได้");
+        showMessageError("❌ ไม่สามารถดาวน์โหลดสัญญาที่เซ็นแล้วได้");
       }
     }
   };
+
   // ⬆️ อัปโหลดไฟล์สัญญาที่เซ็นแล้ว
   const handleUploadSignedPdf = async (contractId, file) => {
     if (!file) {
-      showWarning("⚠️ กรุณาเลือกไฟล์ก่อนอัปโหลด");
+      showMessageError("⚠️ กรุณาเลือกไฟล์ก่อนอัปโหลด");
       return;
     }
 
@@ -341,14 +362,37 @@ function TenantManagement() {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      showSuccess("✅ อัปโหลดไฟล์เซ็นแล้วสำเร็จ!");
+      // ✅ แจ้งเตือน SweetAlert อยู่บนสุด
+      showMessageSave("✅ อัปโหลดไฟล์เซ็นแล้วสำเร็จ!");
+
+      // ✅ รีเซ็ตช่องเลือกไฟล์ (ให้เลือกไฟล์ใหม่ได้ทันที)
+      const input = document.querySelector(
+        'input[type="file"][accept="application/pdf"]'
+      );
+      if (input) input.value = "";
+
+      // ✅ อัปเดตสถานะให้ปุ่ม “Download Signed PDF” ใช้งานได้ทันที
       setHasSignedPdf(true);
+
+      // ✅ ดึงข้อมูลสัญญาใหม่จาก backend เพื่อรีเฟรช flag
+      const res = await axios.get(
+        `${apiPath}/tenant/${contractId}/pdf/signed`,
+        {
+          responseType: "arraybuffer",
+          withCredentials: true,
+        }
+      );
+      if (res.status === 200) {
+        setHasSignedPdf(true);
+      }
+
+      // ✅ อัปเดตตาราง tenant ด้านล่างให้ทันสมัย
+      await fetchData(currentPage);
     } catch (err) {
       console.error("Error uploading signed PDF:", err);
-      showError("❌ ไม่สามารถอัปโหลดไฟล์ได้");
+      showMessageError("❌ ไม่สามารถอัปโหลดไฟล์ได้");
     }
   };
-
   // 🧾 Create Tenant
   const handleSaveCreate = async () => {
     try {
