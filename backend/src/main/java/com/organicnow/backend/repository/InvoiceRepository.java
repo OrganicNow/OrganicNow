@@ -95,19 +95,28 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     @Query(value = """
     SELECT 
         r.room_number,
-        COALESCE(CONCAT(t.first_name, ' ', t.last_name), 'ว่าง') AS tenant_name,
-        ct.contract_name AS package_name,  -- ✅ ดึงชื่อแพ็กเกจจาก contract_type
-        i.requested_water_unit,
-        i.requested_electricity_unit
-    FROM invoice i
-    INNER JOIN contract c ON i.contract_id = c.contract_id
-    INNER JOIN room r ON c.room_id = r.room_id
-    LEFT JOIN tenant t ON c.tenant_id = t.tenant_id
-    LEFT JOIN package_plan pp ON c.package_id = pp.package_id
-    LEFT JOIN contract_type ct ON pp.contract_type_id = ct.contract_type_id   -- ✅ join เพิ่ม
-    WHERE TO_CHAR(i.create_date, 'YYYY-MM') = :yearMonth
+        COALESCE(NULLIF(TRIM(CONCAT_WS(' ', t.first_name, t.last_name)), ''), 'ว่าง') AS tenant_name,
+        COALESCE(ct.contract_name, '-') AS package_name,
+        COALESCE(i.requested_water_unit, 0) AS water_unit,
+        COALESCE(i.requested_electricity_unit, 0) AS electricity_unit
+    FROM room r
+    LEFT JOIN contract c 
+        ON c.room_id = r.room_id 
+        AND (c.end_date IS NULL OR c.end_date >= CURRENT_DATE)
+    LEFT JOIN tenant t 
+        ON c.tenant_id = t.tenant_id
+    LEFT JOIN package_plan pp 
+        ON c.package_id = pp.package_id
+    LEFT JOIN contract_type ct 
+        ON pp.contract_type_id = ct.contract_type_id
+    LEFT JOIN invoice i 
+        ON i.contract_id = c.contract_id 
+        AND TO_CHAR(i.create_date, 'YYYY-MM') = :yearMonth
+    ORDER BY r.room_number
 """, nativeQuery = true)
     List<Object[]> findUsageByMonth(@Param("yearMonth") String yearMonth);
+
+
 
 
 }
