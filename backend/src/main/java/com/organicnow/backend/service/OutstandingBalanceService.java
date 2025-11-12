@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Service สำหรับจัดการยอดค้างชำระ (Outstanding Balance)
@@ -20,14 +21,20 @@ public class OutstandingBalanceService {
     private final InvoiceRepository invoiceRepository;
     private final PaymentRecordRepository paymentRecordRepository;
     private final ContractRepository contractRepository;
+    private final AssetRepository assetRepository;
+    private final RoomRepository roomRepository;
 
     public OutstandingBalanceService(
             InvoiceRepository invoiceRepository,
             PaymentRecordRepository paymentRecordRepository,
-            ContractRepository contractRepository) {
+            ContractRepository contractRepository,
+            AssetRepository assetRepository,
+            RoomRepository roomRepository) {
         this.invoiceRepository = invoiceRepository;
         this.paymentRecordRepository = paymentRecordRepository;
         this.contractRepository = contractRepository;
+        this.assetRepository = assetRepository;
+        this.roomRepository = roomRepository;
     }
 
     /**
@@ -49,19 +56,30 @@ public class OutstandingBalanceService {
             int receivedAmount = totalReceived != null ? totalReceived.intValue() : 0;
             System.out.println("💰 Invoice ID: " + invoice.getId() + " - Received Amount: " + receivedAmount + " บาท");
             
-            // 🔧 คำนวณ subTotal จริงจากส่วนประกอบเหมือนใน convertToDto
+            // 🔧 คำนวณ subTotal จริงจากส่วนประกอบเหมือนใน convertToDto + addon
             int rent = invoice.getRequestedRent() != null ? invoice.getRequestedRent() : 
                       (invoice.getContact() != null && invoice.getContact().getRentAmountSnapshot() != null ? 
                        invoice.getContact().getRentAmountSnapshot().intValue() : 0);
             int water = invoice.getRequestedWater() != null ? invoice.getRequestedWater() : 0;
             int electricity = invoice.getRequestedElectricity() != null ? invoice.getRequestedElectricity() : 0;
-            int subTotal = rent + water + electricity; // คำนวณจากส่วนประกอบจริง
+            
+            // 🔥 เพิ่ม addon fee ในการคำนวณ Outstanding Balance
+            int addonFee = calculateMonthlyAddonFeeForRoom(
+                invoice.getRequestedFloor() != null ? String.valueOf(invoice.getRequestedFloor()) : null, 
+                invoice.getRequestedRoom());
+            
+            int subTotal = rent + water + electricity + addonFee; // ✅ รวม addon ด้วย
             int penaltyTotal = invoice.getPenaltyTotal() != null ? invoice.getPenaltyTotal() : 0;
             int actualNetAmount = subTotal + penaltyTotal; // คำนวณใหม่
             int remaining = actualNetAmount - receivedAmount;
             
+            System.out.println("🔥 OutstandingBalance Calculation for Invoice #" + invoice.getId() + ":");
+            System.out.println("  - Rent: " + rent + ", Water: " + water + ", Electricity: " + electricity + ", Addon: " + addonFee);
+            System.out.println("  - SubTotal: " + subTotal + ", Penalty: " + penaltyTotal + ", ActualNet: " + actualNetAmount);
+            System.out.println("  - Received: " + receivedAmount + ", Remaining: " + remaining);
+            
             System.out.println("📊 Invoice ID: " + invoice.getId() + 
-                             " - Rent: " + rent + ", Water: " + water + ", Electricity: " + electricity +
+                             " - Rent: " + rent + ", Water: " + water + ", Electricity: " + electricity + ", Addon: " + addonFee +
                              " - SubTotal: " + subTotal + ", Penalty: " + penaltyTotal + 
                              ", ActualNet: " + actualNetAmount + ", Received: " + receivedAmount + 
                              ", Remaining: " + remaining + " บาท");
@@ -219,5 +237,57 @@ public class OutstandingBalanceService {
         public int getTotalPenalty() { return totalPenalty; }
         public int getOverdueCount() { return overdueCount; }
         public int getTotalInvoices() { return totalInvoices; }
+    }
+
+    /**
+     * คำนวณ Monthly Addon Fee สำหรับห้องที่ระบุ
+     * @param floor หมายเลขชั้น
+     * @param room หมายเลขห้อง
+     * @return จำนวนเงิน addon fee หรือ 0 ถ้าไม่มี
+     */
+    private int calculateMonthlyAddonFeeForRoom(String floor, String room) {
+        try {
+            if (floor == null || room == null) {
+                return 0;
+            }
+            
+            // Convert floor string to integer
+            Integer floorInt;
+            try {
+                floorInt = Integer.parseInt(floor);
+            } catch (NumberFormatException e) {
+                System.err.println("⚠️ Invalid floor number: " + floor);
+                return 0;
+            }
+            
+            // หาข้อมูล Room ก่อน
+            Optional<Room> roomOpt = roomRepository.findByRoomFloorAndRoomNumber(floorInt, room);
+            if (!roomOpt.isPresent()) {
+                System.out.println("🔍 OutstandingBalance - Room not found: " + floor + "-" + room);
+                return 0;
+            }
+            
+            Long roomId = roomOpt.get().getId();
+            System.out.println("🔍 OutstandingBalance - Found room ID: " + roomId + " for " + floor + "-" + room);
+            
+            // ใช้ AssetRepository หา addon fee สำหรับห้องนี้
+            List<Object[]> results = assetRepository.findMonthlyAddonFeeByRoomId(roomId);
+            System.out.println("🔍 OutstandingBalance - Query results count: " + results.size());
+            
+            int totalAddonFee = 0;
+            for (Object[] result : results) {
+                BigDecimal fee = (BigDecimal) result[0];
+                if (fee != null) {
+                    totalAddonFee += fee.intValue();
+                    System.out.println("🔍 OutstandingBalance - Found addon fee: " + fee + ", total so far: " + totalAddonFee);
+                }
+            }
+            
+            System.out.println("🔍 OutstandingBalance - Final addon total for room " + floor + "-" + room + ": " + totalAddonFee);
+            return totalAddonFee;
+        } catch (Exception e) {
+            System.err.println("⚠️ Error calculating addon fee for Floor " + floor + " Room " + room + ": " + e.getMessage());
+            return 0;
+        }
     }
 }

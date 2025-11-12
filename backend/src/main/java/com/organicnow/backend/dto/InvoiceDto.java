@@ -56,6 +56,7 @@ public class InvoiceDto {
     private Integer waterUnit;
     private Integer electricity; // จาก invoice items
     private Integer electricityUnit;
+    private Integer addonAmount; // 🔥 Add-on fee จาก Asset Group monthly addon
     private Integer penalty; // จาก penaltyTotal > 0 ? 1 : 0
     private LocalDateTime penaltyDate; // จาก penaltyAppliedAt
 

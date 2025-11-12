@@ -148,6 +148,9 @@ function MaintenanceDetails() {
 
   // ------- ฟอร์มใน Modal (สไตล์เดิม) -------
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [workImageUrl, setWorkImageUrl] = useState("");
   const [form, setForm] = useState({
     target: "asset", // "asset" or "building"
     issueTitle: "",
@@ -162,7 +165,40 @@ function MaintenanceDetails() {
     state: "Not Started", // ✅ เพิ่ม state field
   });
 
-  // ✅ Issue options for Asset target
+  // ✅ Assets for room (dynamic loading)
+  const [assets, setAssets] = useState([]);
+  const [loadingAssets, setLoadingAssets] = useState(false);
+
+  const fetchAssets = async (roomId) => {
+    if (!roomId) {
+      console.log("❌ fetchAssets (Details): No roomId provided");
+      setAssets([]);
+      return;
+    }
+    
+    try {
+      console.log("🔍 fetchAssets (Details): Fetching assets for roomId:", roomId);
+      setLoadingAssets(true);
+      const res = await fetch(`${API_BASE}/assets/${roomId}`, {
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      console.log("📡 fetchAssets (Details): Response status:", res.status);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json(); // ApiResponse<List<AssetDto>>
+      console.log("✅ fetchAssets (Details): Full response:", json);
+      console.log("✅ fetchAssets (Details): Response.result:", json.result);
+      console.log("✅ fetchAssets (Details): Assets array length:", (json.result || []).length);
+      setAssets(json.result || []); // ✅ ใช้ json.result แทน json.data
+    } catch (e) {
+      console.error("❌ fetchAssets (Details): Failed to fetch assets:", e);
+      setAssets([]);
+    } finally {
+      setLoadingAssets(false);
+    }
+  };
+
+  // ✅ Issue options for Asset target (ตอนนี้เป็น hardcoded แต่จะเปลี่ยนเป็น dynamic)
   const assetIssueOptions = [
     { value: 0, label: "แอร์" },
     { value: 1, label: "ไฟ" },
@@ -179,8 +215,156 @@ function MaintenanceDetails() {
     { value: "maintenance", label: "Maintenance" }
   ];
 
+  // ✅ ฟังก์ชันจัดการอัพโหลดรูปภาพ
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    // ตรวจสอบประเภทไฟล์
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      showMessageError("กรุณาเลือกไฟล์รูปภาพ (JPEG, PNG, GIF)");
+      return;
+    }
+
+    // ตรวจสอบขนาดไฟล์ (ไม่เกิน 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      showMessageError("ขนาดไฟล์ต้องไม่เกิน 5MB");
+      return;
+    }
+
+    setSelectedImage(file);
+  };
+
+  const uploadImage = async () => {
+    if (!selectedImage || !maintainId) {
+      showMessageError("กรุณาเลือกรูปภาพก่อน");
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      
+      const formData = new FormData();
+      formData.append('file', selectedImage);
+      
+      const res = await fetch(`${API_BASE}/maintain/${maintainId}/work-image`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || `HTTP ${res.status}`);
+      }
+      
+      const result = await res.json();
+      
+      // อัพเดต state ด้วย URL ที่ได้
+      setWorkImageUrl(result.url);
+      setSelectedImage(null);
+      showMessageSave("อัพโหลดรูปภาพสำเร็จ");
+      
+    } catch (e) {
+      console.error("Upload error:", e);
+      showMessageError(`อัพโหลดล้มเหลว: ${e.message}`);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    setWorkImageUrl("");
+  };
+
+  // ✅ ฟังก์ชัน cleanup modal backdrop
+  const cleanupBackdrops = () => {
+    console.log("🧹 Starting modal cleanup...");
+    
+    // ✅ Force remove all modal backdrops
+    const backdrops = document.querySelectorAll(".modal-backdrop, .modal-backdrop.fade, .modal-backdrop.show");
+    backdrops.forEach((backdrop, index) => {
+      console.log(`Removing backdrop ${index + 1}:`, backdrop);
+      backdrop.remove();
+    });
+    
+    // ✅ Force reset body styles
+    document.body.classList.remove("modal-open");
+    document.body.style.overflow = "";
+    document.body.style.paddingRight = "";
+    document.body.style.removeProperty("padding-right");
+    document.body.style.removeProperty("overflow");
+    
+    // ✅ Reset html styles
+    document.documentElement.style.overflow = "";
+    document.documentElement.style.removeProperty("overflow");
+    
+    // ✅ Force hide any open modals
+    const modals = document.querySelectorAll(".modal.show, .modal.fade.show");
+    modals.forEach((modal, index) => {
+      console.log(`Force hiding modal ${index + 1}:`, modal);
+      modal.style.display = "none";
+      modal.classList.remove("show");
+      modal.setAttribute("aria-hidden", "true");
+      modal.removeAttribute("aria-modal");
+      modal.removeAttribute("role");
+    });
+    
+    console.log("✅ Modal cleanup completed");
+  };
+
+  const handleOpenEditModal = () => {
+    console.log("🎯 Opening edit modal...");
+    
+    // ✅ Cleanup ก่อนเปิด modal ใหม่เพื่อป้องกัน conflict
+    cleanupBackdrops();
+    
+    // ✅ รีเซ็ต form เมื่อเปิด modal
+    if (data) {
+      const targetType = data.targetType === 0 ? "asset" : "building";
+      setForm({
+        target: targetType,
+        issueTitle: data.issueTitle ?? "",
+        issueCategory: data.issueCategory ?? 0,
+        issueDescription: data.issueDescription ?? "",
+        requestDate: toDate(data.createDate) || "",
+        maintainDate: toDate(data.scheduledDate) || "",
+        completeDate: toDate(data.finishDate) || "",
+        maintainType: data.maintainType ?? "fix",
+        technician: data.technicianName ?? "",
+        phone: data.technicianPhone ?? "",
+        state: data.finishDate ? "Complete" : (data.scheduledDate ? "In Progress" : "Not Started"),
+      });
+      
+      // ✅ Fetch assets if target is "asset"
+      if (targetType === "asset" && data.roomId) {
+        console.log("🎯 Modal opened with asset target, fetching assets for roomId:", data.roomId);
+        fetchAssets(data.roomId);
+      }
+    }
+    
+    // ✅ รอ cleanup เสร็จแล้วค่อยเปิด modal
+    setTimeout(() => {
+      const modalElement = document.getElementById("editMaintainModal");
+      if (modalElement) {
+        const modal = new bootstrap.Modal(modalElement, {
+          backdrop: 'static',
+          keyboard: false
+        });
+        modal.show();
+        console.log("✅ Edit modal opened");
+      }
+    }, 50);
+  };
+
   useEffect(() => {
+    cleanupBackdrops(); // ✅ Cleanup เมื่อ component mount
     if (!data) return;
+    
+    // ✅ Set form data
     setForm({
       target: data.targetType === 0 ? "asset" : "building",
       issueTitle: data.issueTitle ?? "",
@@ -194,7 +378,19 @@ function MaintenanceDetails() {
       phone: data.technicianPhone || "",        // ✅ ดึงจาก backend
       state: data.finishDate ? "Complete" : (data.scheduledDate ? "In Progress" : "Not Started"), // ✅ กำหนด state ตาม data
     });
+    
+    // ✅ Set work image URL
+    if (data.workImageUrl) {
+      setWorkImageUrl(data.workImageUrl);
+    }
   }, [data]);
+
+  // ✅ Cleanup เมื่อ component unmount
+  useEffect(() => {
+    return () => {
+      cleanupBackdrops();
+    };
+  }, []);
 
   const onChange = (e) => {
     const { name, value } = e.target;
@@ -207,6 +403,14 @@ function MaintenanceDetails() {
       if (name === "target") {
         newForm.issueTitle = "";
         newForm.issueCategory = 0;
+        // ✅ Fetch assets when target changes to "asset"
+        if (value === "asset" && data?.roomId) {
+          console.log("🎯 Target changed to asset, fetching assets for roomId:", data.roomId);
+          fetchAssets(data.roomId);
+        } else if (value === "building") {
+          console.log("🏢 Target changed to building, clearing assets");
+          setAssets([]);
+        }
       }
       
       // ✅ Auto-set completeDate when state changes to Complete
@@ -258,6 +462,7 @@ function MaintenanceDetails() {
         maintainType: form.maintainType,
         technicianName: form.technician,
         technicianPhone: form.phone,
+        workImageUrl: workImageUrl, // ✅ ส่ง URL รูปภาพ
       };
 
       const res = await fetch(`${API_BASE}/maintain/update/${maintainId}`, {
@@ -285,7 +490,7 @@ function MaintenanceDetails() {
         showMessageSave();
       }
 
-      // ✅ ปิด modal อย่างสมบูรณ์
+      // ✅ ปิด modal อย่างสมบูรณ์พร้อม cleanup
       const modalElement = document.getElementById("editMaintainModal");
       if (modalElement) {
         const modalInstance = bootstrap.Modal.getInstance(modalElement);
@@ -293,25 +498,9 @@ function MaintenanceDetails() {
           modalInstance.hide();
         }
         
-        // ✅ Force ลบ modal backdrop และ class
+        // ✅ ทำ cleanup ทันทีหลังปิด modal
         setTimeout(() => {
-          // ลบ backdrop
-          const backdrop = document.querySelector('.modal-backdrop');
-          if (backdrop) {
-            backdrop.remove();
-          }
-          
-          // ลบ class จาก body
-          document.body.classList.remove('modal-open');
-          document.body.style.overflow = '';
-          document.body.style.paddingRight = '';
-          
-          // รีเซ็ต modal
-          modalElement.classList.remove('show');
-          modalElement.style.display = 'none';
-          modalElement.setAttribute('aria-hidden', 'true');
-          modalElement.removeAttribute('aria-modal');
-          modalElement.removeAttribute('role');
+          cleanupBackdrops();
         }, 150);
       }
       
@@ -443,7 +632,7 @@ function MaintenanceDetails() {
   };
 
   return (
-    <Layout title="Maintenance Request" icon="bi bi-wrench" notifications={0}>
+    <Layout title="Maintenance Details" icon="bi bi-wrench" notifications={0}>
       <div className="container-fluid">
         <div className="row min-vh-100">
           <div className="col-lg-11 p-4">
@@ -493,27 +682,8 @@ function MaintenanceDetails() {
                     <button
                       type="button"
                       className="btn btn-primary"
-                      data-bs-toggle="modal"
-                      data-bs-target="#editMaintainModal"
+                      onClick={handleOpenEditModal}
                       disabled={!data}
-                      onClick={() => {
-                        // ✅ รีเซ็ต form เมื่อเปิด modal
-                        if (data) {
-                          setForm({
-                            target: data.targetType === 0 ? "asset" : "building",
-                            issueTitle: data.issueTitle ?? "",
-                            issueCategory: data.issueCategory ?? 0,
-                            issueDescription: data.issueDescription ?? "",
-                            requestDate: toDate(data.createDate) || "",
-                            maintainDate: toDate(data.scheduledDate) || "",
-                            completeDate: toDate(data.finishDate) || "",
-                            maintainType: data.maintainType ?? "fix",
-                            technician: data.technicianName ?? "",
-                            phone: data.technicianPhone ?? "",
-                            state: data.finishDate ? "Complete" : (data.scheduledDate ? "In Progress" : "Not Started"), // ✅ กำหนด state
-                          });
-                        }
-                      }}
                     >
                       <i className="bi bi-pencil me-1"></i> Edit Request
                     </button>
@@ -699,6 +869,27 @@ function MaintenanceDetails() {
                             <span className="label">Phone Number:</span>{" "}
                             <span className="value">{data.technicianPhone || "-"}</span>
                           </p>
+                          {workImageUrl && (
+                            <div>
+                              <span className="label">Work Evidence:</span>
+                              <div className="mt-2">
+                                <img
+                                  src={`${API_BASE}${workImageUrl}`}
+                                  alt="Work Evidence"
+                                  className="img-thumbnail"
+                                  style={{ maxWidth: "200px", maxHeight: "150px", cursor: "pointer" }}
+                                  onClick={() => {
+                                    // เปิดรูปในแท็บใหม่
+                                    window.open(`${API_BASE}${workImageUrl}`, '_blank');
+                                  }}
+                                />
+                                <div className="small text-muted mt-1">
+                                  <i className="bi bi-camera me-1"></i>
+                                  Click on picture for watch full picture
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -764,15 +955,23 @@ function MaintenanceDetails() {
                     {form.target === "asset" ? (
                       <select
                         className="form-select"
-                        name="issueCategory"
-                        value={form.issueCategory}
+                        name="issueTitle"
+                        value={form.issueTitle}
                         onChange={onChange}
+                        disabled={loadingAssets}
                         required
                       >
-                        <option value={0}>เลือกประเภทปัญหา</option>
-                        {assetIssueOptions.map(option => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
+                        <option value="">
+                          {loadingAssets 
+                            ? "Loading assets..." 
+                            : assets.length === 0 
+                              ? "No assets in this room"
+                              : "Select asset"
+                          }
+                        </option>
+                        {assets.map((asset) => (
+                          <option key={asset.assetId} value={asset.assetName}>
+                            {asset.assetName} ({asset.assetGroupName})
                           </option>
                         ))}
                       </select>
@@ -880,6 +1079,68 @@ function MaintenanceDetails() {
                       onChange={onChange}
                       placeholder="Add Phone Number"
                     />
+                  </div>
+                  
+                  <div className="col-md-12">
+                    <label className="form-label">Work Evidence Photo</label>
+                    <div className="border rounded p-3">
+                      {/* Current Image Display */}
+                      {workImageUrl && (
+                        <div className="mb-3">
+                          <label className="small text-muted">Current Image:</label>
+                          <div className="position-relative d-inline-block">
+                            <img
+                              src={`${API_BASE}${workImageUrl}`}
+                              alt="Current Work Evidence"
+                              className="img-thumbnail me-2"
+                              style={{ maxWidth: "120px", maxHeight: "90px" }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-sm position-absolute top-0 end-0"
+                              style={{ transform: "translate(50%, -50%)" }}
+                              onClick={removeImage}
+                              title="Remove image"
+                            >
+                              <i className="bi bi-x"></i>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* File Input */}
+                      <div className="input-group">
+                        <input
+                          type="file"
+                          className="form-control"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          disabled={uploadingImage}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary"
+                          onClick={uploadImage}
+                          disabled={!selectedImage || uploadingImage || !maintainId}
+                        >
+                          {uploadingImage ? (
+                            <>
+                              <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                              Uploading...
+                            </>
+                          ) : (
+                            <>
+                              <i className="bi bi-cloud-upload me-1"></i>
+                              Upload
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <div className="form-text">
+                        <i className="bi bi-info-circle me-1"></i>
+                        Supported formats: JPEG, PNG, GIF. Max size: 5MB
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

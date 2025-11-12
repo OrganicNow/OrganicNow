@@ -105,6 +105,7 @@ public class MaintainServiceImpl implements MaintainService {
         if (req.getMaintainType() != null)       m.setMaintainType(req.getMaintainType());
         if (req.getTechnicianName() != null)     m.setTechnicianName(req.getTechnicianName());
         if (req.getTechnicianPhone() != null)    m.setTechnicianPhone(req.getTechnicianPhone());
+        if (req.getWorkImageUrl() != null)       m.setWorkImageUrl(req.getWorkImageUrl());
 
         return toDto(maintainRepository.save(m));
     }
@@ -162,6 +163,7 @@ public class MaintainServiceImpl implements MaintainService {
                 .maintainType(m.getMaintainType())
                 .technicianName(m.getTechnicianName())
                 .technicianPhone(m.getTechnicianPhone())
+                .workImageUrl(m.getWorkImageUrl())
                 .build();
     }
 

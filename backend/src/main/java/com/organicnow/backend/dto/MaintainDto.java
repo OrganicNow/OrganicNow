@@ -23,6 +23,7 @@ public class MaintainDto {
     private String maintainType;        // ประเภทการซ่อม
     private String technicianName;      // ชื่อช่าง
     private String technicianPhone;     // เบอร์โทรช่าง
+    private String workImageUrl;        // URL รูปภาพหลักฐานการทำงาน
 
     // ช่วยแปลงสถานะไว้ใช้บน UI
     public String getState() {

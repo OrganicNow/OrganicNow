@@ -24,4 +24,5 @@ public class UpdateMaintainRequest {
     private String maintainType;         // nullable - ประเภทการซ่อม
     private String technicianName;       // nullable - ชื่อช่าง
     private String technicianPhone;      // nullable - เบอร์โทรช่าง
+    private String workImageUrl;         // nullable - URL รูปภาพหลักฐานการทำงาน
 }

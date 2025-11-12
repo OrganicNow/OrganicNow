@@ -38,6 +38,25 @@ CREATE TABLE IF NOT EXISTS notifications (
                                              FOREIGN KEY (maintenance_schedule_id) REFERENCES maintenance_schedule(schedule_id) ON DELETE SET NULL
 );
 
+-- Create maintain table
+CREATE TABLE IF NOT EXISTS maintain (
+    maintain_id SERIAL PRIMARY KEY,
+    target_type INTEGER NOT NULL CHECK (target_type IN (0, 1)),
+    room_id BIGINT NOT NULL,
+    room_asset_id BIGINT,
+    issue_category INTEGER NOT NULL CHECK (issue_category >= 0 AND issue_category <= 5),
+    issue_title VARCHAR(200) NOT NULL,
+    issue_description TEXT,
+    create_date TIMESTAMP NOT NULL,
+    scheduled_date TIMESTAMP,
+    finish_date TIMESTAMP,
+    maintain_type VARCHAR(50),
+    technician_name VARCHAR(100),
+    technician_phone VARCHAR(20),
+    work_image_url VARCHAR(500),
+    FOREIGN KEY (room_id) REFERENCES room(room_id) ON DELETE CASCADE
+);
+
 TRUNCATE TABLE room RESTART IDENTITY;
 
 -- Insert sample asset groups

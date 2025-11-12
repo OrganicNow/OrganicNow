@@ -169,12 +169,17 @@ WHERE asset_id NOT IN (SELECT asset_id FROM room_asset)
   AND status <> 'deleted';
 
 -- ========================
--- Maintain
+-- Maintain (3 รายการตัวอย่างที่ตรงกับระบบใหม่)
 -- ========================
-INSERT INTO maintain (target_type, room_id, issue_category, issue_title, issue_description, create_date, scheduled_date, finish_date) VALUES
-                                                                                                                                          (0, 1, 1, 'Air conditioner - Fix', 'แอร์ไม่เย็น มีเสียงดัง', '2025-03-11', '2025-03-14 09:00:00', NULL),
-                                                                                                                                          (1, 2, 0, 'Wall - Fix', 'ผนังร้าวเล็กน้อย', '2025-02-28', '2025-02-28 10:00:00', '2025-02-28 16:00:00'),
-                                                                                                                                          (0, 15, 1, 'Light - Shift', 'ย้ายตำแหน่งโคมไฟ', '2025-02-28', '2025-02-28 13:00:00', '2025-02-28 15:00:00')
+INSERT INTO maintain (target_type, room_id, issue_category, issue_title, issue_description, create_date, scheduled_date, finish_date, maintain_type, technician_name, technician_phone) VALUES
+-- รายการ 1: Asset - bed-001 ในห้อง 101 (Somchai) - กำลังซ่อม
+(0, 1, 0, 'bed-001', 'เตียงหักขา ต้องซ่อมด่วน', '2025-11-10 09:00:00', '2025-11-14 14:00:00', NULL, 'fix', 'ช่างโจ', '0891234567'),
+
+-- รายการ 2: Building - ห้อง 102 (Suda) - เสร็จแล้ว  
+(1, 2, 0, 'Wall crack repair', 'ผนังห้องน้ำมีรอยร้าว ซ่อมเสร็จแล้ว', '2025-11-08 10:30:00', '2025-11-12 09:00:00', '2025-11-12 16:30:00', 'fix', 'ช่างดำ', '0892345678'),
+
+-- รายการ 3: Asset - chair-001 ในห้อง 103 (Anan) - รอซ่อม
+(0, 3, 0, 'chair-001', 'เก้าอี้หัก ต้องเปลี่ยนใหม่', '2025-11-12 14:15:00', NULL, NULL, 'replace', NULL, NULL)
     ON CONFLICT DO NOTHING;
 
 -- ========================
