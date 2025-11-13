@@ -184,26 +184,39 @@ function MaintenanceRequest() {
 
   // ------------- Toolbar: selection + search -------------
   const [selected, setSelected] = useState([]);
-  const isAllSelected = rows.length > 0 && selected.length === rows.length;
-
   const [search, setSearch] = useState("");
 
   const filteredRows = useMemo(() => {
     const kw = search.trim().toLowerCase();
-    const list = rows.filter((r) => {
+    return rows.filter((r) => {
       if (!kw) return true;
       return (
         r.room.toLowerCase().includes(kw) ||
         r.floor.toLowerCase().includes(kw) ||
         r.issue.toLowerCase().includes(kw) ||
         r.target.toLowerCase().includes(kw) ||
-        r.state.toLowerCase().includes(kw)
+        r.state.toLowerCase().includes(kw) ||
+        (r.maintainType && r.maintainType.toLowerCase().includes(kw))
       );
     });
-    setTotalRecords(list.length);
-    setTotalPages(Math.max(1, Math.ceil(list.length / pageSize)));
-    return list;
-  }, [rows, search, pageSize]);
+  }, [rows, search]);
+
+  const isAllSelected = filteredRows.length > 0 && selected.length === filteredRows.length;
+  const isPartialSelected = selected.length > 0 && selected.length < filteredRows.length;
+
+  // Clear selection when search changes
+  useEffect(() => {
+    setSelected([]);
+  }, [search]);
+
+  // Update pagination when filtered data changes
+  useEffect(() => {
+    setTotalRecords(filteredRows.length);
+    setTotalPages(Math.max(1, Math.ceil(filteredRows.length / pageSize)));
+    if (currentPage > Math.ceil(filteredRows.length / pageSize)) {
+      setCurrentPage(1);
+    }
+  }, [filteredRows.length, pageSize, currentPage]);
 
   const pageStart = (currentPage - 1) * pageSize;
   const pageRows = filteredRows.slice(pageStart, pageStart + pageSize);
@@ -213,7 +226,7 @@ function MaintenanceRequest() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   const toggleAll = () =>
-    setSelected((prev) => (prev.length === rows.length ? [] : rows.map((r) => r.id)));
+    setSelected((prev) => (prev.length === filteredRows.length ? [] : filteredRows.map((r) => r.id)));
 
   const removeRow = async (row) => {
     const result = await showMessageConfirmDelete(`request #${row.id}`);
@@ -226,9 +239,62 @@ function MaintenanceRequest() {
       });
       if (!res.ok) throw new Error(await res.text());
       await fetchData();
+      setSelected([]); // Clear selection after delete
       showMessageSave();
     } catch (e) {
       showMessageError(`ลบ Maintenance Request ไม่สำเร็จ: ${e.message}`);
+    }
+  };
+
+  // Bulk delete selected items
+  const handleBulkDelete = async () => {
+    if (selected.length === 0) return;
+    
+    const result = await showMessageConfirmDelete(`${selected.length} maintenance requests`);
+    if (!result.isConfirmed) return;
+    
+    try {
+      setSaving(true);
+      const deletePromises = selected.map(id => 
+        fetch(`${API_BASE}/maintain/${id}`, {
+          method: "DELETE",
+          credentials: "include",
+        })
+      );
+      
+      await Promise.all(deletePromises);
+      await fetchData();
+      setSelected([]);
+      showMessageSave(`ลบ ${selected.length} รายการสำเร็จ`);
+    } catch (e) {
+      showMessageError(`ลบรายการไม่สำเร็จ: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Bulk download PDFs
+  const handleBulkDownloadPdf = async () => {
+    if (selected.length === 0) return;
+    
+    try {
+      setSaving(true);
+      showMessageSave(`กำลังดาวน์โหลด ${selected.length} ไฟล์ PDF...`);
+      
+      for (const id of selected) {
+        const maintain = rows.find(r => r.id === id);
+        if (maintain) {
+          await handleDownloadPdf(maintain);
+          // เพิ่มช่วงเวลาหน่วงเพื่อไม่ให้เซิร์ฟเวอร์โหลดหนักเกินไป
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      
+      showMessageSave(`ดาวน์โหลด ${selected.length} ไฟล์ PDF สำเร็จ`);
+    } catch (e) {
+      showMessageError(`ดาวน์โหลด PDF ไม่สำเร็จ: ${e.message}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -486,6 +552,34 @@ function MaintenanceRequest() {
                       />
                     </div>
                   </div>
+
+                  {/* Bulk Actions - Center when items selected */}
+                  {selected.length > 0 && (
+                    <div className="d-flex align-items-center gap-2">
+                      <span className="badge bg-primary me-2">
+                        {selected.length} selected
+                      </span>
+                      <button
+                        className="btn btn-outline-danger btn-sm me-2"
+                        onClick={handleBulkDelete}
+                        disabled={saving}
+                        title="Delete selected"
+                      >
+                        <i className="bi bi-trash me-1" />
+                        Delete ({selected.length})
+                      </button>
+                      <button
+                        className="btn btn-outline-primary btn-sm"
+                        onClick={handleBulkDownloadPdf}
+                        disabled={saving}
+                        title="Download selected PDFs"
+                      >
+                        <i className="bi bi-file-earmark-pdf me-1" />
+                        Download PDFs ({selected.length})
+                      </button>
+                    </div>
+                  )}
+
                   <div className="d-flex align-items-center gap-2">
                     <button
                       type="button"
@@ -513,7 +607,10 @@ function MaintenanceRequest() {
                         <th className="text-center align-middle header-color">
                           <input 
                             type="checkbox" 
-                            checked={isAllSelected} 
+                            checked={isAllSelected}
+                            ref={(el) => {
+                              if (el) el.indeterminate = isPartialSelected;
+                            }}
                             onChange={toggleAll}
                             aria-label="Select all"
                           />

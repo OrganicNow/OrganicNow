@@ -25,8 +25,7 @@ export default function Topbar({ title = "", icon = "" }) {
     // แจ้งเตือนก่อน logout ด้วย SweetAlert2
     const result = await showMessageConfirmProcess("Are you sure you want to logout?");
     if (result.isConfirmed) {
-      logout();
-      navigate("/login", { replace: true });
+      logout('/dashboard'); // ส่ง parameter ให้ไปหน้า dashboard
     }
   };
 
