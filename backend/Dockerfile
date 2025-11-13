@@ -7,8 +7,8 @@ RUN mvn dependency:go-offline -B
 
 COPY src ./src
 # 👇 ตรงนี้เปลี่ยนเป็น maven.test.skip=true
-RUN mvn clean package -Dmaven.test.skip=true && ls -l /app/target
-#RUN mvn clean package -DskipTests && ls -l /app/target
+#RUN mvn clean package -Dmaven.test.skip=true && ls -l /app/target
+RUN mvn clean package -DskipTests && ls -l /app/target
 
 # Stage 2: Run JAR
 FROM eclipse-temurin:21-jdk-alpine
