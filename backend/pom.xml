@@ -141,6 +141,18 @@
     </dependencies>
 
     <build>
+
+        <!--  เพิ่มเฉพาะ block นี้  -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <includes>
+                    <include>fonts/**</include>
+                </includes>
+            </resource>
+        </resources>
+        <!--  จบ block ที่เพิ่ม  -->
+
         <plugins>
             <!-- Spring Boot Maven plugin -->
             <plugin>
@@ -224,21 +236,18 @@
                 </executions>
             </plugin>
 
-            <!-- JaCoCo: coverage + report + min -->
+            <!-- JaCoCo -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>0.8.11</version>
                 <executions>
-                    <!-- inject agent -->
                     <execution>
                         <id>prepare-agent</id>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
-
-                    <!-- report after test -->
                     <execution>
                         <id>report</id>
                         <phase>verify</phase>
@@ -246,8 +255,6 @@
                             <goal>report</goal>
                         </goals>
                     </execution>
-
-                    <!-- set min verify -->
                     <execution>
                         <id>check</id>
                         <phase>verify</phase>

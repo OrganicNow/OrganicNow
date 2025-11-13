@@ -225,10 +225,19 @@ public class TenantContractService {
             document.open();
 
             // ====== Fonts ======
-            String regularFontPath = this.getClass().getClassLoader().getResource("fonts/Sarabun-Regular.ttf").getPath();
-            String boldFontPath = this.getClass().getClassLoader().getResource("fonts/Sarabun-Bold.ttf").getPath();
-            BaseFont bfRegular = BaseFont.createFont(regularFontPath, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
-            BaseFont bfBold = BaseFont.createFont(boldFontPath, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+            BaseFont bfRegular = BaseFont.createFont(
+                    "fonts/Sarabun-Regular.ttf",
+                    BaseFont.IDENTITY_H,
+                    BaseFont.EMBEDDED,
+                    true
+            );
+
+            BaseFont bfBold = BaseFont.createFont(
+                    "fonts/Sarabun-Bold.ttf",
+                    BaseFont.IDENTITY_H,
+                    BaseFont.EMBEDDED,
+                    true
+            );
 
             Font titleFont = new Font(bfBold, 18, Font.BOLD, new Color(40, 40, 40));
             Font subTitleFont = new Font(bfRegular, 13, Font.NORMAL, new Color(80, 80, 80));
