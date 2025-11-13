@@ -19,13 +19,13 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        const savedUser = localStorage.getItem('user');
+        const savedUser = sessionStorage.getItem('user');
         if (savedUser) {
           const userData = JSON.parse(savedUser);
           
             // ตรวจสอบ session กับ server
             try {
-              const sessionToken = localStorage.getItem('sessionToken');
+              const sessionToken = sessionStorage.getItem('sessionToken');
               const headers = {
                 'Content-Type': 'application/json',
               };
@@ -45,15 +45,15 @@ export const AuthProvider = ({ children }) => {
                 setIsAuthenticated(true);
               } else {
                 // Session หมดอายุ
-                localStorage.removeItem('user');
-                localStorage.removeItem('sessionToken');
+                sessionStorage.removeItem('user');
+                sessionStorage.removeItem('sessionToken');
                 setUser(null);
                 setIsAuthenticated(false);
               }
             } else {
               // Server error หรือ session หมดอายุ
-              localStorage.removeItem('user');
-              localStorage.removeItem('sessionToken');
+              sessionStorage.removeItem('user');
+              sessionStorage.removeItem('sessionToken');
               setUser(null);
               setIsAuthenticated(false);
             }
@@ -66,7 +66,7 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (error) {
         console.error('Error checking auth status:', error);
-        localStorage.removeItem('user');
+        sessionStorage.removeItem('user');
       } finally {
         setIsLoading(false);
       }
@@ -91,10 +91,10 @@ export const AuthProvider = ({ children }) => {
       if (data.success) {
         setUser(data.data.admin);
         setIsAuthenticated(true);
-        localStorage.setItem('user', JSON.stringify(data.data.admin));
+        sessionStorage.setItem('user', JSON.stringify(data.data.admin));
         // เก็บ session token ด้วย
         if (data.data.token) {
-          localStorage.setItem('sessionToken', data.data.token);
+          sessionStorage.setItem('sessionToken', data.data.token);
         }
         return { success: true };
       } else {
@@ -105,7 +105,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = async () => {
+  const logout = async (navigateTo = '/dashboard') => {
     try {
       // เรียก logout API
       await fetch('http://localhost:8080/api/auth/logout', {
@@ -118,8 +118,13 @@ export const AuthProvider = ({ children }) => {
       // ล้างข้อมูล local state
       setUser(null);
       setIsAuthenticated(false);
-      localStorage.removeItem('user');
-      localStorage.removeItem('sessionToken');
+      sessionStorage.removeItem('user');
+      sessionStorage.removeItem('sessionToken');
+      
+      // Navigate ไปยังหน้าที่กำหนด
+      if (navigateTo && window.location.pathname !== navigateTo) {
+        window.location.href = navigateTo;
+      }
     }
   };
 

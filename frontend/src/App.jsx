@@ -70,13 +70,15 @@ function ProtectedRoute({ children, requiredPermission = 'admin' }) {
 }
 
 function AppRoutes() {
+  const { isAuthenticated, isLoading } = useAuth();
+  
   return (
     <Routes>
       {/* Login Route */}
       <Route path="/login" element={<Login />} />
       
-      {/* Protected Routes */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      {/* Default Route - Always redirect to login first */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
       
       <Route path="/dashboard" element={
         <ProtectedRoute>
