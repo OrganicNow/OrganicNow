@@ -24,21 +24,28 @@ public class PdfStyleService {
 
     /**
      * สร้าง BaseFont สำหรับภาษาไทย หรือ fallback เป็น default font
+     * ใช้วิธีเดียวกับ TenantContract ที่ทำงานได้ใน Docker
      */
     public static BaseFont[] createThaiBaseFonts() {
         try {
-            String regularFontPath = PdfStyleService.class.getClassLoader()
-                    .getResource("fonts/Sarabun-Regular.ttf").getPath();
-            String boldFontPath = PdfStyleService.class.getClassLoader()
-                    .getResource("fonts/Sarabun-Bold.ttf").getPath();
+            // ใช้วิธีเดียวกับ TenantContract - ใช้ THSarabunNew.ttf เป็นหลัก
+            BaseFont regular = BaseFont.createFont("fonts/THSarabunNew.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+            BaseFont bold = BaseFont.createFont("fonts/TH Sarabun New Bold.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
             
-            BaseFont regular = BaseFont.createFont(regularFontPath, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
-            BaseFont bold = BaseFont.createFont(boldFontPath, BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
-            
+            System.out.println(">>> [PdfStyleService] Thai fonts (THSarabunNew) loaded successfully ✅");
             return new BaseFont[]{regular, bold};
         } catch (Exception e) {
-            System.err.println("Thai fonts not found, using default fonts: " + e.getMessage());
-            return null;
+            System.err.println(">>> [PdfStyleService] THSarabunNew fonts not found, trying Sarabun fallback: " + e.getMessage());
+            // ลอง Sarabun เป็น fallback
+            try {
+                BaseFont regular = BaseFont.createFont("fonts/Sarabun-Regular.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                BaseFont bold = BaseFont.createFont("fonts/Sarabun-Bold.ttf", BaseFont.IDENTITY_H, BaseFont.EMBEDDED);
+                System.out.println(">>> [PdfStyleService] Sarabun fallback fonts loaded successfully ✅");
+                return new BaseFont[]{regular, bold};
+            } catch (Exception e2) {
+                System.err.println(">>> [PdfStyleService] All font loading failed, using default fonts: " + e2.getMessage());
+                return null;
+            }
         }
     }
 

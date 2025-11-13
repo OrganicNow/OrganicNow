@@ -285,7 +285,6 @@ public class MaintainServiceImpl implements MaintainService {
             problemTable.addCell(PdfStyleService.createValueCell(PdfStyleService.nvl(maintain.getIssueTitle()), normalFont));
 
 
-            
             document.add(problemTable);
             
             // Technician & Schedule Information
