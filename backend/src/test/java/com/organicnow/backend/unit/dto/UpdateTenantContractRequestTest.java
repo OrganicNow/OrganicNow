@@ -1,81 +1,186 @@
-//package com.organicnow.backend.dto;
-//import org.junit.jupiter.api.Test;
-//import java.math.BigDecimal;
-//import java.time.LocalDateTime;
-//import static org.junit.jupiter.api.Assertions.*;
-//
-//public class UpdateTenantContractRequestTest {
-//
-//    @Test
-//    void testUpdateTenantContractRequestConstructorAndGettersSetters() {
-//        // Arrange: กำหนดค่าต่างๆ สำหรับทดสอบ
-//        String firstName = "John";
-//        String lastName = "Doe";
-//        String email = "john.doe@example.com";
-//        String phoneNumber = "1234567890";
-//        String nationalId = "1234567890123";
-//
-//        Long roomId = 101L;
-//        Long packageId = 5L;
-//
-//        LocalDateTime signDate = LocalDateTime.of(2025, 10, 14, 12, 0, 0, 0);
-//        LocalDateTime startDate = LocalDateTime.of(2025, 10, 15, 9, 0, 0, 0);
-//        LocalDateTime endDate = LocalDateTime.of(2026, 10, 14, 9, 0, 0, 0);
-//
-//        Integer status = 1;  // 1 = Active
-//        BigDecimal deposit = new BigDecimal("500.00");
-//        BigDecimal rentAmountSnapshot = new BigDecimal("1500.00");
-//
-//        // Act: สร้าง object โดยใช้ constructor
-//        UpdateTenantContractRequest request = new UpdateTenantContractRequest(
-//                firstName, lastName, email, phoneNumber, nationalId,
-//                roomId, packageId, signDate, startDate, endDate,
-//                status, deposit, rentAmountSnapshot
-//        );
-//
-//        // Assert: ตรวจสอบว่า getter และ setter ทำงานถูกต้อง
-//        assertEquals(firstName, request.getFirstName(), "First name should match");
-//        assertEquals(lastName, request.getLastName(), "Last name should match");
-//        assertEquals(email, request.getEmail(), "Email should match");
-//        assertEquals(phoneNumber, request.getPhoneNumber(), "Phone number should match");
-//        assertEquals(nationalId, request.getNationalId(), "National ID should match");
-//
-//        assertEquals(roomId, request.getRoomId(), "Room ID should match");
-//        assertEquals(packageId, request.getPackageId(), "Package ID should match");
-//
-//        assertEquals(signDate, request.getSignDate(), "Sign date should match");
-//        assertEquals(startDate, request.getStartDate(), "Start date should match");
-//        assertEquals(endDate, request.getEndDate(), "End date should match");
-//
-//        assertEquals(status, request.getStatus(), "Status should match");
-//        assertEquals(deposit, request.getDeposit(), "Deposit should match");
-//        assertEquals(rentAmountSnapshot, request.getRentAmountSnapshot(), "Rent amount snapshot should match");
-//
-//        // Testing with nullable fields (testing null values)
-//        UpdateTenantContractRequest nullRequest = new UpdateTenantContractRequest();
-//        assertNull(nullRequest.getFirstName(), "First name should be null");
-//        assertNull(nullRequest.getLastName(), "Last name should be null");
-//        assertNull(nullRequest.getEmail(), "Email should be null");
-//        assertNull(nullRequest.getPhoneNumber(), "Phone number should be null");
-//        assertNull(nullRequest.getNationalId(), "National ID should be null");
-//
-//        assertNull(nullRequest.getRoomId(), "Room ID should be null");
-//        assertNull(nullRequest.getPackageId(), "Package ID should be null");
-//
-//        assertNull(nullRequest.getSignDate(), "Sign date should be null");
-//        assertNull(nullRequest.getStartDate(), "Start date should be null");
-//        assertNull(nullRequest.getEndDate(), "End date should be null");
-//
-//        assertNull(nullRequest.getStatus(), "Status should be null");
-//        assertNull(nullRequest.getDeposit(), "Deposit should be null");
-//        assertNull(nullRequest.getRentAmountSnapshot(), "Rent amount snapshot should be null");
-//
-//        // Testing setters for nullable fields
-//        nullRequest.setFirstName("Jane");
-//        assertEquals("Jane", nullRequest.getFirstName(), "First name should be updated");
-//
-//        nullRequest.setRoomId(102L);
-//        assertEquals(102L, nullRequest.getRoomId(), "Room ID should be updated");
-//    }
-//}
-//
+package com.organicnow.backend.unit.dto;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.organicnow.backend.dto.UpdateTenantContractRequest;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class UpdateTenantContractRequestTest {
+
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+
+    @Test
+    void testGetterAndSetter() {
+        UpdateTenantContractRequest dto = new UpdateTenantContractRequest();
+
+        LocalDateTime now = LocalDateTime.now();
+
+        dto.setFirstName("Alice");
+        dto.setLastName("Smith");
+        dto.setEmail("alice@example.com");
+        dto.setPhoneNumber("0123456789");
+        dto.setNationalId("1111111111111");
+
+        dto.setRoomId(10L);
+        dto.setPackageId(20L);
+
+        dto.setSignDate(now);
+        dto.setStartDate(now.plusDays(1));
+        dto.setEndDate(now.plusMonths(12));
+
+        dto.setStatus(1);
+        dto.setDeposit(new BigDecimal("5000"));
+        dto.setRentAmountSnapshot(new BigDecimal("8500"));
+
+        assertEquals("Alice", dto.getFirstName());
+        assertEquals("Smith", dto.getLastName());
+        assertEquals("alice@example.com", dto.getEmail());
+        assertEquals("0123456789", dto.getPhoneNumber());
+        assertEquals("1111111111111", dto.getNationalId());
+
+        assertEquals(10L, dto.getRoomId());
+        assertEquals(20L, dto.getPackageId());
+
+        assertEquals(now, dto.getSignDate());
+        assertEquals(now.plusDays(1), dto.getStartDate());
+        assertEquals(now.plusMonths(12), dto.getEndDate());
+
+        assertEquals(1, dto.getStatus());
+        assertEquals(new BigDecimal("5000"), dto.getDeposit());
+        assertEquals(new BigDecimal("8500"), dto.getRentAmountSnapshot());
+    }
+
+    @Test
+    void testAllArgsConstructor() {
+        LocalDateTime now = LocalDateTime.now();
+
+        UpdateTenantContractRequest dto = new UpdateTenantContractRequest(
+                "Bob", "Lee", "bob@example.com", "0991112222", "2222222222222",
+                5L, 8L,
+                now, now.plusDays(3), now.plusMonths(6),
+                2,
+                new BigDecimal("3000"),
+                new BigDecimal("9000")
+        );
+
+        assertEquals("Bob", dto.getFirstName());
+        assertEquals("Lee", dto.getLastName());
+        assertEquals("bob@example.com", dto.getEmail());
+        assertEquals("0991112222", dto.getPhoneNumber());
+        assertEquals("2222222222222", dto.getNationalId());
+
+        assertEquals(5L, dto.getRoomId());
+        assertEquals(8L, dto.getPackageId());
+
+        assertEquals(now, dto.getSignDate());
+        assertEquals(now.plusDays(3), dto.getStartDate());
+        assertEquals(now.plusMonths(6), dto.getEndDate());
+
+        assertEquals(2, dto.getStatus());
+        assertEquals(new BigDecimal("3000"), dto.getDeposit());
+        assertEquals(new BigDecimal("9000"), dto.getRentAmountSnapshot());
+    }
+
+    @Test
+    void testBuilder() {
+        LocalDateTime now = LocalDateTime.now();
+
+        UpdateTenantContractRequest dto = UpdateTenantContractRequest.builder()
+                .firstName("John")
+                .lastName("Doe")
+                .email("john@example.com")
+                .roomId(1L)
+                .packageId(2L)
+                .deposit(new BigDecimal("10000"))
+                .build();
+
+        assertEquals("John", dto.getFirstName());
+        assertEquals("Doe", dto.getLastName());
+        assertEquals("john@example.com", dto.getEmail());
+        assertEquals(1L, dto.getRoomId());
+        assertEquals(2L, dto.getPackageId());
+        assertEquals(new BigDecimal("10000"), dto.getDeposit());
+        assertNull(dto.getNationalId());
+        assertNull(dto.getStartDate());
+        assertNull(dto.getRentAmountSnapshot());
+    }
+
+    @Test
+    void testJsonSerialization() throws Exception {
+        UpdateTenantContractRequest dto = UpdateTenantContractRequest.builder()
+                .firstName("Test")
+                .email("test@test.com")
+                .roomId(99L)
+                .deposit(new BigDecimal("4500"))
+                .status(1)
+                .build();
+
+        String json = mapper.writeValueAsString(dto);
+
+        assertTrue(json.contains("Test"));
+        assertTrue(json.contains("test@test.com"));
+        assertTrue(json.contains("99"));
+        assertTrue(json.contains("4500"));
+        assertTrue(json.contains("1"));
+    }
+
+    @Test
+    void testJsonDeserialization() throws Exception {
+        String json = """
+            {
+                "firstName": "Mini",
+                "lastName": "Cat",
+                "email": "mini@cat.com",
+                "roomId": 55,
+                "packageId": 7,
+                "deposit": 1200,
+                "status": 0
+            }
+        """;
+
+        UpdateTenantContractRequest dto = mapper.readValue(json, UpdateTenantContractRequest.class);
+
+        assertEquals("Mini", dto.getFirstName());
+        assertEquals("Cat", dto.getLastName());
+        assertEquals("mini@cat.com", dto.getEmail());
+        assertEquals(55L, dto.getRoomId());
+        assertEquals(7L, dto.getPackageId());
+        assertEquals(new BigDecimal("1200"), dto.getDeposit());
+        assertEquals(0, dto.getStatus());
+    }
+
+    @Test
+    void testNullFieldsSupported() {
+        UpdateTenantContractRequest dto = new UpdateTenantContractRequest();
+
+        assertNull(dto.getFirstName());
+        assertNull(dto.getRoomId());
+        assertNull(dto.getDeposit());
+        assertNull(dto.getStartDate());
+        assertNull(dto.getRentAmountSnapshot());
+    }
+
+    @Test
+    void testToStringNotEmpty() {
+        UpdateTenantContractRequest dto = new UpdateTenantContractRequest();
+        assertNotNull(dto.toString());
+        assertFalse(dto.toString().isBlank());
+    }
+
+    @Test
+    void testEqualsAndHashCodeBasic() {
+        UpdateTenantContractRequest a = new UpdateTenantContractRequest();
+        UpdateTenantContractRequest b = new UpdateTenantContractRequest();
+
+        // DTO ไม่มี equals() override → ต้องไม่เท่ากัน
+        assertNotEquals(a, b);
+
+        // hashCode() ก็ไม่จำเป็นต้องเท่ากัน
+        assertNotEquals(a.hashCode(), b.hashCode());
+    }
+
+}

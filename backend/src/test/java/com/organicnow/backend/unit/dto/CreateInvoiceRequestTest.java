@@ -1,170 +1,179 @@
-//package com.organicnow.backend.unit.dto;
-//
-//import org.junit.jupiter.api.Test;
-//
-//import java.time.LocalDateTime;
-//
-//import static org.junit.jupiter.api.Assertions.*;
-//
-//class CreateInvoiceRequestTest {
-//
-//    @Test
-//    void testNoArgsConstructor() {
-//        // Act
-//        CreateInvoiceRequest request = new CreateInvoiceRequest();
-//
-//        // Assert
-//        assertNull(request.getContractId());
-//        assertNull(request.getDueDate());
-//        assertNull(request.getSubTotal());
-//        assertNull(request.getPenaltyTotal());
-//        assertNull(request.getNetAmount());
-//        assertNull(request.getNotes());
-//        assertNull(request.getRentAmount());
-//        assertNull(request.getWaterUnit());
-//        assertNull(request.getWaterRate());
-//        assertNull(request.getElectricityUnit());
-//        assertNull(request.getElectricityRate());
-//        assertNull(request.getCreateDate());
-//        assertNull(request.getInvoiceStatus());
-//        assertNull(request.getWater());
-//        assertNull(request.getElectricity());
-//        assertNull(request.getElecUnit());
-//    }
-//
-//    @Test
-//    void testAllArgsConstructor() {
-//        // Arrange
-//        Long expectedContractId = 1L;
-//        LocalDateTime expectedDueDate = LocalDateTime.of(2025, 2, 28, 12, 0, 0, 0);
-//        Integer expectedSubTotal = 1000;
-//        Integer expectedPenaltyTotal = 100;
-//        Integer expectedNetAmount = 1100;
-//        String expectedNotes = "Payment due";
-//        Integer expectedRentAmount = 500;
-//        Integer expectedWaterUnit = 5;
-//        Integer expectedWaterRate = 20;
-//        Integer expectedElectricityUnit = 10;
-//        Integer expectedElectricityRate = 15;
-//        String expectedCreateDate = "2025-02-28"; // ให้เป็น String ตามที่กำหนดใน DTO
-//        Integer expectedInvoiceStatus = 1; // Complete
-//        Integer expectedWater = 100;
-//        Integer expectedElectricity = 150;
-//        Integer expectedElecUnit = 10;
-//
-//        // Act: ใช้ Builder ในการสร้างอ็อบเจ็กต์
-//        CreateInvoiceRequest request = CreateInvoiceRequest.builder()
-//                .contractId(expectedContractId)
-//                .dueDate(expectedDueDate)
-//                .subTotal(expectedSubTotal)
-//                .penaltyTotal(expectedPenaltyTotal)
-//                .netAmount(expectedNetAmount)
-//                .notes(expectedNotes)
-//                .rentAmount(expectedRentAmount)
-//                .waterUnit(expectedWaterUnit)
-//                .waterRate(expectedWaterRate)
-//                .electricityUnit(expectedElectricityUnit)
-//                .electricityRate(expectedElectricityRate)
-//                .createDate(expectedCreateDate) // ใช้เป็น String ตามที่กำหนดใน DTO
-//                .invoiceStatus(expectedInvoiceStatus)
-//                .water(expectedWater)
-//                .electricity(expectedElectricity)
-//                .elecUnit(expectedElecUnit)
-//                .build();
-//
-//        // Assert
-//        assertEquals(expectedContractId, request.getContractId());
-//        assertEquals(expectedDueDate, request.getDueDate());
-//        assertEquals(expectedSubTotal, request.getSubTotal());
-//        assertEquals(expectedPenaltyTotal, request.getPenaltyTotal());
-//        assertEquals(expectedNetAmount, request.getNetAmount());
-//        assertEquals(expectedNotes, request.getNotes());
-//        assertEquals(expectedRentAmount, request.getRentAmount());
-//        assertEquals(expectedWaterUnit, request.getWaterUnit());
-//        assertEquals(expectedWaterRate, request.getWaterRate());
-//        assertEquals(expectedElectricityUnit, request.getElectricityUnit());
-//        assertEquals(expectedElectricityRate, request.getElectricityRate());
-//        assertEquals(expectedCreateDate, request.getCreateDate());
-//        assertEquals(expectedInvoiceStatus, request.getInvoiceStatus());
-//        assertEquals(expectedWater, request.getWater());
-//        assertEquals(expectedElectricity, request.getElectricity());
-//        assertEquals(expectedElecUnit, request.getElecUnit());
-//    }
-//
-//
-//
-//    @Test
-//    void testBuilder() {
-//        // Arrange
-//        Long expectedContractId = 2L;
-//        LocalDateTime expectedDueDate = LocalDateTime.of(2025, 5, 15, 15, 0, 0, 0);
-//        Integer expectedSubTotal = 2000;
-//        Integer expectedPenaltyTotal = 200;
-//        Integer expectedNetAmount = 2200;
-//        String expectedNotes = "Late payment";
-//        Integer expectedRentAmount = 1000;
-//        Integer expectedWaterUnit = 10;
-//        Integer expectedWaterRate = 30;
-//        Integer expectedElectricityUnit = 15;
-//        Integer expectedElectricityRate = 20;
-//        String expectedCreateDate = "2025-05-15";
-//        Integer expectedInvoiceStatus = 0; // Incomplete
-//        Integer expectedWater = 200;
-//        Integer expectedElectricity = 300;
-//        Integer expectedElecUnit = 15;
-//
-//        // Act
-//        CreateInvoiceRequest request = CreateInvoiceRequest.builder()
-//                .contractId(expectedContractId)
-//                .dueDate(expectedDueDate)
-//                .subTotal(expectedSubTotal)
-//                .penaltyTotal(expectedPenaltyTotal)
-//                .netAmount(expectedNetAmount)
-//                .notes(expectedNotes)
-//                .rentAmount(expectedRentAmount)
-//                .waterUnit(expectedWaterUnit)
-//                .waterRate(expectedWaterRate)
-//                .electricityUnit(expectedElectricityUnit)
-//                .electricityRate(expectedElectricityRate)
-//                .createDate(expectedCreateDate)
-//                .invoiceStatus(expectedInvoiceStatus)
-//                .water(expectedWater)
-//                .electricity(expectedElectricity)
-//                .elecUnit(expectedElecUnit)
-//                .build();
-//
-//        // Assert
-//        assertEquals(expectedContractId, request.getContractId());
-//        assertEquals(expectedDueDate, request.getDueDate());
-//        assertEquals(expectedSubTotal, request.getSubTotal());
-//        assertEquals(expectedPenaltyTotal, request.getPenaltyTotal());
-//        assertEquals(expectedNetAmount, request.getNetAmount());
-//        assertEquals(expectedNotes, request.getNotes());
-//        assertEquals(expectedRentAmount, request.getRentAmount());
-//        assertEquals(expectedWaterUnit, request.getWaterUnit());
-//        assertEquals(expectedWaterRate, request.getWaterRate());
-//        assertEquals(expectedElectricityUnit, request.getElectricityUnit());
-//        assertEquals(expectedElectricityRate, request.getElectricityRate());
-//        assertEquals(expectedCreateDate, request.getCreateDate());
-//        assertEquals(expectedInvoiceStatus, request.getInvoiceStatus());
-//        assertEquals(expectedWater, request.getWater());
-//        assertEquals(expectedElectricity, request.getElectricity());
-//        assertEquals(expectedElecUnit, request.getElecUnit());
-//    }
-//
-//    @Test
-//    void testSettersAndGetters() {
-//        // Arrange
-//        CreateInvoiceRequest request = new CreateInvoiceRequest();
-//        Long expectedContractId = 3L;
-//        String expectedNotes = "Urgent payment";
-//
-//        // Act
-//        request.setContractId(expectedContractId);
-//        request.setNotes(expectedNotes);
-//
-//        // Assert
-//        assertEquals(expectedContractId, request.getContractId());
-//        assertEquals(expectedNotes, request.getNotes());
-//    }
-//}
+package com.organicnow.backend.unit.dto;
+
+import com.organicnow.backend.dto.CreateInvoiceRequest;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDateTime;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class CreateInvoiceRequestTest {
+
+    // ============================================================
+    // 1) Default constructor + setter/getter
+    // ============================================================
+    @Test
+    void testDefaultConstructorAndSetters() {
+        CreateInvoiceRequest dto = new CreateInvoiceRequest();
+
+        LocalDateTime due = LocalDateTime.now();
+
+        dto.setContractId(10L);
+        dto.setDueDate(due);
+        dto.setSubTotal(2000);
+        dto.setPenaltyTotal(150);
+        dto.setNetAmount(2150);
+        dto.setNotes("Test notes");
+
+        dto.setRentAmount(1000);
+        dto.setWaterUnit(5);
+        dto.setWaterRate(20);
+        dto.setElectricityUnit(10);
+        dto.setElectricityRate(7);
+
+        dto.setCreateDate("2025-02-28");
+        dto.setInvoiceStatus(1);
+
+        dto.setWater(120);
+        dto.setElectricity(350);
+        dto.setElecUnit(10);
+
+        dto.setPackageId(99L);
+        dto.setFloor("3");
+        dto.setRoom("305");
+        dto.setIncludeOutstandingBalance(true);
+
+        assertEquals(10L, dto.getContractId());
+        assertEquals(due, dto.getDueDate());
+        assertEquals(2000, dto.getSubTotal());
+        assertEquals(150, dto.getPenaltyTotal());
+        assertEquals(2150, dto.getNetAmount());
+        assertEquals("Test notes", dto.getNotes());
+
+        assertEquals(1000, dto.getRentAmount());
+        assertEquals(5, dto.getWaterUnit());
+        assertEquals(20, dto.getWaterRate());
+        assertEquals(10, dto.getElectricityUnit());
+        assertEquals(7, dto.getElectricityRate());
+
+        assertEquals("2025-02-28", dto.getCreateDate());
+        assertEquals(1, dto.getInvoiceStatus());
+
+        assertEquals(120, dto.getWater());
+        assertEquals(350, dto.getElectricity());
+        assertEquals(10, dto.getElecUnit());
+
+        assertEquals(99L, dto.getPackageId());
+        assertEquals("3", dto.getFloor());
+        assertEquals("305", dto.getRoom());
+        assertTrue(dto.getIncludeOutstandingBalance());
+    }
+
+    // ============================================================
+    // 2) AllArgsConstructor
+    // ============================================================
+    @Test
+    void testAllArgsConstructor() {
+        LocalDateTime due = LocalDateTime.now();
+
+        CreateInvoiceRequest dto = new CreateInvoiceRequest(
+                1L, due, 1000, 0, 1000, "note",
+                500, 5, 20, 10, 7,
+                "2025-01-01", 1,
+                50, 250, 10,
+                88L, "2", "201",
+                false
+        );
+
+        assertEquals(1L, dto.getContractId());
+        assertEquals(due, dto.getDueDate());
+        assertEquals(1000, dto.getSubTotal());
+        assertEquals(0, dto.getPenaltyTotal());
+        assertEquals(1000, dto.getNetAmount());
+        assertEquals("note", dto.getNotes());
+
+        assertEquals(500, dto.getRentAmount());
+        assertEquals(5, dto.getWaterUnit());
+        assertEquals(20, dto.getWaterRate());
+        assertEquals(10, dto.getElectricityUnit());
+        assertEquals(7, dto.getElectricityRate());
+
+        assertEquals("2025-01-01", dto.getCreateDate());
+        assertEquals(1, dto.getInvoiceStatus());
+
+        assertEquals(50, dto.getWater());
+        assertEquals(250, dto.getElectricity());
+        assertEquals(10, dto.getElecUnit());
+
+        assertEquals(88L, dto.getPackageId());
+        assertEquals("2", dto.getFloor());
+        assertEquals("201", dto.getRoom());
+        assertFalse(dto.getIncludeOutstandingBalance());
+    }
+
+    // ============================================================
+    // 3) Builder tests
+    // ============================================================
+    @Test
+    void testBuilder() {
+        LocalDateTime dueDate = LocalDateTime.now();
+
+        CreateInvoiceRequest dto = CreateInvoiceRequest.builder()
+                .contractId(5L)
+                .dueDate(dueDate)
+                .subTotal(5000)
+                .invoiceStatus(0)
+                .room("101")
+                .floor("1")
+                .includeOutstandingBalance(true)
+                .build();
+
+        assertEquals(5L, dto.getContractId());
+        assertEquals(dueDate, dto.getDueDate());
+        assertEquals(5000, dto.getSubTotal());
+        assertEquals(0, dto.getInvoiceStatus());
+        assertEquals("101", dto.getRoom());
+        assertEquals("1", dto.getFloor());
+        assertTrue(dto.getIncludeOutstandingBalance());
+    }
+
+    // ============================================================
+    // 4) Null safety
+    // ============================================================
+    @Test
+    void testNullValues() {
+        CreateInvoiceRequest dto = new CreateInvoiceRequest();
+
+        dto.setNotes(null);
+        dto.setCreateDate(null);
+        dto.setRoom(null);
+        dto.setFloor(null);
+        dto.setIncludeOutstandingBalance(null);
+
+        assertNull(dto.getNotes());
+        assertNull(dto.getCreateDate());
+        assertNull(dto.getRoom());
+        assertNull(dto.getFloor());
+        assertNull(dto.getIncludeOutstandingBalance());
+    }
+
+    // ============================================================
+    // 5) Test alias: elecUnit should be independent
+    // ============================================================
+    @Test
+    void testElecUnitAlias() {
+        CreateInvoiceRequest dto = new CreateInvoiceRequest();
+
+        dto.setElecUnit(9);
+        assertEquals(9, dto.getElecUnit());
+    }
+
+    // ============================================================
+    // 6) toString() not null
+    // ============================================================
+    @Test
+    void testToString() {
+        CreateInvoiceRequest dto = new CreateInvoiceRequest();
+        assertNotNull(dto.toString());
+    }
+}

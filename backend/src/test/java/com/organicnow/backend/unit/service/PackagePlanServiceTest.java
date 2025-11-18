@@ -1,107 +1,223 @@
-//package com.organicnow.backend.service;
-//
-//import com.organicnow.backend.dto.PackagePlanDto;
-//import com.organicnow.backend.dto.PackagePlanRequestDto;
-//import com.organicnow.backend.model.ContractType;
-//import com.organicnow.backend.model.PackagePlan;
-//import com.organicnow.backend.repository.ContractTypeRepository;
-//import com.organicnow.backend.repository.PackagePlanRepository;
-//import org.junit.jupiter.api.BeforeEach;
-//import org.junit.jupiter.api.Test;
-//import org.mockito.InjectMocks;
-//import org.mockito.Mock;
-//import org.mockito.MockitoAnnotations;
-//import org.springframework.web.server.ResponseStatusException;
-//
-//import java.math.BigDecimal;
-//import java.util.Collections;
-//import java.util.List;
-//import java.util.Optional;
-//
-//import static org.junit.jupiter.api.Assertions.*;
-//import static org.mockito.Mockito.*;
-//
-//class PackagePlanServiceTest {
-//
-//    @Mock
-//    private PackagePlanRepository packagePlanRepository;
-//
-//    @Mock
-//    private ContractTypeRepository contractTypeRepository;
-//
-//    @InjectMocks
-//    private PackagePlanService packagePlanService;
-//
-//    @BeforeEach
-//    void setUp() {
-//        MockitoAnnotations.openMocks(this);
-//    }
-//
-//    @Test
-//    void createPackage_shouldCloseOldPlans_andSaveNewOne() {
-//        ContractType contractType = new ContractType();
-//        contractType.setId(1L);
-//        contractType.setName("3 เดือน");
-//        contractType.setDuration(3);
-//
-//        PackagePlan oldPlan = PackagePlan.builder()
-//                .id(100L)
-//                .price(BigDecimal.valueOf(5000.0))
-//                .isActive(1)
-//                .contractType(contractType)
-//                .build();
-//
-//        PackagePlanRequestDto dto = new PackagePlanRequestDto();
-//        dto.setPrice(BigDecimal.valueOf(8000.0));
-//        dto.setIsActive(1);
-//        dto.setContractTypeId(1L);
-//
-//        when(contractTypeRepository.findById(1L)).thenReturn(Optional.of(contractType));
-//        when(packagePlanRepository.findByContractType_NameAndIsActive("3 เดือน", 1))
-//                .thenReturn(List.of(oldPlan));
-//
-//        packagePlanService.createPackage(dto);
-//
-//        verify(packagePlanRepository, times(1)).save(oldPlan);
-//        verify(packagePlanRepository, times(1)).save(argThat(newPlan ->
-//                newPlan.getPrice().compareTo(BigDecimal.valueOf(8000.0)) == 0 &&
-//                        newPlan.getIsActive() == 1 &&
-//                        newPlan.getContractType().getName().equals("3 เดือน")
-//        ));
-//    }
-//
-//    @Test
-//    void createPackage_shouldThrowIfContractTypeNotFound() {
-//        PackagePlanRequestDto dto = new PackagePlanRequestDto();
-//        dto.setContractTypeId(99L);
-//
-//        when(contractTypeRepository.findById(99L)).thenReturn(Optional.empty());
-//
-//        assertThrows(ResponseStatusException.class,
-//                () -> packagePlanService.createPackage(dto));
-//    }
-//
-//    @Test
-//    void getAllPackages_shouldReturnDtos() {
-//        ContractType contractType = new ContractType();
-//        contractType.setId(1L);
-//        contractType.setName("6 เดือน");
-//        contractType.setDuration(6);
-//
-//        PackagePlan plan = PackagePlan.builder()
-//                .id(200L)
-//                .price(BigDecimal.valueOf(10000.0))
-//                .isActive(1)
-//                .contractType(contractType)
-//                .build();
-//
-//        when(packagePlanRepository.findAll()).thenReturn(Collections.singletonList(plan));
-//
-//        List<PackagePlanDto> result = packagePlanService.getAllPackages();
-//
-//        assertEquals(1, result.size());
-//        assertEquals("6 เดือน", result.get(0).getName());   // ✅ ใช้ getName()
-//        assertEquals(6, result.get(0).getDuration());
-//        assertEquals(BigDecimal.valueOf(10000.0), result.get(0).getPrice());
-//    }
-//}
+package com.organicnow.backend.unit.service;
+
+import com.organicnow.backend.dto.PackagePlanDto;
+import com.organicnow.backend.dto.PackagePlanRequestDto;
+import com.organicnow.backend.model.ContractType;
+import com.organicnow.backend.model.PackagePlan;
+import com.organicnow.backend.repository.ContractTypeRepository;
+import com.organicnow.backend.repository.PackagePlanRepository;
+import com.organicnow.backend.repository.RoomRepository;
+import com.organicnow.backend.service.PackagePlanService;
+import org.junit.jupiter.api.*;
+import org.mockito.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.math.BigDecimal;
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.NOT_FOUND;
+
+class PackagePlanServiceTest {
+
+    private AutoCloseable closeable;
+
+    @Mock private PackagePlanRepository packagePlanRepository;
+    @Mock private ContractTypeRepository contractTypeRepository;
+    @Mock private RoomRepository roomRepository;
+
+    @InjectMocks
+    private PackagePlanService service;
+
+    @BeforeEach
+    void setup() {
+        closeable = MockitoAnnotations.openMocks(this);
+    }
+
+    @AfterEach
+    void tearDown() throws Exception {
+        closeable.close();
+    }
+
+    // ================================
+    // CREATE PACKAGE
+    // ================================
+    @Test
+    void testCreatePackage_MissingContractTypeId() {
+
+        PackagePlanRequestDto dto = new PackagePlanRequestDto();
+        dto.setRoomSize(25);
+        dto.setPrice(BigDecimal.valueOf(5000));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.createPackage(dto));
+
+        assertEquals(CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void testCreatePackage_MissingRoomSize() {
+
+        PackagePlanRequestDto dto = new PackagePlanRequestDto();
+        dto.setContractTypeId(10L);
+        dto.setPrice(BigDecimal.valueOf(5000));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.createPackage(dto));
+
+        assertEquals(CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void testCreatePackage_ContractTypeNotFound() {
+
+        PackagePlanRequestDto dto = new PackagePlanRequestDto();
+        dto.setContractTypeId(10L);
+        dto.setRoomSize(25);
+        dto.setPrice(BigDecimal.valueOf(8000));
+
+        when(contractTypeRepository.findById(10L)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.createPackage(dto));
+
+        assertEquals(NOT_FOUND, ex.getStatusCode());
+    }
+
+    @Test
+    void testCreatePackage_RoomSizeNotExist() {
+
+        PackagePlanRequestDto dto = new PackagePlanRequestDto();
+        dto.setContractTypeId(10L);
+        dto.setRoomSize(25);
+        dto.setPrice(BigDecimal.valueOf(6000));
+
+        ContractType ct = new ContractType();
+        ct.setId(10L);
+        ct.setName("Monthly");
+        ct.setDuration(1);
+
+        when(contractTypeRepository.findById(10L)).thenReturn(Optional.of(ct));
+        when(roomRepository.existsByRoomSize(25)).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.createPackage(dto));
+
+        assertEquals(NOT_FOUND, ex.getStatusCode());
+    }
+
+    @Test
+    void testCreatePackage_Success() {
+
+        PackagePlanRequestDto dto = new PackagePlanRequestDto();
+        dto.setContractTypeId(10L);
+        dto.setRoomSize(25);
+        dto.setPrice(BigDecimal.valueOf(7000));
+
+        ContractType ct = new ContractType();
+        ct.setId(10L);
+        ct.setName("Monthly");
+        ct.setDuration(1);
+
+        when(contractTypeRepository.findById(10L)).thenReturn(Optional.of(ct));
+        when(roomRepository.existsByRoomSize(25)).thenReturn(true);
+
+        PackagePlan saved = PackagePlan.builder()
+                .id(99L)
+                .price(BigDecimal.valueOf(7000))
+                .isActive(1)
+                .contractType(ct)
+                .roomSize(25)
+                .build();
+
+        when(packagePlanRepository.save(any())).thenReturn(saved);
+
+        PackagePlanDto result = service.createPackage(dto);
+
+        assertEquals(99L, result.getId());
+        assertEquals(BigDecimal.valueOf(7000), result.getPrice());
+        assertEquals(1, result.getIsActive());
+        assertEquals("Monthly", result.getContractTypeName());
+    }
+
+    // ================================
+    // GET ALL PACKAGES
+    // ================================
+    @Test
+    void testGetAllPackages() {
+
+        ContractType ct = new ContractType();
+        ct.setId(1L);
+        ct.setName("Monthly");
+        ct.setDuration(1);
+
+        PackagePlan p = PackagePlan.builder()
+                .id(1L)
+                .price(BigDecimal.valueOf(5000))
+                .isActive(1)
+                .contractType(ct)
+                .roomSize(25)
+                .build();
+
+        when(packagePlanRepository.findAll()).thenReturn(List.of(p));
+
+        List<PackagePlanDto> result = service.getAllPackages();
+
+        assertEquals(1, result.size());
+        assertEquals(5000, result.get(0).getPrice().intValue());
+    }
+
+    // ================================
+    // TOGGLE STATUS
+    // ================================
+    @Test
+    void testTogglePackageStatus_NotFound() {
+
+        when(packagePlanRepository.findById(123L)).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> service.togglePackageStatus(123L));
+
+        assertEquals(NOT_FOUND, ex.getStatusCode());
+    }
+
+    @Test
+    void testTogglePackageStatus_From1To0() {
+
+        PackagePlan pkg = PackagePlan.builder()
+                .id(10L)
+                .price(BigDecimal.valueOf(5000))
+                .isActive(1)
+                .roomSize(25)
+                .contractType(new ContractType())
+                .build();
+
+        when(packagePlanRepository.findById(10L)).thenReturn(Optional.of(pkg));
+        when(packagePlanRepository.save(any())).thenReturn(pkg);
+
+        PackagePlanDto result = service.togglePackageStatus(10L);
+
+        assertEquals(0, result.getIsActive());
+    }
+
+    @Test
+    void testTogglePackageStatus_From0To1() {
+
+        PackagePlan pkg = PackagePlan.builder()
+                .id(10L)
+                .price(BigDecimal.valueOf(5000))
+                .isActive(0)
+                .roomSize(25)
+                .contractType(new ContractType())
+                .build();
+
+        when(packagePlanRepository.findById(10L)).thenReturn(Optional.of(pkg));
+        when(packagePlanRepository.save(any())).thenReturn(pkg);
+
+        PackagePlanDto result = service.togglePackageStatus(10L);
+
+        assertEquals(1, result.getIsActive());
+    }
+}

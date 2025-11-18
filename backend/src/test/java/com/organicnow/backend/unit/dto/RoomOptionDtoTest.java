@@ -1,58 +1,100 @@
-//package com.organicnow.backend.dto;
-//import org.junit.jupiter.api.Test;
-//import static org.junit.jupiter.api.Assertions.*;
-//
-//public class RoomOptionDtoTest {
-//
-//    @Test
-//    void testRoomOptionDtoConstructor() {
-//        // Arrange
-//        Long id = 1L;
-//        String roomNumber = "A101";
-//        Integer roomFloor = 1;
-//        String status = "available";
-//
-//        // Act
-//        RoomOptionDto dto = new RoomOptionDto(id, roomNumber, roomFloor, status);
-//
-//        // Assert
-//        assertEquals(id, dto.getId());
-//        assertEquals(roomNumber, dto.getRoomNumber());
-//        assertEquals(roomFloor, dto.getRoomFloor());
-//        assertEquals(status, dto.getStatus());
-//    }
-//
-//    @Test
-//    void testRoomOptionDtoNoArgsConstructor() {
-//        // Act
-//        RoomOptionDto dto = new RoomOptionDto();
-//
-//        // Assert
-//        assertNull(dto.getId(), "ID should be null by default");
-//        assertNull(dto.getRoomNumber(), "Room number should be null by default");
-//        assertNull(dto.getRoomFloor(), "Room floor should be null by default");
-//        assertNull(dto.getStatus(), "Status should be null by default");
-//    }
-//
-//    @Test
-//    void testSetterAndGetter() {
-//        // Arrange
-//        RoomOptionDto dto = new RoomOptionDto();
-//        Long id = 2L;
-//        String roomNumber = "B202";
-//        Integer roomFloor = 2;
-//        String status = "occupied";
-//
-//        // Act
-//        dto.setId(id);
-//        dto.setRoomNumber(roomNumber);
-//        dto.setRoomFloor(roomFloor);
-//        dto.setStatus(status);
-//
-//        // Assert
-//        assertEquals(id, dto.getId(), "ID should be set and retrieved correctly");
-//        assertEquals(roomNumber, dto.getRoomNumber(), "Room number should be set and retrieved correctly");
-//        assertEquals(roomFloor, dto.getRoomFloor(), "Room floor should be set and retrieved correctly");
-//        assertEquals(status, dto.getStatus(), "Status should be set and retrieved correctly");
-//    }
-//}
+package com.organicnow.backend.unit.dto;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.organicnow.backend.dto.RoomOptionDto;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class RoomOptionDtoTest {
+
+    @Test
+    void testNoArgsConstructorAndSetters() {
+        RoomOptionDto dto = new RoomOptionDto();
+
+        dto.setId(1L);
+        dto.setRoomNumber("A101");
+        dto.setRoomFloor(3);
+        dto.setStatus("Occupied");
+        dto.setRoomSize("Studio");
+
+        assertEquals(1L, dto.getId());
+        assertEquals("A101", dto.getRoomNumber());
+        assertEquals(3, dto.getRoomFloor());
+        assertEquals("Occupied", dto.getStatus());
+        assertEquals("Studio", dto.getRoomSize());
+    }
+
+    @Test
+    void testAllArgsConstructor() {
+        RoomOptionDto dto = new RoomOptionDto(
+                2L,
+                "B202",
+                5,
+                "Available",
+                "1 Bedroom"
+        );
+
+        assertEquals(2L, dto.getId());
+        assertEquals("B202", dto.getRoomNumber());
+        assertEquals(5, dto.getRoomFloor());
+        assertEquals("Available", dto.getStatus());
+        assertEquals("1 Bedroom", dto.getRoomSize());
+    }
+
+    @Test
+    void testEqualsAndHashCode() {
+        RoomOptionDto dto1 = new RoomOptionDto(10L, "C303", 7, "Occupied", "Studio");
+        RoomOptionDto dto2 = new RoomOptionDto(10L, "C303", 7, "Occupied", "Studio");
+
+        assertEquals(dto1, dto2);
+        assertEquals(dto1.hashCode(), dto2.hashCode());
+
+        dto2.setStatus("Changed");
+        assertNotEquals(dto1, dto2);
+    }
+
+    @Test
+    void testToStringContainsFields() {
+        RoomOptionDto dto = new RoomOptionDto(20L, "D404", 8, "Maintenance", "2 Bedroom");
+
+        String str = dto.toString();
+
+        assertTrue(str.contains("D404"));
+        assertTrue(str.contains("Maintenance"));
+        assertTrue(str.contains("2 Bedroom"));
+    }
+
+    @Test
+    void testJsonSerializationAndDeserialization() throws Exception {
+        RoomOptionDto original = new RoomOptionDto(
+                30L,
+                "E505",
+                12,
+                "Available",
+                "Studio"
+        );
+
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        String json = mapper.writeValueAsString(original);
+        RoomOptionDto cloned = mapper.readValue(json, RoomOptionDto.class);
+
+        assertEquals(original, cloned);
+        assertEquals(original.getRoomNumber(), cloned.getRoomNumber());
+    }
+
+    @Test
+    void testPartialData() {
+        RoomOptionDto dto = new RoomOptionDto();
+        dto.setId(99L);
+
+        assertEquals(99L, dto.getId());
+        assertNull(dto.getRoomNumber());
+        assertNull(dto.getStatus());
+    }
+}

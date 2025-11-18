@@ -1,127 +1,161 @@
-//package com.organicnow.backend.unit.dto;
-//
-//import org.junit.jupiter.api.Test;
-//
-//import java.time.LocalDateTime;
-//
-//import static org.junit.jupiter.api.Assertions.*;
-//
-//class CreateMaintainRequestTest {
-//
-//    @Test
-//    void testNoArgsConstructor() {
-//        // Act
-//        CreateMaintainRequest request = new CreateMaintainRequest();
-//
-//        // Assert
-//        assertNull(request.getTargetType());
-//        assertNull(request.getRoomId());
-//        assertNull(request.getRoomNumber());
-//        assertNull(request.getRoomAssetId());
-//        assertNull(request.getIssueCategory());
-//        assertNull(request.getIssueTitle());
-//        assertNull(request.getIssueDescription());
-//        assertNull(request.getCreateDate());
-//        assertNull(request.getScheduledDate());
-//        assertNull(request.getFinishDate());
-//    }
-//
-//    @Test
-//    void testAllArgsConstructor() {
-//        // Arrange
-//        Integer expectedTargetType = 1;
-//        Long expectedRoomId = 101L;
-//        String expectedRoomNumber = "A101";
-//        Long expectedRoomAssetId = 202L;
-//        Integer expectedIssueCategory = 3;
-//        String expectedIssueTitle = "Air Conditioner not working";
-//        String expectedIssueDescription = "The AC is not cooling properly";
-//        LocalDateTime expectedCreateDate = LocalDateTime.now();
-//        LocalDateTime expectedScheduledDate = LocalDateTime.of(2025, 5, 1, 10, 0, 0, 0);
-//        LocalDateTime expectedFinishDate = LocalDateTime.of(2025, 5, 2, 10, 0, 0, 0);
-//
-//        // Act: ใช้ Builder แทน constructor
-//        CreateMaintainRequest request = CreateMaintainRequest.builder()
-//                .targetType(expectedTargetType)
-//                .roomId(expectedRoomId)
-//                .roomNumber(expectedRoomNumber)
-//                .roomAssetId(expectedRoomAssetId)
-//                .issueCategory(expectedIssueCategory)
-//                .issueTitle(expectedIssueTitle)
-//                .issueDescription(expectedIssueDescription)
-//                .createDate(expectedCreateDate)
-//                .scheduledDate(expectedScheduledDate)
-//                .finishDate(expectedFinishDate)
-//                .build();
-//
-//        // Assert
-//        assertEquals(expectedTargetType, request.getTargetType());
-//        assertEquals(expectedRoomId, request.getRoomId());
-//        assertEquals(expectedRoomNumber, request.getRoomNumber());
-//        assertEquals(expectedRoomAssetId, request.getRoomAssetId());
-//        assertEquals(expectedIssueCategory, request.getIssueCategory());
-//        assertEquals(expectedIssueTitle, request.getIssueTitle());
-//        assertEquals(expectedIssueDescription, request.getIssueDescription());
-//        assertEquals(expectedCreateDate, request.getCreateDate());
-//        assertEquals(expectedScheduledDate, request.getScheduledDate());
-//        assertEquals(expectedFinishDate, request.getFinishDate());
-//    }
-//
-//
-//    @Test
-//    void testBuilder() {
-//        // Arrange
-//        Integer expectedTargetType = 2;
-//        Long expectedRoomId = 102L;
-//        String expectedRoomNumber = "B102";
-//        Long expectedRoomAssetId = 203L;
-//        Integer expectedIssueCategory = 1;
-//        String expectedIssueTitle = "Water leakage in bathroom";
-//        String expectedIssueDescription = "The water supply is leaking from the pipe";
-//        LocalDateTime expectedCreateDate = LocalDateTime.now();
-//        LocalDateTime expectedScheduledDate = LocalDateTime.of(2025, 5, 5, 9, 0, 0, 0);
-//        LocalDateTime expectedFinishDate = LocalDateTime.of(2025, 5, 6, 9, 0, 0, 0);
-//
-//        // Act
-//        CreateMaintainRequest request = CreateMaintainRequest.builder()
-//                .targetType(expectedTargetType)
-//                .roomId(expectedRoomId)
-//                .roomNumber(expectedRoomNumber)
-//                .roomAssetId(expectedRoomAssetId)
-//                .issueCategory(expectedIssueCategory)
-//                .issueTitle(expectedIssueTitle)
-//                .issueDescription(expectedIssueDescription)
-//                .createDate(expectedCreateDate)
-//                .scheduledDate(expectedScheduledDate)
-//                .finishDate(expectedFinishDate)
-//                .build();
-//
-//        // Assert
-//        assertEquals(expectedTargetType, request.getTargetType());
-//        assertEquals(expectedRoomId, request.getRoomId());
-//        assertEquals(expectedRoomNumber, request.getRoomNumber());
-//        assertEquals(expectedRoomAssetId, request.getRoomAssetId());
-//        assertEquals(expectedIssueCategory, request.getIssueCategory());
-//        assertEquals(expectedIssueTitle, request.getIssueTitle());
-//        assertEquals(expectedIssueDescription, request.getIssueDescription());
-//        assertEquals(expectedCreateDate, request.getCreateDate());
-//        assertEquals(expectedScheduledDate, request.getScheduledDate());
-//        assertEquals(expectedFinishDate, request.getFinishDate());
-//    }
-//
-//    @Test
-//    void testSettersAndGetters() {
-//        // Arrange
-//        CreateMaintainRequest request = new CreateMaintainRequest();
-//        Integer expectedTargetType = 4;
-//        String expectedIssueTitle = "Power outage";
-//
-//        // Act
-//        request.setTargetType(expectedTargetType);
-//        request.setIssueTitle(expectedIssueTitle);
-//
-//        // Assert
-//        assertEquals(expectedTargetType, request.getTargetType());
-//        assertEquals(expectedIssueTitle, request.getIssueTitle());
-//    }
-//}
+package com.organicnow.backend.unit.dto;
+
+import com.organicnow.backend.dto.CreateMaintainRequest;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDateTime;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class CreateMaintainRequestTest {
+
+    // ============================================================
+    // 1) Default constructor + setters/getters
+    // ============================================================
+    @Test
+    void testDefaultConstructorAndSetters() {
+        CreateMaintainRequest dto = new CreateMaintainRequest();
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime schedule = now.plusDays(1);
+        LocalDateTime finish = now.plusDays(3);
+
+        dto.setTargetType(1);
+        dto.setRoomId(11L);
+        dto.setRoomNumber("201A");
+        dto.setRoomAssetId(55L);
+        dto.setIssueCategory(4);
+        dto.setIssueTitle("Aircon not cooling");
+        dto.setIssueDescription("Fan works but no cold air.");
+        dto.setCreateDate(now);
+        dto.setScheduledDate(schedule);
+        dto.setFinishDate(finish);
+
+        dto.setMaintainType("Electrical");
+        dto.setTechnicianName("Somchai");
+        dto.setTechnicianPhone("0812345678");
+
+        assertEquals(1, dto.getTargetType());
+        assertEquals(11L, dto.getRoomId());
+        assertEquals("201A", dto.getRoomNumber());
+        assertEquals(55L, dto.getRoomAssetId());
+        assertEquals(4, dto.getIssueCategory());
+        assertEquals("Aircon not cooling", dto.getIssueTitle());
+        assertEquals("Fan works but no cold air.", dto.getIssueDescription());
+        assertEquals(now, dto.getCreateDate());
+        assertEquals(schedule, dto.getScheduledDate());
+        assertEquals(finish, dto.getFinishDate());
+
+        assertEquals("Electrical", dto.getMaintainType());
+        assertEquals("Somchai", dto.getTechnicianName());
+        assertEquals("0812345678", dto.getTechnicianPhone());
+    }
+
+    // ============================================================
+    // 2) AllArgsConstructor
+    // ============================================================
+    @Test
+    void testAllArgsConstructor() {
+        LocalDateTime create = LocalDateTime.now();
+        LocalDateTime schedule = create.plusDays(2);
+        LocalDateTime finish = create.plusDays(5);
+
+        CreateMaintainRequest dto = new CreateMaintainRequest(
+                2,
+                99L,
+                "503",
+                100L,
+                1,
+                "Water leak",
+                "Leak from the ceiling",
+                create,
+                schedule,
+                finish,
+                "Plumbing",
+                "Anan",
+                "0890001111"
+        );
+
+        assertEquals(2, dto.getTargetType());
+        assertEquals(99L, dto.getRoomId());
+        assertEquals("503", dto.getRoomNumber());
+        assertEquals(100L, dto.getRoomAssetId());
+        assertEquals(1, dto.getIssueCategory());
+        assertEquals("Water leak", dto.getIssueTitle());
+        assertEquals("Leak from the ceiling", dto.getIssueDescription());
+        assertEquals(create, dto.getCreateDate());
+        assertEquals(schedule, dto.getScheduledDate());
+        assertEquals(finish, dto.getFinishDate());
+
+        assertEquals("Plumbing", dto.getMaintainType());
+        assertEquals("Anan", dto.getTechnicianName());
+        assertEquals("0890001111", dto.getTechnicianPhone());
+    }
+
+    // ============================================================
+    // 3) Builder test
+    // ============================================================
+    @Test
+    void testBuilder() {
+        LocalDateTime create = LocalDateTime.now();
+
+        CreateMaintainRequest dto = CreateMaintainRequest.builder()
+                .targetType(1)
+                .roomId(20L)
+                .roomNumber("701B")
+                .issueCategory(3)
+                .issueTitle("Light broken")
+                .createDate(create)
+                .maintainType("Electrical")
+                .technicianName("Preecha")
+                .technicianPhone("0801234567")
+                .build();
+
+        assertEquals(1, dto.getTargetType());
+        assertEquals(20L, dto.getRoomId());
+        assertEquals("701B", dto.getRoomNumber());
+        assertEquals(3, dto.getIssueCategory());
+        assertEquals("Light broken", dto.getIssueTitle());
+        assertEquals(create, dto.getCreateDate());
+        assertEquals("Electrical", dto.getMaintainType());
+        assertEquals("Preecha", dto.getTechnicianName());
+        assertEquals("0801234567", dto.getTechnicianPhone());
+    }
+
+    // ============================================================
+    // 4) Null Safety test
+    // ============================================================
+    @Test
+    void testNullValues() {
+        CreateMaintainRequest dto = new CreateMaintainRequest();
+
+        dto.setRoomId(null);
+        dto.setRoomNumber(null);
+        dto.setIssueDescription(null);
+        dto.setCreateDate(null);
+        dto.setScheduledDate(null);
+        dto.setFinishDate(null);
+        dto.setMaintainType(null);
+        dto.setTechnicianName(null);
+        dto.setTechnicianPhone(null);
+
+        assertNull(dto.getRoomId());
+        assertNull(dto.getRoomNumber());
+        assertNull(dto.getIssueDescription());
+        assertNull(dto.getCreateDate());
+        assertNull(dto.getScheduledDate());
+        assertNull(dto.getFinishDate());
+        assertNull(dto.getMaintainType());
+        assertNull(dto.getTechnicianName());
+        assertNull(dto.getTechnicianPhone());
+    }
+
+    // ============================================================
+    // 5) toString() should not be null
+    // ============================================================
+    @Test
+    void testToString() {
+        CreateMaintainRequest dto = new CreateMaintainRequest();
+        assertNotNull(dto.toString());
+    }
+}

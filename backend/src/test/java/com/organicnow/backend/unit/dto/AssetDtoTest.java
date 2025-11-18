@@ -1,71 +1,95 @@
-//package com.organicnow.backend.dto;
-//
-//import org.junit.jupiter.api.Test;
-//
-//import static org.junit.jupiter.api.Assertions.*;
-//
-//class AssetDtoTest {
-//
-//    @Test
-//    void testAssetDtoConstructorWithThreeArgs() {
-//        // Arrange
-//        Long expectedAssetId = 1L;
-//        String expectedAssetName = "Asset A";
-//        String expectedAssetType = "Type A";
-//
-//        // Act
-//        AssetDto assetDto = new AssetDto(expectedAssetId, expectedAssetName, expectedAssetType);
-//
-//        // Assert
-//        assertEquals(expectedAssetId, assetDto.getAssetId());
-//        assertEquals(expectedAssetName, assetDto.getAssetName());
-//        assertEquals(expectedAssetType, assetDto.getAssetType());
-//        assertNull(assetDto.getFloor());  // floor is not set, should be null
-//        assertNull(assetDto.getRoom());   // room is not set, should be null
-//        assertNull(assetDto.getStatus()); // status should be null in this case
-//    }
-//
-//
-//
-//
-//    @Test
-//    void testAssetDtoConstructorWithFiveArgs() {
-//        // Arrange
-//        Long expectedAssetId = 1L;
-//        String expectedAssetName = "Asset B";
-//        String expectedAssetType = "Type B";
-//        Integer expectedFloor = 3;
-//        String expectedRoom = "101";
-//
-//        // Act
-//        AssetDto assetDto = new AssetDto(expectedAssetId, expectedAssetName, expectedAssetType, expectedFloor, expectedRoom);
-//
-//        // Assert
-//        assertEquals(expectedAssetId, assetDto.getAssetId());
-//        assertEquals(expectedAssetName, assetDto.getAssetName());
-//        assertEquals(expectedAssetType, assetDto.getAssetType());
-//        assertEquals(expectedFloor, assetDto.getFloor());
-//        assertEquals(expectedRoom, assetDto.getRoom());
-//        assertEquals("Active", assetDto.getStatus()); // Default status is Active
-//    }
-//
-//    @Test
-//    void testSettersAndGetters() {
-//        // Arrange
-//        AssetDto assetDto = new AssetDto();
-//        assetDto.setAssetId(2L);
-//        assetDto.setAssetName("Asset C");
-//        assetDto.setAssetType("Type C");
-//        assetDto.setFloor(5);
-//        assetDto.setRoom("201");
-//        assetDto.setStatus("Inactive");
-//
-//        // Act & Assert
-//        assertEquals(2L, assetDto.getAssetId());
-//        assertEquals("Asset C", assetDto.getAssetName());
-//        assertEquals("Type C", assetDto.getAssetType());
-//        assertEquals(5, assetDto.getFloor());
-//        assertEquals("201", assetDto.getRoom());
-//        assertEquals("Inactive", assetDto.getStatus());
-//    }
-//}
+package com.organicnow.backend.unit.dto;
+
+import com.organicnow.backend.dto.AssetDto;  // ← แก้ตรงนี้ สำคัญมาก
+
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class AssetDtoTest {
+
+    @Test
+    void testDefaultConstructorAndSetters() {
+        AssetDto dto = new AssetDto();
+
+        dto.setAssetId(10L);
+        dto.setAssetName("Air Conditioner");
+        dto.setAssetGroupName("Electronics");
+        dto.setAssetGroupId(5L);
+        dto.setFloor(2);
+        dto.setRoom("201");
+        dto.setStatus("Inactive");
+
+        assertEquals(10L, dto.getAssetId());
+        assertEquals("Air Conditioner", dto.getAssetName());
+        assertEquals("Electronics", dto.getAssetGroupName());
+        assertEquals(5L, dto.getAssetGroupId());
+        assertEquals(2, dto.getFloor());
+        assertEquals("201", dto.getRoom());
+        assertEquals("Inactive", dto.getStatus());
+    }
+
+    @Test
+    void testConstructor_Minimal() {
+        AssetDto dto = new AssetDto(1L, "Desk", "Furniture");
+
+        assertEquals(1L, dto.getAssetId());
+        assertEquals("Desk", dto.getAssetName());
+        assertEquals("Furniture", dto.getAssetGroupName());
+        assertNull(dto.getFloor());
+        assertNull(dto.getRoom());
+        assertNull(dto.getStatus());
+        assertNull(dto.getAssetGroupId());
+    }
+
+    @Test
+    void testConstructor_WithRoomInfo_DefaultStatusActive() {
+        AssetDto dto = new AssetDto(2L, "Bed", "Furniture", 3, "302");
+
+        assertEquals(2L, dto.getAssetId());
+        assertEquals("Bed", dto.getAssetName());
+        assertEquals("Furniture", dto.getAssetGroupName());
+        assertEquals(3, dto.getFloor());
+        assertEquals("302", dto.getRoom());
+        assertEquals("Active", dto.getStatus());
+        assertNull(dto.getAssetGroupId());
+    }
+
+    @Test
+    void testConstructor_WithRoomInfoAndStatus() {
+        AssetDto dto = new AssetDto(3L, "Lamp", "Electronics", 1, "101", "Broken");
+
+        assertEquals(3L, dto.getAssetId());
+        assertEquals("Lamp", dto.getAssetName());
+        assertEquals("Electronics", dto.getAssetGroupName());
+        assertEquals(1, dto.getFloor());
+        assertEquals("101", dto.getRoom());
+        assertEquals("Broken", dto.getStatus());
+        assertNull(dto.getAssetGroupId());
+    }
+
+    @Test
+    void testFullConstructor() {
+        AssetDto dto = new AssetDto(4L, "TV", "Electronics", 88L, 5, "501", "Active");
+
+        assertEquals(4L, dto.getAssetId());
+        assertEquals("TV", dto.getAssetName());
+        assertEquals("Electronics", dto.getAssetGroupName());
+        assertEquals(88L, dto.getAssetGroupId());
+        assertEquals(5, dto.getFloor());
+        assertEquals("501", dto.getRoom());
+        assertEquals("Active", dto.getStatus());
+    }
+
+    @Test
+    void testNullValues() {
+        AssetDto dto = new AssetDto();
+
+        dto.setAssetName(null);
+        dto.setRoom(null);
+        dto.setStatus(null);
+
+        assertNull(dto.getAssetName());
+        assertNull(dto.getRoom());
+        assertNull(dto.getStatus());
+    }
+}
