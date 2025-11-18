@@ -1,151 +1,225 @@
-//package com.organicnow.backend.controller;
-//
-//import com.organicnow.backend.model.*;
-//import com.organicnow.backend.repository.*;
-//import com.organicnow.backend.service.ContractService;
-//import org.junit.jupiter.api.BeforeEach;
-//import org.junit.jupiter.api.Test;
-//import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-//import org.springframework.boot.test.context.SpringBootTest;
-//import org.springframework.http.MediaType;
-//import org.springframework.jdbc.core.JdbcTemplate;
-//import org.springframework.test.annotation.DirtiesContext;
-//import org.springframework.test.context.DynamicPropertyRegistry;
-//import org.springframework.test.context.DynamicPropertySource;
-//import org.springframework.test.web.servlet.MockMvc;
-//import org.springframework.transaction.annotation.Transactional;
-//import org.testcontainers.containers.PostgreSQLContainer;
-//import org.testcontainers.junit.jupiter.Container;
-//import org.testcontainers.junit.jupiter.Testcontainers;
-//
-//import java.math.BigDecimal;
-//import java.time.LocalDateTime;
-//import java.util.List;
-//
-//import static org.hamcrest.Matchers.*;
-//import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-//import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-//
-//@SpringBootTest
-//@AutoConfigureMockMvc
-//@Testcontainers
-//@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-//class ContractControllerIntegrationTest {
-//
-//    @Container
-//    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine")
-//            .withDatabaseName("organicnow_test")
-//            .withUsername("testuser")
-//            .withPassword("testpass");
-//
-//    @DynamicPropertySource
-//    static void configureProps(DynamicPropertyRegistry registry) {
-//        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-//        registry.add("spring.datasource.username", postgres::getUsername);
-//        registry.add("spring.datasource.password", postgres::getPassword);
-//    }
-//
-//    @Autowired private JdbcTemplate jdbcTemplate;
-//    @Autowired private MockMvc mockMvc;
-//    @Autowired private RoomRepository roomRepository;
-//    @Autowired private TenantRepository tenantRepository;
-//    @Autowired private PackagePlanRepository packagePlanRepository;
-//    @Autowired private ContractRepository contractRepository;
-//    @Autowired private ContractTypeRepository contractTypeRepository;
-//    @Autowired private ContractService contractService;
-//
-//    @BeforeEach
-//    @Transactional
-//    void cleanDatabaseAndSetup() {
-//        // 🧹 ล้างข้อมูลเก่าพร้อม reset id
-//        jdbcTemplate.execute("""
-//            TRUNCATE TABLE invoice_item, invoice, contract, tenant, room, package_plan, contract_type
-//            RESTART IDENTITY CASCADE
-//        """);
-//
-//        // ✅ สร้าง ContractType
-//        ContractType contractType = ContractType.builder()
-//                .name("Standard Contract")
-//                .duration(12)
-//                .build();
-//        contractTypeRepository.save(contractType);
-//
-//        // ✅ สร้าง PackagePlan ที่ผูกกับ ContractType
-//        PackagePlan plan = PackagePlan.builder()
-//                .contractType(contractType)
-//                .price(BigDecimal.valueOf(5000))
-//                .isActive(1)
-//                .build();
-//        packagePlanRepository.save(plan);
-//
-//        // ✅ สร้างห้อง
-//        Room r1 = roomRepository.save(Room.builder().roomNumber("101").roomFloor(1).build());
-//        Room r2 = roomRepository.save(Room.builder().roomNumber("102").roomFloor(1).build());
-//
-//        // ✅ สร้างผู้เช่า
-//        Tenant t1 = tenantRepository.save(Tenant.builder()
-//                .firstName("John").lastName("Doe")
-//                .phoneNumber("0812345678")
-//                .email("john@example.com")
-//                .nationalId("1234567890123").build());
-//
-//        Tenant t2 = tenantRepository.save(Tenant.builder()
-//                .firstName("Jane").lastName("Smith")
-//                .phoneNumber("0811111111")
-//                .email("jane@example.com")
-//                .nationalId("9876543210987").build());
-//
-//        // ✅ สร้างสัญญา
-//        Contract c1 = Contract.builder()
-//                .room(r1).tenant(t1).packagePlan(plan)
-//                .startDate(LocalDateTime.now().minusMonths(2))
-//                .endDate(LocalDateTime.now().plusMonths(2))
-//                .signDate(LocalDateTime.now().minusMonths(2))
-//                .status(1)
-//                .deposit(BigDecimal.valueOf(2000))
-//                .rentAmountSnapshot(BigDecimal.valueOf(5000))
-//                .build();
-//
-//        Contract c2 = Contract.builder()
-//                .room(r2).tenant(t2).packagePlan(plan)
-//                .startDate(LocalDateTime.now().minusMonths(6))
-//                .endDate(LocalDateTime.now().minusMonths(1))
-//                .signDate(LocalDateTime.now().minusMonths(6))
-//                .status(1)
-//                .deposit(BigDecimal.valueOf(2000))
-//                .rentAmountSnapshot(BigDecimal.valueOf(5000))
-//                .build();
-//
-//        contractRepository.saveAll(List.of(c1, c2));
-//    }
-//
-//    // ✅ 1. /contract/list
-//    @Test
-//    void testGetContractList_ShouldReturnTenantList() throws Exception {
-//        mockMvc.perform(get("/contract/list")
-//                        .contentType(MediaType.APPLICATION_JSON))
-//                .andExpect(status().isOk())
-//                .andExpect(jsonPath("$", not(empty())))
-//                .andExpect(jsonPath("$[0].firstName", anyOf(is("John"), is("Jane"))));
-//    }
-//
-//    // ✅ 2. /contract/tenant/list
-//    @Test
-//    void testGetTenantList_ShouldReturnSameList() throws Exception {
-//        mockMvc.perform(get("/contract/tenant/list")
-//                        .contentType(MediaType.APPLICATION_JSON))
-//                .andExpect(status().isOk())
-//                .andExpect(jsonPath("$", hasSize(greaterThan(0))))
-//                .andExpect(jsonPath("$[0].firstName", notNullValue()));
-//    }
-//
-//    // ✅ 3. /contract/occupied-rooms
-//    @Test
-//    void testGetOccupiedRooms_ShouldReturnActiveRooms() throws Exception {
-//        mockMvc.perform(get("/contract/occupied-rooms")
-//                        .contentType(MediaType.APPLICATION_JSON))
-//                .andExpect(status().isOk())
-//                .andExpect(jsonPath("$", not(empty())));
-//    }
-//}
+package com.organicnow.backend.integration.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.organicnow.backend.model.*;
+import com.organicnow.backend.repository.*;
+
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@Testcontainers
+@SpringBootTest
+@AutoConfigureMockMvc
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+class ContractControllerIntegrationTest {
+
+    // -------------------------------------------------------
+    // Testcontainers
+    // -------------------------------------------------------
+    static final PostgreSQLContainer<?> postgres =
+            new PostgreSQLContainer<>("postgres:17-alpine")
+                    .withDatabaseName("organicnow_test")
+                    .withUsername("test")
+                    .withPassword("test");
+
+    static { postgres.start(); }
+
+    @DynamicPropertySource
+    static void setupProps(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "update");
+    }
+
+    // -------------------------------------------------------
+    // Repositories
+    // -------------------------------------------------------
+    @Autowired MockMvc mockMvc;
+    @Autowired ObjectMapper objectMapper;
+
+    @Autowired RoomRepository roomRepository;
+    @Autowired TenantRepository tenantRepository;
+
+    @Autowired ContractRepository contractRepository;
+    @Autowired ContractTypeRepository contractTypeRepository;
+    @Autowired PackagePlanRepository packagePlanRepository;
+
+    @Autowired ContractFileRepository contractFileRepository;
+
+    // Billing
+    @Autowired InvoiceRepository invoiceRepository;
+    @Autowired PaymentRecordRepository paymentRecordRepository;
+    @Autowired PaymentProofRepository paymentProofRepository;
+
+    // Maintenance
+    @Autowired MaintainRepository maintainRepository;
+    @Autowired MaintenanceScheduleRepository maintenanceScheduleRepository;
+    @Autowired MaintenanceNotificationSkipRepository maintenanceNotificationSkipRepository;
+
+    // Asset
+    @Autowired RoomAssetRepository roomAssetRepository;
+    @Autowired AssetRepository assetRepository;
+    @Autowired AssetGroupRepository assetGroupRepository;
+
+    // Admin
+    @Autowired AdminRepository adminRepository;
+
+    // -------------------------------------------------------
+    // Clean DB — FIXED ORDER
+    // -------------------------------------------------------
+    @BeforeEach
+    void cleanDatabase() {
+
+        // --- 1) Maintenance ---
+        maintenanceNotificationSkipRepository.deleteAll();
+        maintenanceScheduleRepository.deleteAll();
+        maintainRepository.deleteAll();
+
+        // --- 2) Billing ---
+        paymentProofRepository.deleteAll();
+        paymentRecordRepository.deleteAll();
+        invoiceRepository.deleteAll();       // MUST delete before contract
+
+        // --- 3) Contract chain ---
+        contractFileRepository.deleteAll();
+        contractRepository.deleteAll();      // MUST delete after invoice
+        tenantRepository.deleteAll();
+
+        // --- 4) Room-Asset chain ---
+        roomAssetRepository.deleteAll();
+        assetRepository.deleteAll();
+        assetGroupRepository.deleteAll();
+
+        // --- 5) Package & Contract Type ---
+        packagePlanRepository.deleteAll();
+        contractTypeRepository.deleteAll();
+
+        // --- 6) Rooms ---
+        roomRepository.deleteAll();
+
+        // --- 7) Admin ---
+        adminRepository.deleteAll();
+    }
+
+    // -------------------------------------------------------
+    // Helper: Create full contract
+    // -------------------------------------------------------
+    Contract createFullContract(Integer floor, String roomNumber) {
+
+        Room room = roomRepository.save(
+                Room.builder()
+                        .roomNumber(roomNumber)
+                        .roomFloor(floor)
+                        .roomSize(30)
+                        .build()
+        );
+
+        Tenant tenant = tenantRepository.save(
+                Tenant.builder()
+                        .firstName("John")
+                        .lastName("Doe")
+                        .phoneNumber("0912345678")
+                        .email("john@example.com")
+                        .nationalId("1234567890123") // ⭐ FIX: Required for @NotBlank
+                        .build()
+        );
+
+
+        ContractType type = contractTypeRepository.save(
+                ContractType.builder()
+                        .name("Monthly")
+                        .duration(12)
+                        .build()
+        );
+
+        PackagePlan plan = packagePlanRepository.save(
+                PackagePlan.builder()
+                        .contractType(type)
+                        .price(BigDecimal.valueOf(5000))
+                        .isActive(1)
+                        .roomSize(30)
+                        .build()
+        );
+
+        return contractRepository.save(
+                Contract.builder()
+                        .room(room)
+                        .tenant(tenant)
+                        .packagePlan(plan)
+                        .status(1)
+                        .startDate(LocalDateTime.now())
+                        .endDate(LocalDateTime.now().plusMonths(12))
+                        .deposit(BigDecimal.valueOf(3000))
+                        .rentAmountSnapshot(BigDecimal.valueOf(5000))
+                        .build()
+        );
+    }
+
+    // -------------------------------------------------------
+    // TESTS
+    // -------------------------------------------------------
+
+    @Test
+    @Order(1)
+    void getContractList_shouldReturnList() throws Exception {
+
+        createFullContract(3, "301");
+
+        mockMvc.perform(get("/contract/list"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    @Order(2)
+    void getTenantList_shouldReturnTenantList() throws Exception {
+
+        createFullContract(5, "501");
+
+        mockMvc.perform(get("/contract/tenant/list"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    @Order(3)
+    void getOccupiedRooms_shouldReturnRoomIds() throws Exception {
+
+        Contract c = createFullContract(2, "201");
+
+        mockMvc.perform(get("/contract/occupied-rooms"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0]").value(c.getRoom().getId()));
+    }
+
+    @Test
+    @Order(4)
+    void getContractByRoom_shouldReturnCorrectContract() throws Exception {
+
+        Contract c = createFullContract(7, "701");
+
+        mockMvc.perform(get("/contract/by-room")
+                        .param("floor", "7")
+                        .param("room", "701"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contractId").value(c.getId()));
+    }
+}

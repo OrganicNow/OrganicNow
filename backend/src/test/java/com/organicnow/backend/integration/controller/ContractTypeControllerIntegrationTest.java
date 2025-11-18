@@ -1,127 +1,200 @@
-//package com.organicnow.backend.controller;
-//
-//import com.organicnow.backend.model.ContractType;
-//import com.organicnow.backend.repository.ContractTypeRepository;
-//import org.junit.jupiter.api.BeforeEach;
-//import org.junit.jupiter.api.Test;
-//import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-//import org.springframework.boot.test.context.SpringBootTest;
-//import org.springframework.http.MediaType;
-//import org.springframework.jdbc.core.JdbcTemplate;
-//import org.springframework.test.annotation.DirtiesContext;
-//import org.springframework.test.context.DynamicPropertyRegistry;
-//import org.springframework.test.context.DynamicPropertySource;
-//import org.springframework.test.web.servlet.MockMvc;
-//import org.testcontainers.containers.PostgreSQLContainer;
-//import org.testcontainers.junit.jupiter.Container;
-//import org.testcontainers.junit.jupiter.Testcontainers;
-//
-//import static org.hamcrest.Matchers.*;
-//import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-//import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-//
-//@SpringBootTest
-//@AutoConfigureMockMvc
-//@Testcontainers
-//@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-//class ContractTypeControllerIntegrationTest {
-//
-//    @Container
-//    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine")
-//            .withDatabaseName("organicnow_test")
-//            .withUsername("testuser")
-//            .withPassword("testpass");
-//
-//    @DynamicPropertySource
-//    static void configureProps(DynamicPropertyRegistry registry) {
-//        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-//        registry.add("spring.datasource.username", postgres::getUsername);
-//        registry.add("spring.datasource.password", postgres::getPassword);
-//    }
-//
-//    @Autowired private MockMvc mockMvc;
-//    @Autowired private JdbcTemplate jdbcTemplate;
-//    @Autowired private ContractTypeRepository contractTypeRepository;
-//
-//    @BeforeEach
-//    void setup() {
-//        jdbcTemplate.execute("TRUNCATE TABLE contract_type RESTART IDENTITY CASCADE");
-//
-//        contractTypeRepository.save(ContractType.builder()
-//                .name("Standard Contract")
-//                .duration(12)
-//                .build());
-//
-//        contractTypeRepository.save(ContractType.builder()
-//                .name("Short Term")
-//                .duration(6)
-//                .build());
-//    }
-//
-//    // ✅ 1. GET /contract-types
-//    @Test
-//    void testGetAllContractTypes_ShouldReturnList() throws Exception {
-//        mockMvc.perform(get("/contract-types")
-//                        .accept(MediaType.APPLICATION_JSON))
-//                .andExpect(status().isOk())
-//                .andExpect(jsonPath("$", hasSize(2)))
-//                .andExpect(jsonPath("$[*].contract_name", containsInAnyOrder("Standard Contract", "Short Term")))
-//                .andExpect(jsonPath("$[*].duration", containsInAnyOrder(12, 6)));
-//    }
-//
-//    // ✅ 2. GET /contract-types/{id}
-//    @Test
-//    void testGetContractTypeById_ShouldReturnCorrectType() throws Exception {
-//        ContractType first = contractTypeRepository.findAll().get(0);
-//
-//        mockMvc.perform(get("/contract-types/{id}", first.getId())
-//                        .accept(MediaType.APPLICATION_JSON))
-//                .andExpect(status().isOk())
-//                .andExpect(jsonPath("$.id", is(first.getId().intValue())))
-//                .andExpect(jsonPath("$.contract_name", is(first.getName())))
-//                .andExpect(jsonPath("$.duration", is(first.getDuration())));
-//    }
-//
-//    // ✅ 3. POST /contract-types
-//    @Test
-//    void testCreateContractType_ShouldReturnCreated() throws Exception {
-//        String json = """
-//            {
-//                "contract_name": "Long Term",
-//                "duration": 24
-//            }
-//        """;
-//
-//        mockMvc.perform(post("/contract-types")
-//                        .contentType(MediaType.APPLICATION_JSON)
-//                        .content(json))
-//                .andExpect(status().isCreated())
-//                .andExpect(jsonPath("$.id", notNullValue()))
-//                .andExpect(jsonPath("$.contract_name", is("Long Term")))
-//                .andExpect(jsonPath("$.duration", is(24)));
-//
-//        assert contractTypeRepository.count() == 3;
-//    }
-//
-//    // ✅ 4. DELETE /contract-types/{id}
-//    @Test
-//    void testDeleteContractType_ShouldRemoveEntity() throws Exception {
-//        ContractType first = contractTypeRepository.findAll().get(0);
-//        Long id = first.getId();
-//
-//        mockMvc.perform(delete("/contract-types/{id}", id))
-//                .andExpect(status().isNoContent());
-//
-//        assert contractTypeRepository.findById(id).isEmpty();
-//    }
-//
-//    // ✅ 5. GET /contract-types/{id} not found
-//    @Test
-//    void testGetContractTypeById_ShouldReturn500() throws Exception {
-//        mockMvc.perform(get("/contract-types/{id}", 999L)
-//                        .accept(MediaType.APPLICATION_JSON))
-//                .andExpect(status().isInternalServerError())
-//                .andExpect(jsonPath("$.message", containsString("ContractType not found")));
-//    }
-//}
+package com.organicnow.backend.integration.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.organicnow.backend.model.ContractType;
+
+import com.organicnow.backend.repository.*;
+
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.web.servlet.MockMvc;
+
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@Testcontainers
+@SpringBootTest
+@AutoConfigureMockMvc
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+class ContractTypeControllerIntegrationTest {
+
+    // -------------------------------------------------------
+    // Testcontainers
+    // -------------------------------------------------------
+    static final PostgreSQLContainer<?> postgres =
+            new PostgreSQLContainer<>("postgres:17-alpine")
+                    .withDatabaseName("organicnow_test")
+                    .withUsername("test")
+                    .withPassword("test");
+
+    static {
+        postgres.start();
+    }
+
+    @DynamicPropertySource
+    static void props(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "update");
+    }
+
+    // -------------------------------------------------------
+    // Injected Beans
+    // -------------------------------------------------------
+    @Autowired MockMvc mockMvc;
+    @Autowired ObjectMapper objectMapper;
+
+    @Autowired RoomRepository roomRepository;
+    @Autowired TenantRepository tenantRepository;
+
+    @Autowired ContractRepository contractRepository;
+    @Autowired ContractTypeRepository contractTypeRepository;
+    @Autowired PackagePlanRepository packagePlanRepository;
+
+    @Autowired ContractFileRepository contractFileRepository;
+
+    // Billing
+    @Autowired InvoiceRepository invoiceRepository;
+    @Autowired PaymentRecordRepository paymentRecordRepository;
+    @Autowired PaymentProofRepository paymentProofRepository;
+
+    // Maintenance
+    @Autowired MaintainRepository maintainRepository;
+    @Autowired MaintenanceScheduleRepository maintenanceScheduleRepository;
+    @Autowired MaintenanceNotificationSkipRepository maintenanceNotificationSkipRepository;
+
+    // Asset
+    @Autowired RoomAssetRepository roomAssetRepository;
+    @Autowired AssetRepository assetRepository;
+    @Autowired AssetGroupRepository assetGroupRepository;
+
+    // Admin
+    @Autowired AdminRepository adminRepository;
+
+    // -------------------------------------------------------
+    // Clean DB — FIXED ORDER
+    // -------------------------------------------------------
+    @BeforeEach
+    void cleanDatabase() {
+
+        // --- 1) Maintenance ---
+        maintenanceNotificationSkipRepository.deleteAll();
+        maintenanceScheduleRepository.deleteAll();
+        maintainRepository.deleteAll();
+
+        // --- 2) Billing ---
+        paymentProofRepository.deleteAll();
+        paymentRecordRepository.deleteAll();
+        invoiceRepository.deleteAll();       // MUST delete before contract
+
+        // --- 3) Contract chain ---
+        contractFileRepository.deleteAll();
+        contractRepository.deleteAll();      // MUST delete after invoice
+        tenantRepository.deleteAll();
+
+        // --- 4) Room-Asset chain ---
+        roomAssetRepository.deleteAll();
+        assetRepository.deleteAll();
+        assetGroupRepository.deleteAll();
+
+        // --- 5) Package & Contract Type ---
+        packagePlanRepository.deleteAll();
+        contractTypeRepository.deleteAll();
+
+        // --- 6) Rooms ---
+        roomRepository.deleteAll();
+
+        // --- 7) Admin ---
+        adminRepository.deleteAll();
+    }
+
+
+
+    // -------------------------------------------------------
+    // Helper
+    // -------------------------------------------------------
+    ContractType createType(String name, int duration) {
+        return contractTypeRepository.save(
+                ContractType.builder()
+                        .name(name)
+                        .duration(duration)
+                        .build()
+        );
+    }
+
+    // -------------------------------------------------------
+    // 1) GET /contract-types
+    // -------------------------------------------------------
+    @Test
+    @Order(1)
+    void getAllContractTypes_shouldReturnList() throws Exception {
+
+        createType("Monthly", 12);
+        createType("Daily", 1);
+
+        mockMvc.perform(get("/contract-types"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    // -------------------------------------------------------
+    // 2) GET /contract-types/{id}
+    // -------------------------------------------------------
+    @Test
+    @Order(2)
+    void getContractTypeById_shouldReturnCorrectType() throws Exception {
+
+        ContractType type = createType("Weekly", 4);
+
+        mockMvc.perform(get("/contract-types/" + type.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.contract_name").value("Weekly"))
+                .andExpect(jsonPath("$.duration").value(4));
+    }
+
+    // -------------------------------------------------------
+    // 3) POST /contract-types
+    // -------------------------------------------------------
+    @Test
+    @Order(3)
+    void createContractType_shouldReturn201() throws Exception {
+
+        ContractType payload = ContractType.builder()
+                .name("Yearly")
+                .duration(12)
+                .build();
+
+        mockMvc.perform(post("/contract-types")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(payload)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.contract_name").value("Yearly"));
+
+        assertThat(contractTypeRepository.count()).isEqualTo(1);
+    }
+
+    // -------------------------------------------------------
+    // 4) DELETE /contract-types/{id}
+    // -------------------------------------------------------
+    @Test
+    @Order(4)
+    void deleteContractType_shouldDeleteSuccessfully() throws Exception {
+
+        ContractType type = createType("Temp", 2);
+
+        mockMvc.perform(delete("/contract-types/" + type.getId()))
+                .andExpect(status().isNoContent());
+
+        assertThat(contractTypeRepository.existsById(type.getId())).isFalse();
+    }
+}

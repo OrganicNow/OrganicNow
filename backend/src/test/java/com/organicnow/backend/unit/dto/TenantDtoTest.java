@@ -1,113 +1,213 @@
-//package com.organicnow.backend.dto;
-//import org.junit.jupiter.api.Test;
-//import static org.junit.jupiter.api.Assertions.*;
-//import java.math.BigDecimal;
-//import java.time.LocalDateTime;
-//
-//public class TenantDtoTest {
-//
-//    @Test
-//    void testTenantDtoConstructor() {
-//        // Arrange
-//        Long contractId = 1L;
-//        String firstName = "John";
-//        String lastName = "Doe";
-//        String phoneNumber = "1234567890";
-//        String email = "john.doe@example.com";
-//        String nationalId = "123456789"; // เพิ่มค่าของ nationalId
-//        String room = "A305";
-//        Integer floor = 3;
-//        Long roomId = 101L;
-//        Long packageId = 5L;
-//        Long contractTypeId = 2L;
-//        String contractName = "Monthly Lease";
-//
-//        // กำหนดค่า signDate, startDate และ endDate ที่คาดหวัง
-//        LocalDateTime signDate = LocalDateTime.of(2025, 10, 14, 12, 0, 0, 0);
-//        LocalDateTime startDate = LocalDateTime.of(2025, 10, 15, 9, 0, 0, 0);
-//        LocalDateTime endDate = LocalDateTime.of(2026, 10, 14, 9, 0, 0, 0);
-//
-//        BigDecimal deposit = new BigDecimal("500.00");
-//        BigDecimal rentAmountSnapshot = new BigDecimal("1500.00");
-//        Integer status = 1; // Active
-//
-//        // Act: สร้างอ็อบเจ็กต์จาก constructor ที่ใช้พารามิเตอร์ครบถ้วน
-//        TenantDto dto = new TenantDto(
-//                contractId, firstName, lastName, floor, room, roomId, packageId, contractTypeId,
-//                contractName, startDate, endDate, phoneNumber, email, nationalId, status
-//        );
-//
-//        // กำหนดค่า signDate โดยตรงใน Unit Test
-//        dto.setSignDate(signDate);  // เพิ่มการตั้งค่า signDate ที่จำเป็นใน Unit Test
-//
-//        // Assert
-//        assertNotNull(dto.getSignDate(), "Sign date should not be null");
-//        assertEquals(signDate, dto.getSignDate(), "Sign date should match");
-//        assertEquals(startDate, dto.getStartDate(), "Start date should match");
-//        assertEquals(endDate, dto.getEndDate(), "End date should match");
-//    }
-//
-//
-//
-//    @Test
-//    void testSetterAndGetter() {
-//        // Arrange
-//        TenantDto dto = new TenantDto();
-//        Long contractId = 2L;
-//        String firstName = "Jane";
-//        String lastName = "Smith";
-//        String phoneNumber = "0987654321";
-//        String email = "jane.smith@example.com";
-//        String room = "B202";
-//        Integer floor = 2;
-//        Long roomId = 102L;
-//        Long packageId = 6L;
-//        Long contractTypeId = 3L;
-//        String contractName = "Yearly Lease";
-//        LocalDateTime startDate = LocalDateTime.of(2025, 11, 5, 9, 0, 0, 0);
-//        LocalDateTime endDate = LocalDateTime.of(2026, 11, 4, 9, 0, 0, 0);
-//        LocalDateTime signDate = LocalDateTime.of(2025, 11, 1, 12, 0, 0, 0);
-//        BigDecimal deposit = new BigDecimal("300.00");
-//        BigDecimal rentAmountSnapshot = new BigDecimal("1200.00");
-//        Integer status = 0; // Inactive
-//
-//        // Act
-//        dto.setContractId(contractId);
-//        dto.setFirstName(firstName);
-//        dto.setLastName(lastName);
-//        dto.setPhoneNumber(phoneNumber);
-//        dto.setEmail(email);
-//        dto.setRoom(room);
-//        dto.setFloor(floor);
-//        dto.setRoomId(roomId);
-//        dto.setPackageId(packageId);
-//        dto.setContractTypeId(contractTypeId);
-//        dto.setContractName(contractName);
-//        dto.setStartDate(startDate);
-//        dto.setEndDate(endDate);
-//        dto.setSignDate(signDate);
-//        dto.setDeposit(deposit);
-//        dto.setRentAmountSnapshot(rentAmountSnapshot);
-//        dto.setStatus(status);
-//
-//        // Assert
-//        assertEquals(contractId, dto.getContractId());
-//        assertEquals(firstName, dto.getFirstName());
-//        assertEquals(lastName, dto.getLastName());
-//        assertEquals(phoneNumber, dto.getPhoneNumber());
-//        assertEquals(email, dto.getEmail());
-//        assertEquals(room, dto.getRoom());
-//        assertEquals(floor, dto.getFloor());
-//        assertEquals(roomId, dto.getRoomId());
-//        assertEquals(packageId, dto.getPackageId());
-//        assertEquals(contractTypeId, dto.getContractTypeId());
-//        assertEquals(contractName, dto.getContractName());
-//        assertEquals(startDate, dto.getStartDate());
-//        assertEquals(endDate, dto.getEndDate());
-//        assertEquals(signDate, dto.getSignDate());
-//        assertEquals(deposit, dto.getDeposit());
-//        assertEquals(rentAmountSnapshot, dto.getRentAmountSnapshot());
-//        assertEquals(status, dto.getStatus());
-//    }
-//}
-//
+package com.organicnow.backend.unit.dto;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.organicnow.backend.dto.TenantDto;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class TenantDtoTest {
+
+    // ใช้กับ test JSON (รองรับ LocalDateTime ด้วย)
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+
+    @Test
+    void testGetterAndSetter() {
+        TenantDto dto = new TenantDto();
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start = now.minusDays(1);
+        LocalDateTime end = now.plusDays(30);
+
+        dto.setContractId(1L);
+        dto.setFirstName("Alice");
+        dto.setLastName("Smith");
+        dto.setPhoneNumber("0999999999");
+        dto.setEmail("alice@example.com");
+        dto.setNationalId("1234567890123");
+
+        dto.setRoom("A101");
+        dto.setFloor(1);
+        dto.setRoomId(10L);
+
+        dto.setPackageId(5L);
+        dto.setContractTypeId(2L);
+        dto.setContractName("Standard Contract");
+
+        dto.setStartDate(start);
+        dto.setEndDate(end);
+        dto.setSignDate(now);
+
+        dto.setDeposit(new BigDecimal("5000.00"));
+        dto.setRentAmountSnapshot(new BigDecimal("12000.50"));
+
+        dto.setStatus(1);
+        dto.setHasSignedPdf(true);
+
+        assertEquals(1L, dto.getContractId());
+        assertEquals("Alice", dto.getFirstName());
+        assertEquals("Smith", dto.getLastName());
+        assertEquals("0999999999", dto.getPhoneNumber());
+        assertEquals("alice@example.com", dto.getEmail());
+        assertEquals("1234567890123", dto.getNationalId());
+
+        assertEquals("A101", dto.getRoom());
+        assertEquals(1, dto.getFloor());
+        assertEquals(10L, dto.getRoomId());
+
+        assertEquals(5L, dto.getPackageId());
+        assertEquals(2L, dto.getContractTypeId());
+        assertEquals("Standard Contract", dto.getContractName());
+
+        assertEquals(start, dto.getStartDate());
+        assertEquals(end, dto.getEndDate());
+        assertEquals(now, dto.getSignDate());
+
+        assertEquals(new BigDecimal("5000.00"), dto.getDeposit());
+        assertEquals(new BigDecimal("12000.50"), dto.getRentAmountSnapshot());
+
+        assertEquals(1, dto.getStatus());
+        assertTrue(dto.isHasSignedPdf());
+    }
+
+    @Test
+    void testBuilderCreatesCorrectObject() {
+        LocalDateTime now = LocalDateTime.now();
+
+        TenantDto dto = TenantDto.builder()
+                .contractId(2L)
+                .firstName("Bob")
+                .lastName("Taylor")
+                .phoneNumber("0888888888")
+                .email("bob@example.com")
+                .nationalId("9876543210000")
+                .room("B502")
+                .floor(5)
+                .roomId(50L)
+                .packageId(7L)
+                .contractTypeId(3L)
+                .contractName("Premium Contract")
+                .startDate(now.minusDays(5))
+                .endDate(now.plusDays(60))
+                .signDate(now.minusDays(7))
+                .deposit(new BigDecimal("8000"))
+                .rentAmountSnapshot(new BigDecimal("15000"))
+                .status(1)
+                .hasSignedPdf(false)
+                .build();
+
+        assertEquals(2L, dto.getContractId());
+        assertEquals("Bob", dto.getFirstName());
+        assertEquals("Taylor", dto.getLastName());
+        assertEquals("B502", dto.getRoom());
+        assertEquals(5, dto.getFloor());
+        assertEquals(50L, dto.getRoomId());
+        assertEquals(7L, dto.getPackageId());
+        assertEquals(3L, dto.getContractTypeId());
+        assertEquals("Premium Contract", dto.getContractName());
+        assertEquals(new BigDecimal("8000"), dto.getDeposit());
+        assertEquals(new BigDecimal("15000"), dto.getRentAmountSnapshot());
+        assertEquals(1, dto.getStatus());
+        assertFalse(dto.isHasSignedPdf());
+    }
+
+    @Test
+    void testJpqlConstructorMappingAndDefaultHasSignedPdf() {
+        LocalDateTime start = LocalDateTime.now().minusDays(2);
+        LocalDateTime end = LocalDateTime.now().plusDays(28);
+
+        TenantDto dto = new TenantDto(
+                100L,                  // contractId
+                "Charlie",             // firstName
+                "Brown",               // lastName
+                3,                     // floor
+                "C301",                // room
+                30L,                   // roomId
+                9L,                    // packageId
+                4L,                    // contractTypeId
+                "Basic Contract",      // contractName
+                start,                 // startDate
+                end,                   // endDate
+                "0777777777",          // phoneNumber
+                "charlie@example.com", // email
+                "1112223334445",       // nationalId
+                0,                     // status
+                new BigDecimal("9000") // rentAmountSnapshot
+        );
+
+        assertEquals(100L, dto.getContractId());
+        assertEquals("Charlie", dto.getFirstName());
+        assertEquals("Brown", dto.getLastName());
+        assertEquals(3, dto.getFloor());
+        assertEquals("C301", dto.getRoom());
+        assertEquals(30L, dto.getRoomId());
+        assertEquals(9L, dto.getPackageId());
+        assertEquals(4L, dto.getContractTypeId());
+        assertEquals("Basic Contract", dto.getContractName());
+        assertEquals(start, dto.getStartDate());
+        assertEquals(end, dto.getEndDate());
+        assertEquals("0777777777", dto.getPhoneNumber());
+        assertEquals("charlie@example.com", dto.getEmail());
+        assertEquals("1112223334445", dto.getNationalId());
+        assertEquals(0, dto.getStatus());
+        assertEquals(new BigDecimal("9000"), dto.getRentAmountSnapshot());
+
+        // default จาก JPQL constructor
+        assertFalse(dto.isHasSignedPdf());
+    }
+
+    @Test
+    void testJsonSerializationAndDeserialization() throws Exception {
+        LocalDateTime now = LocalDateTime.now();
+
+        TenantDto original = TenantDto.builder()
+                .contractId(200L)
+                .firstName("David")
+                .lastName("Lee")
+                .phoneNumber("0666666666")
+                .email("david@example.com")
+                .nationalId("5556667778889")
+                .room("D204")
+                .floor(2)
+                .roomId(204L)
+                .packageId(11L)
+                .contractTypeId(6L)
+                .contractName("Gold Contract")
+                .startDate(now.minusDays(3))
+                .endDate(now.plusDays(90))
+                .signDate(now.minusDays(5))
+                .deposit(new BigDecimal("10000"))
+                .rentAmountSnapshot(new BigDecimal("20000"))
+                .status(1)
+                .hasSignedPdf(true)
+                .build();
+
+        String json = mapper.writeValueAsString(original);
+        TenantDto read = mapper.readValue(json, TenantDto.class);
+
+        assertEquals(original.getContractId(), read.getContractId());
+        assertEquals(original.getFirstName(), read.getFirstName());
+        assertEquals(original.getLastName(), read.getLastName());
+        assertEquals(original.getRoom(), read.getRoom());
+        assertEquals(original.getFloor(), read.getFloor());
+        assertEquals(original.getRoomId(), read.getRoomId());
+        assertEquals(original.getPackageId(), read.getPackageId());
+        assertEquals(original.getContractTypeId(), read.getContractTypeId());
+        assertEquals(original.getContractName(), read.getContractName());
+        assertEquals(original.getStatus(), read.getStatus());
+        assertEquals(original.getDeposit(), read.getDeposit());
+        assertEquals(original.getRentAmountSnapshot(), read.getRentAmountSnapshot());
+        assertEquals(original.isHasSignedPdf(), read.isHasSignedPdf());
+    }
+
+    @Test
+    void testToStringNotBlank() {
+        TenantDto dto = new TenantDto();
+        String str = dto.toString();
+        assertNotNull(str);
+        assertFalse(str.isBlank());
+    }
+}

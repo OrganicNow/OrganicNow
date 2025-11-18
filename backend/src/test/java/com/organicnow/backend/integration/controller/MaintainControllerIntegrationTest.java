@@ -1,184 +1,280 @@
-//package com.organicnow.backend.controller;
-//
-//import com.fasterxml.jackson.databind.ObjectMapper;
-//import com.organicnow.backend.model.*;
-//import com.organicnow.backend.repository.*;
-//import org.junit.jupiter.api.BeforeEach;
-//import org.junit.jupiter.api.Test;
-//import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-//import org.springframework.boot.test.context.SpringBootTest;
-//import org.springframework.http.MediaType;
-//import org.springframework.jdbc.core.JdbcTemplate;
-//import org.springframework.test.annotation.DirtiesContext;
-//import org.springframework.test.context.DynamicPropertyRegistry;
-//import org.springframework.test.context.DynamicPropertySource;
-//import org.springframework.test.web.servlet.MockMvc;
-//import org.testcontainers.containers.PostgreSQLContainer;
-//import org.testcontainers.junit.jupiter.Container;
-//import org.testcontainers.junit.jupiter.Testcontainers;
-//
-//import java.math.BigDecimal;
-//import java.time.LocalDateTime;
-//
-//import static org.hamcrest.Matchers.*;
-//import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-//import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-//
-///**
-// * ✅ Integration Test for MaintainController
-// * ใช้ฐานข้อมูลจริงผ่าน Testcontainers (PostgreSQL 17)
-// */
-//@SpringBootTest
-//@AutoConfigureMockMvc
-//@Testcontainers
-//@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
-//class MaintainControllerIntegrationTest {
-//
-//    @Container
-//    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:17-alpine")
-//            .withDatabaseName("organicnow_test")
-//            .withUsername("testuser")
-//            .withPassword("testpass");
-//
-//    @DynamicPropertySource
-//    static void datasource(DynamicPropertyRegistry registry) {
-//        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-//        registry.add("spring.datasource.username", postgres::getUsername);
-//        registry.add("spring.datasource.password", postgres::getPassword);
-//    }
-//
-//    @Autowired private MockMvc mockMvc;
-//    @Autowired private ObjectMapper objectMapper;
-//    @Autowired private JdbcTemplate jdbcTemplate;
-//
-//    @Autowired private MaintainRepository maintainRepository;
-//    @Autowired private RoomRepository roomRepository;
-//    @Autowired private TenantRepository tenantRepository;
-//    @Autowired private ContractRepository contractRepository;
-//    @Autowired private PackagePlanRepository packagePlanRepository;
-//    @Autowired private ContractTypeRepository contractTypeRepository;
-//
-//    private Room room;
-//    private Maintain maintain;
-//
-//    @BeforeEach
-//    void setup() {
-//        jdbcTemplate.execute("""
-//        TRUNCATE TABLE maintain, room, tenant, contract, package_plan, contract_type
-//        RESTART IDENTITY CASCADE
-//    """);
-//
-//        ContractType type = ContractType.builder()
-//                .name("Standard Contract")
-//                .duration(12)
-//                .build();
-//        contractTypeRepository.save(type);
-//
-//        PackagePlan plan = PackagePlan.builder()
-//                .contractType(type)
-//                .price(BigDecimal.valueOf(5000))
-//                .isActive(1)
-//                .build();
-//        packagePlanRepository.save(plan);
-//
-//        Tenant tenant = Tenant.builder()
-//                .firstName("John")
-//                .lastName("Doe")
-//                .email("john@example.com")
-//                .phoneNumber("0812345678")
-//                .nationalId("1234567890123") // ✅ บังคับมีค่า
-//                .build();
-//        tenantRepository.save(tenant);
-//
-//        room = Room.builder()
-//                .roomNumber("101")
-//                .roomFloor(1)
-//                .build();
-//        roomRepository.save(room);
-//
-//        // ✅ ใช้ฟิลด์จริงจาก Maintain.java
-//        maintain = Maintain.builder()
-//                .room(room)
-//                .targetType(0)
-//                .issueCategory(1)
-//                .issueTitle("Light Bulb Broken")
-//                .issueDescription("Need replacement in bathroom")
-//                .createDate(LocalDateTime.now())
-//                .maintainType("Fix")
-//                .technicianName("Somchai")
-//                .technicianPhone("0811111111")
-//                .build();
-//        maintainRepository.save(maintain);
-//    }
-//
-//
-//    // ✅ 1. GET /maintain/list
-//    @Test
-//    void testGetAllMaintains_ShouldReturnList() throws Exception {
-//        mockMvc.perform(get("/maintain/list"))
-//                .andExpect(status().isOk());
-//    }
-//
-//    // ✅ 2. GET /maintain/{id}
-//    @Test
-//    void testGetMaintainById_ShouldReturnItem() throws Exception {
-//        mockMvc.perform(get("/maintain/" + maintain.getId()))
-//                .andExpect(status().isOk());
-//    }
-//
-//    // ✅ 3. POST /maintain/create
-//    @Test
-//    void testCreateMaintain_ShouldReturnOK() throws Exception {
-//        String json = """
-//        {
-//          "roomId": 1,
-//          "targetType": 0,
-//          "issueCategory": 2,
-//          "issueTitle": "Air Conditioner Broken",
-//          "issueDescription": "Not cooling properly",
-//          "createDate": "2025-10-16T10:00:00",
-//          "maintainType": "Repair",
-//          "technicianName": "Somchai",
-//          "technicianPhone": "0811111111"
-//        }
-//    """;
-//
-//        mockMvc.perform(post("/maintain/create")
-//                        .contentType(MediaType.APPLICATION_JSON)
-//                        .content(json))
-//                .andExpect(status().isOk());
-//    }
-//
-//
-//    // ✅ 4. PUT /maintain/update/{id}
-//    @Test
-//    void testUpdateMaintain_ShouldReturnOK() throws Exception {
-//        String json = """
-//            {
-//              "maintainTitle": "Air Conditioner Fixed",
-//              "maintainStatus": 1
-//            }
-//        """;
-//
-//        mockMvc.perform(put("/maintain/update/" + maintain.getId())
-//                        .contentType(MediaType.APPLICATION_JSON)
-//                        .content(json))
-//                .andExpect(status().isOk());
-//    }
-//
-//    // ✅ 5. DELETE /maintain/{id}
-//    @Test
-//    void testDeleteMaintain_ShouldReturnOK() throws Exception {
-//        mockMvc.perform(delete("/maintain/" + maintain.getId()))
-//                .andExpect(status().isOk());
-//    }
-//
-//    // ✅ 6. GET /maintain/{roomId}/requests
-//    @Test
-//    void testGetRequestsByRoom_ShouldReturnSuccessResponse() throws Exception {
-//        mockMvc.perform(get("/maintain/" + room.getId() + "/requests"))
-//                .andExpect(status().isOk())
-//                .andExpect(jsonPath("$.status", is("success")));
-//    }
-//}
+package com.organicnow.backend.integration.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.organicnow.backend.BackendApplication;
+import com.organicnow.backend.dto.CreateMaintainRequest;
+import com.organicnow.backend.dto.MaintainDto;
+import com.organicnow.backend.dto.UpdateMaintainRequest;
+import com.organicnow.backend.service.MaintainRoomService;
+import com.organicnow.backend.service.MaintainService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest(classes = BackendApplication.class)
+@AutoConfigureMockMvc(addFilters = false)
+class MaintainControllerIntegrationTest {
+
+    @Autowired
+    MockMvc mockMvc;
+
+    @Autowired
+    ObjectMapper objectMapper;
+
+    @MockBean
+    MaintainRoomService maintainRoomService;
+
+    @MockBean
+    MaintainService maintainService;
+
+    // -------------------------------------------------------
+    // 1) GET /maintain/{roomId}/requests
+    // -------------------------------------------------------
+    @Test
+    void getRequestsByRoom_shouldReturnSuccessStatus() throws Exception {
+        Long roomId = 1L;
+
+        // คืน list ว่าง ๆ พอ เพื่อให้ controller ทำงานปกติ
+        when(maintainRoomService.getRequestsByRoomId(roomId))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/maintain/{roomId}/requests", roomId))
+                .andExpect(status().isOk())
+                // เช็คแค่ว่ามี status = "success"
+                .andExpect(jsonPath("$.status").value("success"));
+        // ไม่เช็ค $.data.length() แล้ว เพราะ field data ไม่มีใน response จริง
+    }
+
+    // -------------------------------------------------------
+    // 2) GET /maintain/list
+    // -------------------------------------------------------
+    @Test
+    void list_shouldReturnAllMaintains() throws Exception {
+        when(maintainService.getAll())
+                .thenReturn(List.of(
+                        mock(MaintainDto.class),
+                        mock(MaintainDto.class)
+                ));
+
+        mockMvc.perform(get("/maintain/list"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+    }
+
+    // -------------------------------------------------------
+    // 3) GET /maintain/{id}
+    // -------------------------------------------------------
+    @Test
+    void get_whenFound_shouldReturnMaintain() throws Exception {
+        Long id = 1L;
+        when(maintainService.getById(id))
+                .thenReturn(Optional.of(mock(MaintainDto.class)));
+
+        mockMvc.perform(get("/maintain/{id}", id))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void get_whenNotFound_shouldReturn404() throws Exception {
+        Long id = 999L;
+        when(maintainService.getById(id))
+                .thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/maintain/{id}", id))
+                .andExpect(status().isNotFound());
+    }
+
+    // -------------------------------------------------------
+    // 4) POST /maintain/create
+    // -------------------------------------------------------
+    @Test
+    void create_whenSuccess_shouldReturn200() throws Exception {
+        CreateMaintainRequest req = new CreateMaintainRequest();
+        when(maintainService.create(any(CreateMaintainRequest.class)))
+                .thenReturn(mock(MaintainDto.class));
+
+        mockMvc.perform(
+                        post("/maintain/create")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void create_whenServiceThrows_shouldReturn400WithMessage() throws Exception {
+        CreateMaintainRequest req = new CreateMaintainRequest();
+        when(maintainService.create(any(CreateMaintainRequest.class)))
+                .thenThrow(new RuntimeException("Boom"));
+
+        mockMvc.perform(
+                        post("/maintain/create")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Create failed")));
+    }
+
+    // -------------------------------------------------------
+    // 5) PUT /maintain/update/{id}
+    // -------------------------------------------------------
+    @Test
+    void update_whenSuccess_shouldReturn200() throws Exception {
+        Long id = 1L;
+        UpdateMaintainRequest req = new UpdateMaintainRequest();
+        when(maintainService.update(eq(id), any(UpdateMaintainRequest.class)))
+                .thenReturn(mock(MaintainDto.class));
+
+        mockMvc.perform(
+                        put("/maintain/update/{id}", id)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void update_whenServiceThrows_shouldReturn400() throws Exception {
+        Long id = 1L;
+        UpdateMaintainRequest req = new UpdateMaintainRequest();
+        when(maintainService.update(eq(id), any(UpdateMaintainRequest.class)))
+                .thenThrow(new RuntimeException("Update error"));
+
+        mockMvc.perform(
+                        put("/maintain/update/{id}", id)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(req))
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Update failed")));
+    }
+
+    // -------------------------------------------------------
+    // 6) DELETE /maintain/{id}
+    // -------------------------------------------------------
+    @Test
+    void delete_whenSuccess_shouldReturn200() throws Exception {
+        Long id = 1L;
+        doNothing().when(maintainService).delete(id);
+
+        mockMvc.perform(delete("/maintain/{id}", id))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void delete_whenServiceThrows_shouldReturn400() throws Exception {
+        Long id = 1L;
+        doThrow(new RuntimeException("Delete error"))
+                .when(maintainService).delete(id);
+
+        mockMvc.perform(delete("/maintain/{id}", id))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("Delete failed")));
+    }
+
+    // -------------------------------------------------------
+    // 7) GET /maintain/{id}/report-pdf
+    // -------------------------------------------------------
+    @Test
+    void generateMaintenanceReportPdf_whenSuccess_shouldReturnPdfBytes() throws Exception {
+        Long id = 1L;
+        byte[] pdfBytes = "dummy-pdf".getBytes();
+        when(maintainService.generateMaintenanceReportPdf(id))
+                .thenReturn(pdfBytes);
+
+        mockMvc.perform(get("/maintain/{id}/report-pdf", id))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "application/pdf"))
+                .andExpect(header().string("Content-Disposition",
+                        org.hamcrest.Matchers.containsString("maintenance-report-" + id + ".pdf")))
+                .andExpect(content().bytes(pdfBytes));
+    }
+
+    @Test
+    void generateMaintenanceReportPdf_whenException_shouldReturn400() throws Exception {
+        Long id = 1L;
+        when(maintainService.generateMaintenanceReportPdf(id))
+                .thenThrow(new RuntimeException("PDF error"));
+
+        mockMvc.perform(get("/maintain/{id}/report-pdf", id))
+                .andExpect(status().isBadRequest());
+    }
+
+    // -------------------------------------------------------
+    // 8) POST /maintain/{maintainId}/work-image
+    // -------------------------------------------------------
+    @Test
+    void uploadWorkImage_whenValidImage_shouldReturn200AndUrl() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "photo.png",
+                "image/png",
+                "dummy-image".getBytes()
+        );
+
+        mockMvc.perform(
+                        multipart("/maintain/{id}/work-image", 10L)
+                                .file(file)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.url").isNotEmpty())
+                .andExpect(jsonPath("$.filename").isNotEmpty())
+                .andExpect(jsonPath("$.message").value("อัพโหลดรูปภาพสำเร็จ"));
+    }
+
+    @Test
+    void uploadWorkImage_whenFileEmpty_shouldReturn400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "empty.png",
+                "image/png",
+                new byte[0]
+        );
+
+        mockMvc.perform(
+                        multipart("/maintain/{id}/work-image", 11L)
+                                .file(file)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("ไม่มีไฟล์ที่อัพโหลด"));
+    }
+
+    @Test
+    void uploadWorkImage_whenNotImage_shouldReturn400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "doc.txt",
+                "text/plain",
+                "not-an-image".getBytes()
+        );
+
+        mockMvc.perform(
+                        multipart("/maintain/{id}/work-image", 12L)
+                                .file(file)
+                )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("ไฟล์ต้องเป็นรูปภาพเท่านั้น"));
+    }
+}

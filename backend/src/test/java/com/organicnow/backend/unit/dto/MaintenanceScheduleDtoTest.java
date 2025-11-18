@@ -1,55 +1,130 @@
-//package com.organicnow.backend.dto;
-//import org.junit.jupiter.api.Test;
-//import java.time.LocalDateTime;
-//import static org.junit.jupiter.api.Assertions.*;
-//
-//public class MaintenanceScheduleDtoTest {
-//
-//    @Test
-//    void testMaintenanceScheduleDtoConstructorAndGettersSetters() {
-//        // Arrange
-//        Long id = 1L;
-//        Integer scheduleScope = 0;
-//        Long assetGroupId = 101L;
-//        String assetGroupName = "Asset Group 1";
-//        Integer cycleMonth = 6;
-//        LocalDateTime now = LocalDateTime.now(); // ใช้เวลาปัจจุบัน
-//        Integer notifyBeforeDate = 5;
-//        String scheduleTitle = "Routine Maintenance";
-//        String scheduleDescription = "Maintenance every 6 months";
-//
-//        // Act: สร้างอ็อบเจ็กต์ MaintenanceScheduleDto
-//        MaintenanceScheduleDto dto = MaintenanceScheduleDto.builder()
-//                .id(id)
-//                .scheduleScope(scheduleScope)
-//                .assetGroupId(assetGroupId)
-//                .assetGroupName(assetGroupName)
-//                .cycleMonth(cycleMonth)
-//                .lastDoneDate(now)
-//                .nextDueDate(now.plusMonths(6)) // กำหนด nextDueDate เป็น 6 เดือนถัดไป
-//                .notifyBeforeDate(notifyBeforeDate)
-//                .scheduleTitle(scheduleTitle)
-//                .scheduleDescription(scheduleDescription)
-//                .build();
-//
-//        // Assert: ตรวจสอบการตั้งค่าที่ถูกต้อง
-//        assertEquals(id, dto.getId(), "ID should match");
-//        assertEquals(scheduleScope, dto.getScheduleScope(), "Schedule scope should match");
-//        assertEquals(assetGroupId, dto.getAssetGroupId(), "Asset group ID should match");
-//        assertEquals(assetGroupName, dto.getAssetGroupName(), "Asset group name should match");
-//        assertEquals(cycleMonth, dto.getCycleMonth(), "Cycle month should match");
-//        assertEquals(now, dto.getLastDoneDate(), "Last done date should match");
-//        assertEquals(now.plusMonths(6), dto.getNextDueDate(), "Next due date should be 6 months after last done date");
-//        assertEquals(notifyBeforeDate, dto.getNotifyBeforeDate(), "Notify before date should match");
-//        assertEquals(scheduleTitle, dto.getScheduleTitle(), "Schedule title should match");
-//        assertEquals(scheduleDescription, dto.getScheduleDescription(), "Schedule description should match");
-//
-//        // Test setters for nullable fields (optional)
-//        MaintenanceScheduleDto nullRequest = new MaintenanceScheduleDto();
-//        assertNull(nullRequest.getAssetGroupName(), "Asset group name should be null by default");
-//        assertNull(nullRequest.getScheduleTitle(), "Schedule title should be null by default");
-//        assertNull(nullRequest.getScheduleDescription(), "Schedule description should be null by default");
-//        assertNull(nullRequest.getLastDoneDate(), "Last done date should be null by default");
-//        assertNull(nullRequest.getNextDueDate(), "Next due date should be null by default");
-//    }
-//}
+package com.organicnow.backend.unit.dto;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.organicnow.backend.dto.MaintenanceScheduleDto;
+import org.junit.jupiter.api.Test;
+
+import java.time.LocalDateTime;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+public class MaintenanceScheduleDtoTest {
+
+    private ObjectMapper mapper() {
+        ObjectMapper m = new ObjectMapper();
+        m.registerModule(new JavaTimeModule());
+        return m;
+    }
+
+    @Test
+    void testGetterSetterAndConstructor() {
+        LocalDateTime now = LocalDateTime.of(2025, 1, 1, 10, 0);
+        LocalDateTime next = now.plusMonths(6);
+
+        MaintenanceScheduleDto dto = new MaintenanceScheduleDto(
+                1L, 2, 3L, "Group A",
+                12, now, next,
+                5, "Maintenance", "Check system"
+        );
+
+        assertEquals(1L, dto.getId());
+        assertEquals(2, dto.getScheduleScope());
+        assertEquals(3L, dto.getAssetGroupId());
+        assertEquals("Group A", dto.getAssetGroupName());
+        assertEquals(12, dto.getCycleMonth());
+        assertEquals(now, dto.getLastDoneDate());
+        assertEquals(next, dto.getNextDueDate());
+        assertEquals(5, dto.getNotifyBeforeDate());
+        assertEquals("Maintenance", dto.getScheduleTitle());
+        assertEquals("Check system", dto.getScheduleDescription());
+    }
+
+    @Test
+    void testBuilder() {
+        LocalDateTime now = LocalDateTime.of(2025, 2, 1, 9, 30);
+
+        MaintenanceScheduleDto dto = MaintenanceScheduleDto.builder()
+                .id(10L)
+                .scheduleScope(1)
+                .assetGroupId(20L)
+                .assetGroupName("Engine Group")
+                .cycleMonth(3)
+                .lastDoneDate(now)
+                .nextDueDate(now.plusMonths(3))
+                .notifyBeforeDate(7)
+                .scheduleTitle("Engine Check")
+                .scheduleDescription("Routine engine inspection")
+                .build();
+
+        assertEquals(10L, dto.getId());
+        assertEquals(1, dto.getScheduleScope());
+        assertEquals(20L, dto.getAssetGroupId());
+        assertEquals("Engine Group", dto.getAssetGroupName());
+        assertEquals(3, dto.getCycleMonth());
+    }
+
+    @Test
+    void testFieldComparisonEqualsManual() {
+        LocalDateTime now = LocalDateTime.of(2024, 10, 10, 8, 0);
+
+        MaintenanceScheduleDto d1 = MaintenanceScheduleDto.builder()
+                .id(1L).scheduleScope(1).assetGroupId(5L).assetGroupName("A")
+                .cycleMonth(6).lastDoneDate(now).nextDueDate(now.plusDays(1))
+                .notifyBeforeDate(3).scheduleTitle("Test").scheduleDescription("Desc")
+                .build();
+
+        MaintenanceScheduleDto d2 = MaintenanceScheduleDto.builder()
+                .id(1L).scheduleScope(1).assetGroupId(5L).assetGroupName("A")
+                .cycleMonth(6).lastDoneDate(now).nextDueDate(now.plusDays(1))
+                .notifyBeforeDate(3).scheduleTitle("Test").scheduleDescription("Desc")
+                .build();
+
+        // เปรียบเทียบทีละ field (ไม่ใช้ equals() เพราะ DTO ไม่มี override)
+        assertEquals(d1.getId(), d2.getId());
+        assertEquals(d1.getScheduleScope(), d2.getScheduleScope());
+        assertEquals(d1.getAssetGroupId(), d2.getAssetGroupId());
+        assertEquals(d1.getAssetGroupName(), d2.getAssetGroupName());
+        assertEquals(d1.getCycleMonth(), d2.getCycleMonth());
+        assertEquals(d1.getLastDoneDate(), d2.getLastDoneDate());
+        assertEquals(d1.getNextDueDate(), d2.getNextDueDate());
+        assertEquals(d1.getNotifyBeforeDate(), d2.getNotifyBeforeDate());
+        assertEquals(d1.getScheduleTitle(), d2.getScheduleTitle());
+        assertEquals(d1.getScheduleDescription(), d2.getScheduleDescription());
+    }
+
+    @Test
+    void testJsonSerializationDeserialization() throws Exception {
+        LocalDateTime now = LocalDateTime.of(2025, 3, 15, 14, 0);
+
+        MaintenanceScheduleDto original = MaintenanceScheduleDto.builder()
+                .id(100L)
+                .scheduleScope(2)
+                .assetGroupId(50L)
+                .assetGroupName("Cooling System")
+                .cycleMonth(12)
+                .lastDoneDate(now)
+                .nextDueDate(now.plusMonths(12))
+                .notifyBeforeDate(14)
+                .scheduleTitle("Cooling Check")
+                .scheduleDescription("Annual inspection")
+                .build();
+
+        String json = mapper().writeValueAsString(original);
+
+        MaintenanceScheduleDto clone =
+                mapper().readValue(json, MaintenanceScheduleDto.class);
+
+        // เทียบทีละ field
+        assertEquals(original.getId(), clone.getId());
+        assertEquals(original.getScheduleScope(), clone.getScheduleScope());
+        assertEquals(original.getAssetGroupId(), clone.getAssetGroupId());
+        assertEquals(original.getAssetGroupName(), clone.getAssetGroupName());
+        assertEquals(original.getCycleMonth(), clone.getCycleMonth());
+        assertEquals(original.getLastDoneDate(), clone.getLastDoneDate());
+        assertEquals(original.getNextDueDate(), clone.getNextDueDate());
+        assertEquals(original.getNotifyBeforeDate(), clone.getNotifyBeforeDate());
+        assertEquals(original.getScheduleTitle(), clone.getScheduleTitle());
+        assertEquals(original.getScheduleDescription(), clone.getScheduleDescription());
+    }
+}

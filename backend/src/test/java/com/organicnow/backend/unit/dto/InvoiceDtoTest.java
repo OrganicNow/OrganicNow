@@ -1,134 +1,169 @@
-//package com.organicnow.backend.unit.dto;
-//
-//import org.junit.jupiter.api.Test;
-//
-//import java.math.BigDecimal;
-//import java.time.LocalDateTime;
-//
-//import static org.junit.jupiter.api.Assertions.*;
-//
-//class InvoiceDtoTest {
-//
-//    @Test
-//    void testNoArgsConstructor() {
-//        InvoiceDto invoiceDto = new InvoiceDto();
-//
-//        assertNull(invoiceDto.getId()); // ID is null by default
-//        assertNull(invoiceDto.getContractDetails()); // Contract details are null by default
-//        assertNull(invoiceDto.getCreateDate()); // Create date is null by default
-//        assertNull(invoiceDto.getDueDate()); // Due date is null by default
-//        assertEquals("ไม่ระบุ", invoiceDto.getPayMethodText()); // payMethod is null, should return "ไม่ระบุ"
-//        assertEquals("Unknown", invoiceDto.getStatus()); // invoiceStatus is null, should return "Unknown"
-//        assertNull(invoiceDto.getPayDate()); // Pay date is null by default
-//        assertNull(invoiceDto.getSubTotal()); // Sub_total is null by default
-//        assertNull(invoiceDto.getPenaltyTotal()); // Penalty total is null by default
-//        assertNull(invoiceDto.getNetAmount()); // Net amount is null by default
-//        assertNull(invoiceDto.getPenaltyAppliedAt()); // Penalty applied at is null by default
-//    }
-//
-//
-//
-//
-//
-//    @Test
-//    void testBuilder() {
-//        // Arrange
-//        Long expectedId = 1L;
-//        Long expectedContractId = 100L;
-//        String expectedContractDetails = "Sample Contract";
-//        LocalDateTime expectedCreateDate = LocalDateTime.now();
-//        LocalDateTime expectedDueDate = LocalDateTime.of(2025, 5, 31, 12, 0, 0, 0);
-//        Integer expectedInvoiceStatus = 1;  // Complete
-//        String expectedStatusText = "Complete";
-//        Integer expectedSubTotal = 5000;
-//        Integer expectedPenaltyTotal = 100;
-//        Integer expectedNetAmount = 5100;
-//
-//        // Act
-//        InvoiceDto invoiceDto = InvoiceDto.builder()
-//                .id(expectedId)
-//                .contractId(expectedContractId)
-//                .contractDetails(expectedContractDetails)
-//                .createDate(expectedCreateDate)
-//                .dueDate(expectedDueDate)
-//                .invoiceStatus(expectedInvoiceStatus)
-//                .statusText(expectedStatusText)
-//                .subTotal(expectedSubTotal)
-//                .penaltyTotal(expectedPenaltyTotal)
-//                .netAmount(expectedNetAmount)
-//                .build();
-//
-//        // Assert
-//        assertEquals(expectedId, invoiceDto.getId());
-//        assertEquals(expectedContractId, invoiceDto.getContractId());
-//        assertEquals(expectedContractDetails, invoiceDto.getContractDetails());
-//        assertEquals(expectedCreateDate, invoiceDto.getCreateDate());
-//        assertEquals(expectedDueDate, invoiceDto.getDueDate());
-//        assertEquals(expectedInvoiceStatus, invoiceDto.getInvoiceStatus());
-//        assertEquals(expectedStatusText, invoiceDto.getStatusText());
-//        assertEquals(expectedSubTotal, invoiceDto.getSubTotal());
-//        assertEquals(expectedPenaltyTotal, invoiceDto.getPenaltyTotal());
-//        assertEquals(expectedNetAmount, invoiceDto.getNetAmount());
-//    }
-//
-//    @Test
-//    void testStatusText() {
-//        // Arrange
-//        InvoiceDto invoiceDto = InvoiceDto.builder().invoiceStatus(0).build(); // Incomplete
-//
-//        // Act
-//        String statusText = invoiceDto.getStatusText();
-//
-//        // Assert
-//        assertEquals("Incomplete", statusText);
-//    }
-//
-//    @Test
-//    void testPayMethodText() {
-//        // Arrange
-//        InvoiceDto invoiceDto = InvoiceDto.builder().payMethod(2).build();  // Bank Transfer
-//
-//        // Act
-//        String payMethodText = invoiceDto.getPayMethodText();
-//
-//        // Assert
-//        assertEquals("โอนเงิน", payMethodText);
-//    }
-//
-//    @Test
-//    void testPenalty() {
-//        // Arrange
-//        InvoiceDto invoiceDto = InvoiceDto.builder().penaltyTotal(100).build();  // Penalty is greater than 0
-//
-//        // Act
-//        Integer penalty = invoiceDto.getPenalty();
-//
-//        // Assert
-//        assertEquals(1, penalty);
-//    }
-//
-//    @Test
-//    void testAmount() {
-//        // Arrange
-//        InvoiceDto invoiceDto = InvoiceDto.builder().netAmount(5100).build();
-//
-//        // Act
-//        Integer amount = invoiceDto.getAmount();
-//
-//        // Assert
-//        assertEquals(5100, amount);
-//    }
-//
-//    @Test
-//    void testSetStatusFromString() {
-//        // Arrange
-//        InvoiceDto invoiceDto = new InvoiceDto();
-//        invoiceDto.setStatus("Complete");
-//
-//        // Act
-//        Integer status = invoiceDto.getInvoiceStatus();
-//
-//        // Assert
-//        assertEquals(1, status);  // Status should be set to 1 (Complete)
-//    }
-//}
+package com.organicnow.backend.unit.dto;
+
+import com.organicnow.backend.dto.InvoiceDto;
+import com.organicnow.backend.dto.PaymentRecordDto;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class InvoiceDtoTest {
+
+    @Test
+    void testInvoiceDtoFieldsAndHelpers() {
+
+        LocalDateTime now = LocalDateTime.of(2024, 1, 1, 12, 0);
+
+        InvoiceDto dto = InvoiceDto.builder()
+                .id(1L)
+                .contractId(20L)
+                .contractDetails("Contract A")
+                .createDate(now)
+                .dueDate(now)
+                .invoiceStatus(1)
+                .payMethod(2)
+                .subTotal(5000)
+                .penaltyTotal(300)
+                .netAmount(5300)
+                .penaltyAppliedAt(now)
+
+                .previousBalance(100)
+                .paidAmount(2000)
+                .outstandingBalance(3200)
+                .hasOutstandingBalance(true)
+
+                .paymentRecords(List.of(new PaymentRecordDto()))
+                .totalPaidAmount(new BigDecimal("2000"))
+                .totalPendingAmount(new BigDecimal("300"))
+                .remainingAmount(new BigDecimal("500"))
+
+                .firstName("John")
+                .lastName("Doe")
+                .nationalId("1234567890123")
+                .phoneNumber("0800000000")
+                .email("john@example.com")
+                .packageName("Premium")
+                .signDate(now)
+                .startDate(now)
+                .endDate(now)
+                .floor(3)
+                .room("A301")
+
+                .rent(7000)
+                .water(150)
+                .waterUnit(10)
+                .electricity(250)
+                .electricityUnit(40)
+                .addonAmount(200)
+
+                .build();
+
+        // ================
+        // BASIC FIELD TEST
+        // ================
+        assertEquals(1L, dto.getId());
+        assertEquals(20L, dto.getContractId());
+        assertEquals("Contract A", dto.getContractDetails());
+
+        assertEquals(now, dto.getCreateDate());
+        assertEquals(now, dto.getDueDate());
+
+        assertEquals(1, dto.getInvoiceStatus());
+        assertEquals(2, dto.getPayMethod());
+
+        assertEquals(5000, dto.getSubTotal());
+        assertEquals(300, dto.getPenaltyTotal());
+        assertEquals(5300, dto.getNetAmount());
+        assertEquals(now, dto.getPenaltyAppliedAt());
+
+        assertEquals(100, dto.getPreviousBalance());
+        assertEquals(2000, dto.getPaidAmount());
+        assertEquals(3200, dto.getOutstandingBalance());
+        assertTrue(dto.getHasOutstandingBalance());
+
+        assertNotNull(dto.getPaymentRecords());
+        assertEquals(new BigDecimal("2000"), dto.getTotalPaidAmount());
+        assertEquals(new BigDecimal("300"), dto.getTotalPendingAmount());
+        assertEquals(new BigDecimal("500"), dto.getRemainingAmount());
+
+        assertEquals("John", dto.getFirstName());
+        assertEquals("Doe", dto.getLastName());
+        assertEquals("1234567890123", dto.getNationalId());
+        assertEquals("0800000000", dto.getPhoneNumber());
+        assertEquals("john@example.com", dto.getEmail());
+        assertEquals("Premium", dto.getPackageName());
+
+        assertEquals(now, dto.getSignDate());
+        assertEquals(now, dto.getStartDate());
+        assertEquals(now, dto.getEndDate());
+
+        assertEquals(3, dto.getFloor());
+        assertEquals("A301", dto.getRoom());
+
+        assertEquals(7000, dto.getRent());
+        assertEquals(150, dto.getWater());
+        assertEquals(10, dto.getWaterUnit());
+        assertEquals(250, dto.getElectricity());
+        assertEquals(40, dto.getElectricityUnit());
+        assertEquals(200, dto.getAddonAmount());
+
+        // ==========================
+        // HELPER METHOD TEST (LOGIC)
+        // ==========================
+
+        // Status Helper
+        assertEquals("Complete", dto.getStatusText());
+        assertEquals("Complete", dto.getStatus());
+
+        // Pay Method Helper
+        assertEquals("โอนเงิน", dto.getPayMethodText());
+
+        // Penalty Helper
+        assertEquals(1, dto.getPenalty()); // เพราะ penaltyTotal = 300 (>0)
+
+        // ========================
+        // ALIAS TEST (amount/netAmount)
+        // ========================
+        assertEquals(5300, dto.getAmount());
+
+        dto.setAmount(9999);
+        assertEquals(9999, dto.getNetAmount());
+        assertEquals(9999, dto.getAmount());
+
+        // =============
+        // SET STATUS TEST
+        // =============
+        dto.setStatus("Cancelled");
+        assertEquals(2, dto.getInvoiceStatus());
+        assertEquals("Cancelled", dto.getStatus());
+
+        dto.setStatus("Incomplete");
+        assertEquals(0, dto.getInvoiceStatus());
+        assertEquals("Incomplete", dto.getStatus());
+    }
+
+    @Test
+    void testPenaltyWhenNull() {
+        InvoiceDto dto = new InvoiceDto();
+        dto.setPenaltyTotal(null);
+        assertEquals(0, dto.getPenalty());
+    }
+
+    @Test
+    void testStatusWhenNull() {
+        InvoiceDto dto = new InvoiceDto();
+        dto.setInvoiceStatus(null);
+        assertEquals("Unknown", dto.getStatus());
+        assertEquals("ไม่ระบุ", dto.getStatusText());
+    }
+
+    @Test
+    void testPayMethodWhenNull() {
+        InvoiceDto dto = new InvoiceDto();
+        dto.setPayMethod(null);
+        assertEquals("ไม่ระบุ", dto.getPayMethodText());
+    }
+}
