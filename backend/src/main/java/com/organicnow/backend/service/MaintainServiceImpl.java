@@ -283,12 +283,8 @@ public class MaintainServiceImpl implements MaintainService {
             
             problemTable.addCell(PdfStyleService.createLabelCell("Issue Title:", labelFont));
             problemTable.addCell(PdfStyleService.createValueCell(PdfStyleService.nvl(maintain.getIssueTitle()), normalFont));
-            
-            problemTable.addCell(PdfStyleService.createLabelCell("Description:", labelFont));
-            PdfPCell descCell = PdfStyleService.createValueCell(PdfStyleService.nvl(maintain.getIssueDescription()), normalFont);
-            descCell.setMinimumHeight(60);
-            problemTable.addCell(descCell);
-            
+
+
             document.add(problemTable);
             
             // Technician & Schedule Information
