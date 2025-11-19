@@ -75,7 +75,7 @@
             <artifactId>core</artifactId>
             <version>3.5.3</version>
         </dependency>
-        
+
         <dependency>
             <groupId>com.google.zxing</groupId>
             <artifactId>javase</artifactId>
@@ -88,11 +88,11 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-             
-         <dependency>
-                  <groupId>org.springframework.boot</groupId>
-                  <artifactId>spring-boot-starter-actuator</artifactId>
-         </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
 
         <!-- ✅ Springdoc OpenAPI 3 / Swagger UI -->
         <dependency>
@@ -125,34 +125,28 @@
             <scope>test</scope>
         </dependency>
         <!-- ✅ Spring Data Elasticsearch -->
-<!--        <dependency>-->
-<!--            <groupId>org.springframework.boot</groupId>-->
-<!--            <artifactId>spring-boot-starter-data-elasticsearch</artifactId>-->
-<!--        </dependency>-->
-<!--        &lt;!&ndash; ✅ เพิ่ม Elasticsearch Core (ให้มี org.elasticsearch.index.query) &ndash;&gt;-->
-<!--        <dependency>-->
-<!--            <groupId>org.elasticsearch.client</groupId>-->
-<!--            <artifactId>elasticsearch-rest-high-level-client</artifactId>-->
-<!--            <version>7.17.4</version>-->
-<!--        </dependency>-->
+        <!--        <dependency>-->
+        <!--            <groupId>org.springframework.boot</groupId>-->
+        <!--            <artifactId>spring-boot-starter-data-elasticsearch</artifactId>-->
+        <!--        </dependency>-->
+        <!--        &lt;!&ndash; ✅ เพิ่ม Elasticsearch Core (ให้มี org.elasticsearch.index.query) &ndash;&gt;-->
+        <!--        <dependency>-->
+        <!--            <groupId>org.elasticsearch.client</groupId>-->
+        <!--            <artifactId>elasticsearch-rest-high-level-client</artifactId>-->
+        <!--            <version>7.17.4</version>-->
+        <!--        </dependency>-->
 
 
 
     </dependencies>
 
     <build>
-
-        <!--  เพิ่มเฉพาะ block นี้  -->
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
-                <includes>
-                    <include>fonts/**</include>
-                </includes>
+                <filtering>false</filtering>
             </resource>
         </resources>
-        <!--  จบ block ที่เพิ่ม  -->
-
         <plugins>
             <!-- Spring Boot Maven plugin -->
             <plugin>
@@ -236,18 +230,21 @@
                 </executions>
             </plugin>
 
-            <!-- JaCoCo -->
+            <!-- JaCoCo: coverage + report + min -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>0.8.11</version>
                 <executions>
+                    <!-- inject agent -->
                     <execution>
                         <id>prepare-agent</id>
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
+
+                    <!-- report after test -->
                     <execution>
                         <id>report</id>
                         <phase>verify</phase>
@@ -255,6 +252,8 @@
                             <goal>report</goal>
                         </goals>
                     </execution>
+
+                    <!-- set min verify -->
                     <execution>
                         <id>check</id>
                         <phase>verify</phase>

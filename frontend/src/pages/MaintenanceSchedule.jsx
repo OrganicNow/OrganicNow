@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
 import Layout from "../component/layout";
 import Modal from "../component/modal";
-import { pageSize as defaultPageSize } from "../config_variable";
+import {  apiPath } from "../config_variable";
 import { useNotifications } from "../contexts/NotificationContext";
 import useMessage from "../component/useMessage";
 import * as bootstrap from "bootstrap";
@@ -17,9 +17,6 @@ import interactionPlugin from "@fullcalendar/interaction";
 import listPlugin from "@fullcalendar/list";
 
 import "../assets/css/fullcalendar.css";
-
-// ===== API base =====
-const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
 
 // ===== Date Helpers (dd/mm/yyyy <-> ISO yyyy-MM-dd) =====
 const pad2 = (n) => String(n).padStart(2, "0");
@@ -79,9 +76,9 @@ const cleanupBackdrops = () => {
 
 // ===== Endpoints =====
 const SCHEDULE_API = {
-    LIST: `${API_BASE}/schedules`, // GET -> { result, assetGroupDropdown }
-    CREATE: `${API_BASE}/schedules`, // POST
-    DELETE: (id) => `${API_BASE}/schedules/${id}`, // DELETE
+    LIST: `${apiPath}/schedules`, // GET -> { result, assetGroupDropdown }
+    CREATE: `${apiPath}/schedules`, // POST
+    DELETE: (id) => `${apiPath}/schedules/${id}`, // DELETE
 };
 
 // ===== Mapping: API -> แถวบนตาราง (เก็บเป็น dd/mm/yyyy) =====
@@ -558,6 +555,7 @@ function MaintenanceSchedule() {
                                     height="auto"
                                     dayMaxEventRows={3}
                                     eventOrder="start,-duration,allDay,title"
+                                    moreLinkClick="popover"
                                     events={(fetchInfo, successCallback) => {
                                         const start = fetchInfo.start;
                                         const end = fetchInfo.end;

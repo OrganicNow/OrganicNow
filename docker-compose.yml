@@ -39,7 +39,7 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      # ❌ ไม่ต้อง mount init.sql แล้ว เพราะใช้ data.sql ของ Spring Boot แทน
+      # ❌ ไม่ต้อง mount init.sql แล้ว เพราะใช้ script-database.sql ของ Spring Boot แทน
 
 volumes:
   postgres_data:

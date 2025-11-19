@@ -8,7 +8,7 @@ metadata:
 
 ---
 # =========================================
-# PostgreSQL Database (StatefulSet + Secret + Service)
+# PostgreSQL Secret + Service + StatefulSet
 # =========================================
 apiVersion: v1
 kind: Secret
@@ -33,7 +33,6 @@ spec:
   ports:
     - port: 5432
       targetPort: 5432
-#  clusterIP: None  # สำหรับ StatefulSet
 
 ---
 apiVersion: apps/v1
@@ -52,6 +51,7 @@ spec:
       labels:
         app: postgres
     spec:
+      terminationGracePeriodSeconds: 10
       containers:
         - name: postgres
           image: postgres:16
@@ -83,59 +83,44 @@ metadata:
   name: backend
   namespace: organicnow
 spec:
-  replicas: 1
+  replicas: 1                       # เริ่มที่ 1 เพื่อให้บูต/seed ครั้งเดียว
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
   selector:
-    matchLabels:
-      app: backend
+    matchLabels: { app: backend }
   template:
     metadata:
-      labels:
-        app: backend
+      labels: { app: backend }
     spec:
+      terminationGracePeriodSeconds: 20
       containers:
         - name: backend
-          image: organicnow-backend   # ← ใช้ image ที่คุณ build ในเครื่อง
+          image: organicnow-backend
           imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 8080
+          ports: [ { containerPort: 8080 } ]
           env:
-            - name: SPRING_PROFILES_ACTIVE
-              value: prod
-            - name: SPRING_DATASOURCE_URL
-              value: jdbc:postgresql://postgres:5432/organicnow
+            - { name: SPRING_PROFILES_ACTIVE, value: "prod" }
+            - { name: SPRING_SQL_INIT_MODE,  value: "never" }
+            - { name: SPRING_JPA_HIBERNATE_DDL_AUTO, value: "update" }
+            - { name: SPRING_DATASOURCE_URL, value: "jdbc:postgresql://postgres:5432/organicnow" }
             - name: SPRING_DATASOURCE_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_USER
+              valueFrom: { secretKeyRef: { name: postgres-secret, key: POSTGRES_USER } }
             - name: SPRING_DATASOURCE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: postgres-secret
-                  key: POSTGRES_PASSWORD
-            - name: SPRING_JPA_HIBERNATE_DDL_AUTO
-              value: update
+              valueFrom: { secretKeyRef: { name: postgres-secret, key: POSTGRES_PASSWORD } }
           readinessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
+            httpGet: { path: /actuator/health, port: 8080 }
             initialDelaySeconds: 20
             periodSeconds: 10
             failureThreshold: 6
           livenessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8080
+            httpGet: { path: /actuator/health, port: 8080 }
             initialDelaySeconds: 40
             periodSeconds: 15
             failureThreshold: 6
           resources:
-            requests:
-              cpu: "200m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
+            requests: { cpu: "200m", memory: "256Mi" }
+            limits:   { cpu: "500m", memory: "512Mi" }
 
 ---
 apiVersion: v1
@@ -144,8 +129,7 @@ metadata:
   name: backend
   namespace: organicnow
 spec:
-  selector:
-    app: backend
+  selector: { app: backend }
   ports:
     - name: http
       port: 8080
@@ -164,36 +148,39 @@ metadata:
 spec:
   replicas: 2
   selector:
-    matchLabels:
-      app: frontend
+    matchLabels: { app: frontend }
   template:
     metadata:
-      labels:
-        app: frontend
+      labels: { app: frontend }
     spec:
       containers:
-        - name: nginx                      # เปลี่ยนชื่อให้สื่อว่าเป็น nginx runtime
-          image: organicnow-frontend # ต้อง build จาก Dockerfile.prod
+        - name: nginx
+          image: organicnow-frontend
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 80            # ✅ ตัวคอนเทนเนอร์ฟังที่ 80
+            - containerPort: 80
           readinessProbe:
             httpGet:
-              path: /
-              port: 80                     # ✅ เช็กสุขภาพที่ 80
-            initialDelaySeconds: 5
+              path: "/"
+              port: 80
+            initialDelaySeconds: 10
             periodSeconds: 10
             failureThreshold: 6
           livenessProbe:
             httpGet:
-              path: /
-              port: 80                     # ✅ ล้างคอนเทนเนอร์ถ้าตาย
+              path: "/"
+              port: 80
             initialDelaySeconds: 15
             periodSeconds: 15
             failureThreshold: 6
           resources:
-            requests: { cpu: "100m", memory: "128Mi" }
-            limits: { cpu: "300m", memory: "256Mi" }
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+
 
 ---
 apiVersion: v1
@@ -202,8 +189,7 @@ metadata:
   name: frontend
   namespace: organicnow
 spec:
-  selector:
-    app: frontend
+  selector: { app: frontend }
   ports:
     - name: http
       port: 80
@@ -212,7 +198,7 @@ spec:
 
 ---
 # =========================================
-# Ingress (Frontend + Backend)
+# Ingress (ใช้ NGINX controller บนเครื่องคุณ)
 # =========================================
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -233,18 +219,10 @@ spec:
         paths:
           - path: /
             pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: 80
+            backend: { service: { name: frontend, port: { number: 80 } } }
     - host: api.localtest.me
       http:
         paths:
           - path: /
             pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 8080
+            backend: { service: { name: backend, port: { number: 8080 } } }

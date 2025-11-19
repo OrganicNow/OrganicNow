@@ -1,0 +1,55 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: <group-name>-backend-service
+  namespace: <group-name>-app
+spec:
+  type: ClusterIP
+  selector:
+    app: organicnow-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+
+
+---
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: organicnow-backend-deployment
+  namespace: organicnow-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: organicnow-backend
+  template:
+    metadata:
+      labels:
+        app: organicnow-backend
+    spec:
+      containers:
+        - name: organicnow-backend
+          image: heangkung/organicnow-backend
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SERVER_PORT
+              value: "8080"
+
+            # ========= เลือกใช้ อันที่ Porject เราใช้ =========
+
+           PostgreSQL (Service name = muict, namespace = db-postgres)
+           - name: SPRING_DATASOURCE_URL
+             value: "jdbc:postgresql://muict.db-postgres.svc.cluster.local:5432/organicnow_db"
+
+          # MySQL (Service name = muict-mysql, namespace = db-mysql)
+          # - name: SPRING_DATASOURCE_URL
+          #   value: "jdbc:mysql://muict-mysql.db-mysql.svc.cluster.local:3306/<groupname>_db"
+
+          - name: SPRING_DATASOURCE_USERNAME
+            value: "organicnow_user"
+          - name: SPRING_DATASOURCE_PASSWORD
+            value: "<password>"
