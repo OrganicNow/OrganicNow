@@ -291,13 +291,13 @@ function MaintenanceSchedule() {
             console.error("Show toast failed (แต่สร้างสำเร็จแล้ว)", e);
         }
 
-        try {
-            if (typeof refreshNotifications === "function") {
-                refreshNotifications();
-            }
-        } catch (e) {
-            console.error("Refresh notifications failed (แต่สร้างสำเร็จแล้ว)", e);
-        }
+        // try {
+        //     if (typeof refreshNotifications === "function") {
+        //         refreshNotifications();
+        //     }
+        // } catch (e) {
+        //     console.error("Refresh notifications failed (แต่สร้างสำเร็จแล้ว)", e);
+        // }
     };
 
     const filtered = useMemo(() => {
