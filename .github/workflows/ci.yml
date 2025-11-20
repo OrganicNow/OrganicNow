@@ -277,13 +277,20 @@ jobs:
           cache-dependency-path: |
             package-lock.json
 
+      # 🔧 สำคัญ: docker compose มักรัน npm ใน container แล้วสร้าง node_modules เป็น root-owned
+      # ตรงนี้เลย chown โฟลเดอร์ frontend กลับมาก่อน
+      - name: Fix frontend folder permissions
+        run: |
+          sudo chown -R $USER:$USER frontend || true
+
       - name: Install Cypress deps (repo root)
         run: |
           npm ci
           npx cypress install
 
       - name: Install frontend deps
-        run: npm ci --prefix frontend
+        working-directory: frontend
+        run: npm ci
 
       - name: Run Cypress E2E (using root cypress.config.js)
         env:
@@ -305,7 +312,6 @@ jobs:
       - name: Teardown containers
         if: always()
         run: docker compose -f "${{ env.COMPOSE_FILE }}" down -v
-
 
   # =============================
   # 6) SUMMARY
