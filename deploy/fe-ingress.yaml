@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: <group-name>-fe-ingress
-  namespace: <group-name>-app
+  name: organicnow-fe-ingress
+  namespace: organicnow-app
   annotations:
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
     nginx.ingress.kubernetes.io/use-regex: "true"
@@ -17,10 +17,10 @@ spec:
     - host: muict.app
       http:
         paths:
-          - path: /<group-name>-frontend(/|$)(.*)
+          - path: /organicnow-frontend(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
               service:
-                name: <group-name>-frontend-service
+                name: organicnow-frontend-service
                 port:
                   number: 80

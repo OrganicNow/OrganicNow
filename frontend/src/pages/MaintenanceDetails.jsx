@@ -7,9 +7,7 @@ import useMessage from "../component/useMessage";
 import * as bootstrap from "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-
-// ตั้งค่า API
-const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
+import { apiPath } from "../config_variable";
 
 // helper: ดึง yyyy-mm-dd จาก LocalDateTime
 const toDate = (s) => (s ? s.slice(0, 10) : "");
@@ -41,7 +39,7 @@ function MaintenanceDetails() {
     try {
       setLoading(true);
       setErr("");
-      const res = await fetch(`${API_BASE}/maintain/${maintainId}`, {
+      const res = await fetch(`${apiPath}/maintain/${maintainId}`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error(await res.text());
@@ -65,7 +63,7 @@ function MaintenanceDetails() {
     try {
       console.log("🔍 Fetching tenant for roomId:", roomId);
       
-      const res = await fetch(`${API_BASE}/tenant/list`, {
+      const res = await fetch(`${apiPath}/tenant/list`, {
         credentials: "include",
       });
       if (res.ok) {
@@ -179,7 +177,7 @@ function MaintenanceDetails() {
     try {
       console.log("🔍 fetchAssets (Details): Fetching assets for roomId:", roomId);
       setLoadingAssets(true);
-      const res = await fetch(`${API_BASE}/assets/${roomId}`, {
+      const res = await fetch(`${apiPath}/assets/${roomId}`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -249,7 +247,7 @@ function MaintenanceDetails() {
       const formData = new FormData();
       formData.append('file', selectedImage);
       
-      const res = await fetch(`${API_BASE}/maintain/${maintainId}/work-image`, {
+      const res = await fetch(`${apiPath}/maintain/${maintainId}/work-image`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
@@ -465,7 +463,7 @@ function MaintenanceDetails() {
         workImageUrl: workImageUrl, // ✅ ส่ง URL รูปภาพ
       };
 
-      const res = await fetch(`${API_BASE}/maintain/update/${maintainId}`, {
+      const res = await fetch(`${apiPath}/maintain/update/${maintainId}`, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -522,7 +520,7 @@ function MaintenanceDetails() {
     if (!result.isConfirmed) return;
     
     try {
-      const res = await fetch(`${API_BASE}/maintain/${maintainId}`, {
+      const res = await fetch(`${apiPath}/maintain/${maintainId}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -543,7 +541,7 @@ function MaintenanceDetails() {
     }
     
     try {
-      const res = await fetch(`${API_BASE}/maintain/${maintainId}/report-pdf`, {
+      const res = await fetch(`${apiPath}/maintain/${maintainId}/report-pdf`, {
         method: "GET",
         credentials: "include",
       });
@@ -580,7 +578,7 @@ function MaintenanceDetails() {
         finishDate: toLdt(today), // Set completion date to today
       };
 
-      const res = await fetch(`${API_BASE}/maintain/update/${maintainId}`, {
+      const res = await fetch(`${apiPath}/maintain/update/${maintainId}`, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -613,7 +611,7 @@ function MaintenanceDetails() {
         finishDate: null, // Clear completion to make it "In Progress"
       };
 
-      const res = await fetch(`${API_BASE}/maintain/update/${maintainId}`, {
+      const res = await fetch(`${apiPath}/maintain/update/${maintainId}`, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -874,13 +872,13 @@ function MaintenanceDetails() {
                               <span className="label">Work Evidence:</span>
                               <div className="mt-2">
                                 <img
-                                  src={`${API_BASE}${workImageUrl}`}
+                                  src={`${apiPath}${workImageUrl}`}
                                   alt="Work Evidence"
                                   className="img-thumbnail"
                                   style={{ maxWidth: "200px", maxHeight: "150px", cursor: "pointer" }}
                                   onClick={() => {
                                     // เปิดรูปในแท็บใหม่
-                                    window.open(`${API_BASE}${workImageUrl}`, '_blank');
+                                    window.open(`${apiPath}${workImageUrl}`, '_blank');
                                   }}
                                 />
                                 <div className="small text-muted mt-1">
@@ -1090,7 +1088,7 @@ function MaintenanceDetails() {
                           <label className="small text-muted">Current Image:</label>
                           <div className="position-relative d-inline-block">
                             <img
-                              src={`${API_BASE}${workImageUrl}`}
+                              src={`${apiPath}${workImageUrl}`}
                               alt="Current Work Evidence"
                               className="img-thumbnail me-2"
                               style={{ maxWidth: "120px", maxHeight: "90px" }}

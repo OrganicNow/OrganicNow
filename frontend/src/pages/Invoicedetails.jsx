@@ -9,8 +9,7 @@ import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import * as bootstrap from "bootstrap";
-
-const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
+import { pageSize as defaultPageSize, apiPath } from "../config_variable";
 
 function InvoiceDetails() {
   const navigate = useNavigate();
@@ -87,7 +86,7 @@ function InvoiceDetails() {
       if (!invoiceId && !initial.id) return;
       
       try {
-        const response = await fetch(`${API_BASE}/invoice/${invoiceId || initial.id}`, {
+        const response = await fetch(`${apiPath}/invoice/${invoiceId || initial.id}`, {
           credentials: "include",
         });
         
@@ -370,7 +369,7 @@ function InvoiceDetails() {
 
     try {
       const res = await fetch(
-        `${API_BASE}/invoice/update/${invoiceId || invoiceForm.id}`,
+        `${apiPath}/invoice/update/${invoiceId || invoiceForm.id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
