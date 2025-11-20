@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: <group-name>-backend-service
-  namespace: <group-name>-app
+  name: organicnow-backend-service
+  namespace: organicnow-app
 spec:
   type: ClusterIP
   selector:
@@ -40,16 +40,15 @@ spec:
               value: "8080"
 
             # ========= เลือกใช้ อันที่ Porject เราใช้ =========
-
-           PostgreSQL (Service name = muict, namespace = db-postgres)
-           - name: SPRING_DATASOURCE_URL
-             value: "jdbc:postgresql://muict.db-postgres.svc.cluster.local:5432/organicnow_db"
+#           PostgreSQL (Service name = muict, namespace = db-postgres)
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:postgresql://muict.db-postgres.svc.cluster.local:5432/organicnow_db"
 
           # MySQL (Service name = muict-mysql, namespace = db-mysql)
           # - name: SPRING_DATASOURCE_URL
           #   value: "jdbc:mysql://muict-mysql.db-mysql.svc.cluster.local:3306/<groupname>_db"
 
-          - name: SPRING_DATASOURCE_USERNAME
-            value: "organicnow_user"
-          - name: SPRING_DATASOURCE_PASSWORD
-            value: "<password>"
+            - name: SPRING_DATASOURCE_USERNAME
+              value: "organicnow_user"
+            - name: SPRING_DATASOURCE_PASSWORD
+              value: "<password>"

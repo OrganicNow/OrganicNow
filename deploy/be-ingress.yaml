@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: <group-name>-be-ingress
-  namespace: <group-name>-app
+  name: organicnow-be-ingress
+  namespace: organicnow-app
   annotations:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/rewrite-target: /$2
@@ -16,10 +16,10 @@ spec:
     - host: muict.app
       http:
         paths:
-          - path: /<group-name>-backend(/|$)(.*)
+          - path: /organicnow-backend(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
               service:
-                name: <group-name>-backend-service
+                name: organicnow-backend-service
                 port:
                   number: 8080

@@ -4,12 +4,10 @@ import Layout from "../component/layout";
 import Modal from "../component/modal";
 import Pagination from "../component/pagination";
 import useMessage from "../component/useMessage";
-import { pageSize as defaultPageSize } from "../config_variable";
+import {apiPath, pageSize as defaultPageSize} from "../config_variable";
 import * as bootstrap from "bootstrap"; // <-- ใช้ตัวนี้สำหรับควบคุมโมดัลแบบโปรแกรม
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-
-const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
 
 // ===== map helpers =====
 const ISSUE_MAP = {
@@ -52,7 +50,7 @@ function MaintenanceRequest() {
   // ✅ ดึงข้อมูลห้องจาก backend
   const fetchRooms = async () => {
     try {
-      const res = await fetch(`${API_BASE}/room/list`, {
+      const res = await fetch(`${apiPath}/room/list`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -86,7 +84,7 @@ function MaintenanceRequest() {
     try {
       console.log("🔍 fetchAssets: Fetching assets for roomId:", roomId);
       setLoadingAssets(true);
-      const res = await fetch(`${API_BASE}/assets/${roomId}`, {
+      const res = await fetch(`${apiPath}/assets/${roomId}`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -129,7 +127,7 @@ function MaintenanceRequest() {
     try {
       setLoading(true);
       setErr("");
-      const res = await fetch(`${API_BASE}/maintain/list`, {
+      const res = await fetch(`${apiPath}/maintain/list`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -233,7 +231,7 @@ function MaintenanceRequest() {
     if (!result.isConfirmed) return;
     
     try {
-      const res = await fetch(`${API_BASE}/maintain/${row.id}`, {
+      const res = await fetch(`${apiPath}/maintain/${row.id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -256,7 +254,7 @@ function MaintenanceRequest() {
     try {
       setSaving(true);
       const deletePromises = selected.map(id => 
-        fetch(`${API_BASE}/maintain/${id}`, {
+        fetch(`${apiPath}/maintain/${id}`, {
           method: "DELETE",
           credentials: "include",
         })
@@ -303,7 +301,7 @@ function MaintenanceRequest() {
     try {
       showMessageSave(`กำลังสร้าง PDF สำหรับงานซ่อมบำรุง #${maintain.id}...`);
       
-      const response = await fetch(`${API_BASE}/maintain/${maintain.id}/report-pdf`, {
+      const response = await fetch(`${apiPath}/maintain/${maintain.id}/report-pdf`, {
         method: 'GET',
         credentials: 'include',
       });
@@ -480,7 +478,7 @@ function MaintenanceRequest() {
         technicianPhone: form.phone,
       };
 
-      const res = await fetch(`${API_BASE}/maintain/create`, {
+      const res = await fetch(`${apiPath}/maintain/create`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
