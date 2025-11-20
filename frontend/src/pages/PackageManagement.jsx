@@ -32,39 +32,19 @@ const API = {
 
     // พยายามดึง room sizes จากหลาย endpoint เพื่อให้ robust
     listRoomSizes: async () => {
-        // 1) ถ้ามี /rooms/sizes (ส่งกลับเช่น [1,2,3,4])
         try {
-            const sizes1 = await getJSON(`${apiPath}/rooms/sizes`);
-            if (Array.isArray(sizes1) && sizes1.length) return sizes1.map(Number);
-        } catch {}
-
-        // 2) ถ้า /rooms (ส่ง list ของห้อง) => unique room_size
-        try {
-            const rooms = await getJSON(`${apiPath}/rooms`);
-            if (Array.isArray(rooms) && rooms.length) {
-                const set = new Set(
-                    rooms
-                        .map((r) => r.room_size ?? r.roomSize ?? r.size ?? null)
-                        .filter((v) => v !== null && v !== undefined)
-                        .map(Number)
-                );
-                if (set.size) return Array.from(set).sort((a, b) => a - b);
-            }
-        } catch {}
-
-        // 3) fallback: derive จาก packages ที่มีอยู่
-        try {
-            const pkgs = await API.listPackages();
+            const pkgs = await getJSON(`${apiPath}/packages`);
             const set = new Set(
                 (pkgs || [])
                     .map((p) => p.room_size ?? p.roomSize ?? null)
                     .filter((v) => v !== null && v !== undefined)
                     .map(Number)
             );
-            if (set.size) return Array.from(set).sort((a, b) => a - b);
-        } catch {}
-
-        return []; // ไม่มีข้อมูล
+            return Array.from(set).sort((a, b) => a - b);
+        } catch (e) {
+            console.error("listRoomSizes from packages error:", e);
+            return [];
+        }
     },
 
     createPackage: (body) =>
@@ -469,7 +449,6 @@ function PackageManagement() {
                                             data-bs-target="#packageFilterCanvas"
                                         >
                                             <i className="bi bi-filter me-1"></i> Filter
-                                            {hasAnyFilter && <span className="badge bg-primary ms-2">●</span>}
                                         </button>
 
                                         <button
@@ -502,7 +481,7 @@ function PackageManagement() {
                                 </div>
 
                                 <div className={`collapse ${hasAnyFilter ? "show" : ""}`}>
-                                    <div className="pt-2 d-flex flex-wrap gap-2">
+                                    <div className="m-lg-2 d-flex flex-wrap gap-2">
                                         {filterSummary.map((txt, idx) => (
                                             <span key={idx} className="badge bg-light text-dark border">
                         {txt}

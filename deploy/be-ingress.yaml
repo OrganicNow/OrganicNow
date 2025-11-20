@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: <group-name>-be-ingress
+  namespace: <group-name>-app
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - muict.app
+      secretName: muict-app-tls
+  rules:
+    - host: muict.app
+      http:
+        paths:
+          - path: /<group-name>-backend(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: <group-name>-backend-service
+                port:
+                  number: 8080

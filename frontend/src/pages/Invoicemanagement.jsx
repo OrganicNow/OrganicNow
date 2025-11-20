@@ -2257,6 +2257,7 @@ function InvoiceManagement() {
         tabIndex="-1"
         id="invoiceFilterCanvas"
         aria-labelledby="invoiceFilterCanvasLabel"
+        data-bs-backdrop="static"
       >
         <div className="offcanvas-header">
           <h5 id="invoiceFilterCanvasLabel" className="mb-0">
