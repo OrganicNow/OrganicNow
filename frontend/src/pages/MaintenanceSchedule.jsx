@@ -8,7 +8,7 @@ import useMessage from "../component/useMessage";
 import * as bootstrap from "bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
@@ -223,6 +223,21 @@ function MaintenanceSchedule() {
         const el = document.getElementById("viewScheduleModal");
         if (el) (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el)).hide();
         cleanupBackdrops();
+
+        // ✅ เคลียร์ query scheduleId & due ออกจาก URL
+        const params = new URLSearchParams(location.search || "");
+        params.delete("scheduleId");
+        params.delete("due");
+
+        const search = params.toString();
+
+        navigate(
+            {
+                pathname: location.pathname,
+                search: search ? `?${search}` : "",
+            },
+            { replace: true } // replace เพื่อไม่ดัน history stack เพิ่ม
+        );
     };
 
     const handleDeleteFromView = async () => {
@@ -469,6 +484,38 @@ function MaintenanceSchedule() {
 
     const calendarRef = useRef(null);
     const location = useLocation();
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        const el = document.getElementById("viewScheduleModal");
+        if (!el) return;
+
+        const handleHidden = () => {
+            // ล้าง backdrop เผื่อมีค้าง
+            cleanupBackdrops();
+
+            // เคลียร์ query scheduleId & due ออกจาก URL
+            const params = new URLSearchParams(window.location.search || "");
+            params.delete("scheduleId");
+            params.delete("due");
+
+            const search = params.toString();
+
+            navigate(
+                {
+                    pathname: window.location.pathname,
+                    search: search ? `?${search}` : "",
+                },
+                { replace: true }
+            );
+        };
+
+        el.addEventListener("hidden.bs.modal", handleHidden);
+
+        return () => {
+            el.removeEventListener("hidden.bs.modal", handleHidden);
+        };
+    }, [navigate]);
 
     useEffect(() => {
         const params = new URLSearchParams(location.search || "");
