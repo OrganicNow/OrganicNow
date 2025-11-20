@@ -1,271 +1,318 @@
- name: CI
+name: CI
 
- on:
-   push:
-     branches: [main]
-   pull_request:
-     branches: [main]
+on:
+  push:
+    branches: [ hk-ci ]
+  pull_request:
+    branches: [ hk-ci ]
+  workflow_dispatch:
 
- permissions:
-   contents: read
+permissions:
+  contents: read
 
- jobs:
-   backend:
-     name: Backend (Maven tests with Postgres service)
-     runs-on: ubuntu-latest
-     defaults:
-       run:
-         working-directory: backend
-     services:
-       postgres:
-         image: postgres:16
-         ports:
-           - 5432:5432
-         env:
-           POSTGRES_DB: organicnow_test
-           POSTGRES_USER: postgres
-           POSTGRES_PASSWORD: postgres123
-         options: >-
-           --health-cmd="pg_isready -U postgres"
-           --health-interval=5s
-           --health-timeout=5s
-           --health-retries=20
-     steps:
-       - name: Checkout code
-         uses: actions/checkout@v4
+jobs:
 
-       - name: Set up JDK 21
-         uses: actions/setup-java@v4
-         with:
-           distribution: 'temurin'
-           java-version: '21'
-           cache: 'maven'
+  # =============================
+  # 1) BACKEND TEST (WITH POSTGRES SERVICE + JACOCO)
+  # =============================
+  backend-test:
+    name: Backend (Maven tests with Postgres service)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_DB: organicnow_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres123
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-       - name: Build & Test (JaCoCo)
-         env:
-           SPRING_PROFILES_ACTIVE: test
-           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/organicnow_test
-           SPRING_DATASOURCE_USERNAME: postgres
-           SPRING_DATASOURCE_PASSWORD: postgres123
-         run: |
-           chmod +x mvnw || true
-           ./mvnw -q -U clean verify
-       - name: Upload Maven surefire reports
-         if: always()
-         uses: actions/upload-artifact@v4
-         with:
-           name: backend-test-reports
-           path: backend/target/surefire-reports
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
 
-       - name: Upload JaCoCo HTML report
-         if: always()
-         uses: actions/upload-artifact@v4
-         with:
-           name: jacoco-site
-           path: backend/target/site/jacoco
+      - name: Build & Test (JaCoCo)
+        env:
+          SPRING_PROFILES_ACTIVE: test
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/organicnow_test
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: postgres123
+        run: |
+          chmod +x mvnw || true
+          ./mvnw -q -U clean verify
 
-       - name: Upload JaCoCo XML
-         if: always()
-         uses: actions/upload-artifact@v4
-         with:
-           name: jacoco-xml
-           path: backend/target/site/jacoco/jacoco.xml
+      - name: Upload Maven surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: backend/target/surefire-reports
 
-   e2e:
-     name: E2E via docker-compose + Cypress (root)
-     runs-on: ubuntu-latest
-     env:
-       COMPOSE_FILE: docker-compose.yml
-       BASE_URL: http://localhost:5173
-       HEALTH_URL_BACKEND: http://localhost:8080/actuator/health
-       HEALTH_URL_FRONTEND: http://localhost:5173
-       POSTGRES_SERVICE_NAME: organicnow-db       # ✅ ADDED (จาก compose ของคุณ)
-       POSTGRES_DB_NAME: apartment_management     # ✅ ADDED (จาก compose ของคุณ)
-     steps:
-       - name: Checkout code
-         uses: actions/checkout@v4
+      - name: Upload JaCoCo HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-site
+          path: backend/target/site/jacoco
 
-       - name: Set up Node.js 20 (for Cypress CLI at repo root)
-         uses: actions/setup-node@v4
-         with:
-           node-version: 20
-           cache: 'npm'
-           cache-dependency-path: |
-             package-lock.json
-       - name: Install Cypress deps (repo root)
-         run: |
-           npm ci
-           npx cypress install
-       - name: Install frontend deps  # ✅ ADDED
-         run: npm ci --prefix frontend
+      - name: Upload JaCoCo XML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-xml
+          path: backend/target/site/jacoco/jacoco.xml
 
-       - name: Set up Docker Buildx
-         uses: docker/setup-buildx-action@v3
 
-       - name: docker compose up (build & run)
-         run: |
-           docker compose -f "${COMPOSE_FILE}" up -d --build
-           docker ps
-       - name: Wait for backend to be healthy
-         run: |
-           set -euo pipefail
-           for i in {1..60}; do
-             if curl -fsS "$HEALTH_URL_BACKEND" | grep -q '"status":"UP"'; then
-               echo "Backend healthy ✅"
-               exit 0
-             fi
-             echo "Waiting for backend... ($i/60)"
-             sleep 2
-           done
-           echo "Backend not healthy in time ❌"; docker ps; exit 1
-       - name: Wait for frontend to be up
-         run: |
-           for i in {1..60}; do
-             curl -fsS "$HEALTH_URL_FRONTEND" && exit 0
-             echo "Waiting for frontend... ($i/60)"
-             sleep 2
-           done
-           echo "Frontend not up in time"; docker ps; exit 1
-       # ----------------------------
-       # ✅ Run Integration Tests บน network เดียวกับ compose
-       # ใช้ image Maven (เหมือน stage builder) โดย mount โค้ด backend เข้าไป
-       # ตรวจหา network อัตโนมัติจาก service 'backend' ใน compose ของคุณ
-       # ----------------------------
-       - name: Run Integration Tests (using Maven builder image on same network)  # ✅ ADDED
-         run: |
-           set -euo pipefail
-           echo "🔎 Finding backend service & its network..."
-           BACKEND_SVC_NAME="backend"  # ← service name ใน compose ของคุณ
-           BACKEND_CID="$(docker compose -f "${COMPOSE_FILE}" ps -q "${BACKEND_SVC_NAME}" || true)"
-           if [ -z "$BACKEND_CID" ]; then
-             echo "❌ Cannot find backend container by service name '${BACKEND_SVC_NAME}'."
-             docker compose -f "${COMPOSE_FILE}" ps
-             exit 1
-           fi
-           NET_NAME="$(docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$BACKEND_CID" | head -n1)"
-           if [ -z "$NET_NAME" ]; then
-             echo "❌ Cannot detect docker network of backend container."
-             docker inspect "$BACKEND_CID"
-             exit 1
-           fi
-           echo "✅ Using network: $NET_NAME"
-           echo "🏗️  Running Integration Tests with Maven on same network..."
-           docker run --rm \
-             --network "$NET_NAME" \
-             -v "${{ github.workspace }}/backend:/app" \
-             -v /var/run/docker.sock:/var/run/docker.sock \
-             -w /app \
-             maven:3.9.6-eclipse-temurin-21 \
-             mvn -q -U test \
-               -Dspring.profiles.active=test \
-               -Dspring.datasource.url="jdbc:postgresql://${POSTGRES_SERVICE_NAME}:5432/${POSTGRES_DB_NAME}" \
-               -Dspring.datasource.username=postgres \
-               -Dspring.datasource.password=postgres123 \
-               -Dtest='*IntegrationTest'
-       - name: Upload Integration Test Reports  # ✅ ADDED
-         if: always()
-         uses: actions/upload-artifact@v4
-         with:
-           name: integration-test-reports
-           path: backend/target/surefire-reports
+  # =============================
+  # 2) FRONTEND TEST
+  # =============================
+  frontend-test:
+    name: Frontend unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      CI: true
+      CYPRESS_INSTALL_BINARY: 0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-       - name: Run Cypress E2E (using root cypress.config.js)
-         env:
-           CYPRESS_BASE_URL: ${{ env.BASE_URL }}                 # ← ใช้ตัวใหญ่ให้ตรงกับ config
-           CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }} # ← ใส่ก็ต่อเมื่อจะใช้ Cloud
-           CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }} # ← ใส่ก็ต่อเมื่อจะใช้ Cloud
-         run: |
-           npx cypress run --headless --config baseUrl=${{ env.BASE_URL }} ${CYPRESS_RECORD_KEY:+--record --key $CYPRESS_RECORD_KEY}
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
- #      - name: Run Cypress E2E (using root cypress.config.js)
- #        env:
- #          CYPRESS_baseUrl: ${{ env.BASE_URL }}
- #          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
- #        run: |
- #          npx cypress run --headless --config baseUrl=${{ env.BASE_URL }} ${CYPRESS_RECORD_KEY:+--record --key $CYPRESS_RECORD_KEY}
-       - name: Upload Cypress artifacts
-         if: always()
-         uses: actions/upload-artifact@v4
-         with:
-           name: frontend-cypress-results
-           path: |
-             cypress/videos
-             cypress/screenshots
-       - name: Teardown containers
-         if: always()
-         run: docker compose -f "${{ env.COMPOSE_FILE }}" down -v
+      - name: Install & Test Frontend
+        run: |
+          npm ci
+          npm run test --if-present
 
-   docker-push-frontend:
-     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-     name: Build & Push Frontend Image
-     runs-on: ubuntu-latest
-     needs: [backend, e2e]
-     env:
-       IMAGE_NAME: heangkung/organicnow-frontend
-       TAG_SHA: ${{ github.sha }}
-       TAG_LATEST: latest
-     steps:
-       - name: Checkout code
-         uses: actions/checkout@v4
 
-       - name: Log in to Docker Hub
-         uses: docker/login-action@v3
-         with:
-           username: ${{ secrets.DOCKERHUB_USERNAME }}
-           password: ${{ secrets.DOCKERHUB_TOKEN }}
+  # =============================
+  # 3) BUILD + PUSH BACKEND IMAGE
+  # =============================
+  docker-backend:
+    name: Build & Push Backend Image
+    runs-on: ubuntu-latest
+    needs: [ backend-test ]
+    env:
+      IMAGE_NAME: heangkung/organicnow-backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-       - name: Build & Push (SHA tag)
-         uses: docker/build-push-action@v5
-         with:
-           context: ./frontend
-           push: true
-           tags: ${{ env.IMAGE_NAME }}:${{ env.TAG_SHA }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-       - name: Also tag :latest when on main
-         if: github.ref == 'refs/heads/main'
-         uses: docker/build-push-action@v5
-         with:
-           context: ./frontend
-           push: true
-           tags: ${{ env.IMAGE_NAME }}:${{ env.TAG_LATEST }}
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
 
-   docker-push-backend:
-     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-     name: Build & Push Backend Image
-     runs-on: ubuntu-latest
-     needs: [backend, e2e]
-     env:
-       IMAGE_NAME: heangkung/organicnow-backend
-       TAG_SHA: ${{ github.sha }}
-       TAG_LATEST: latest
-     steps:
-       - name: Checkout code
-         uses: actions/checkout@v4
 
-       - name: Log in to Docker Hub
-         uses: docker/login-action@v3
-         with:
-           username: ${{ secrets.DOCKERHUB_USERNAME }}
-           password: ${{ secrets.DOCKERHUB_TOKEN }}
+  # =============================
+  # 4) BUILD + PUSH FRONTEND IMAGE
+  # =============================
+  docker-frontend:
+    name: Build & Push Frontend Image
+    runs-on: ubuntu-latest
+    needs: [ frontend-test ]
+    env:
+      IMAGE_NAME: heangkung/organicnow-frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-       - name: Build & Push (SHA tag)
-         uses: docker/build-push-action@v5
-         with:
-           context: ./backend
-           push: true
-           tags: ${{ env.IMAGE_NAME }}:${{ env.TAG_SHA }}
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-       - name: Also tag :latest when on main
-         if: github.ref == 'refs/heads/main'
-         uses: docker/build-push-action@v5
-         with:
-           context: ./backend
-           push: true
-           tags: ${{ env.IMAGE_NAME }}:${{ env.TAG_LATEST }}
+      - name: Build & Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
 
-   summary:
-     name: CI Summary
-     runs-on: ubuntu-latest
-     needs: [backend, e2e, docker-push-frontend, docker-push-backend]
-     steps:
-       - run: echo "Backend tests + E2E (compose) + Push frontend & backend images finished."
+
+  # =============================
+  # 5) E2E TEST (COMPOSE + INTEGRATION TEST + CYPRESS)
+  # =============================
+  e2e:
+    name: E2E via docker-compose + Cypress
+    runs-on: ubuntu-latest
+    needs: [ docker-backend, docker-frontend ]
+    env:
+      COMPOSE_FILE: docker-compose.yml
+      BASE_URL: http://localhost:5173
+      HEALTH_URL_BACKEND: http://localhost:8080/actuator/health
+      HEALTH_URL_FRONTEND: http://localhost:5173
+      POSTGRES_SERVICE_NAME: organicnow-db       # จาก compose ของคุณ
+      POSTGRES_DB_NAME: apartment_management     # จาก compose ของคุณ
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ใช้ image :latest ที่เพิ่ง build/push จากสอง job ข้างบน
+      - name: Create docker-compose.override.yml (use Docker Hub images)
+        run: |
+          cat > docker-compose.override.yml << 'EOF'
+          services:
+            backend:
+              image: heangkung/organicnow-backend:latest
+            frontend:
+              image: heangkung/organicnow-frontend:latest
+          EOF
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: docker compose up (run services)
+        run: |
+          docker compose -f "${COMPOSE_FILE}" up -d
+          docker ps
+
+      - name: Wait for backend to be healthy
+        run: |
+          set -euo pipefail
+          for i in {1..60}; do
+            if curl -fsS "$HEALTH_URL_BACKEND" | grep -q '"status":"UP"'; then
+              echo "Backend healthy ✅"
+              exit 0
+            fi
+            echo "Waiting for backend... ($i/60)"
+            sleep 2
+          done
+          echo "Backend not healthy in time ❌"; docker ps; exit 1
+
+      - name: Wait for frontend to be up
+        run: |
+          for i in {1..60}; do
+            curl -fsS "$HEALTH_URL_FRONTEND" && exit 0
+            echo "Waiting for frontend... ($i/60)"
+            sleep 2
+          done
+          echo "Frontend not up in time"; docker ps; exit 1
+
+      # ----------------------------
+      # Integration Tests บน network เดียวกับ compose (ใช้ Maven image)
+      # ----------------------------
+      - name: Run Integration Tests (using Maven builder image on same network)
+        run: |
+          set -euo pipefail
+          echo "🔎 Finding backend service & its network..."
+          BACKEND_SVC_NAME="backend"
+          BACKEND_CID="$(docker compose -f "${COMPOSE_FILE}" ps -q "${BACKEND_SVC_NAME}" || true)"
+          if [ -z "$BACKEND_CID" ]; then
+            echo "❌ Cannot find backend container by service name '${BACKEND_SVC_NAME}'."
+            docker compose -f "${COMPOSE_FILE}" ps
+            exit 1
+          fi
+          NET_NAME="$(docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$BACKEND_CID" | head -n1)"
+          if [ -z "$NET_NAME" ]; then
+            echo "❌ Cannot detect docker network of backend container."
+            docker inspect "$BACKEND_CID"
+            exit 1
+          fi
+          echo "✅ Using network: $NET_NAME"
+          echo "🏗️  Running Integration Tests with Maven on same network..."
+          docker run --rm \
+            --network "$NET_NAME" \
+            -v "${{ github.workspace }}/backend:/app" \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -w /app \
+            maven:3.9.6-eclipse-temurin-21 \
+            mvn -q -U test \
+              -Dspring.profiles.active=test \
+              -Dspring.datasource.url="jdbc:postgresql://${POSTGRES_SERVICE_NAME}:5432/${POSTGRES_DB_NAME}" \
+              -Dspring.datasource.username=postgres \
+              -Dspring.datasource.password=postgres123 \
+              -Dtest='*IntegrationTest'
+
+      - name: Upload Integration Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-reports
+          path: backend/target/surefire-reports
+
+      # ----------------------------
+      # Cypress E2E (ใช้ root cypress.config.js)
+      # ----------------------------
+      - name: Set up Node.js 20 (for Cypress CLI at repo root)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+
+      - name: Install Cypress deps (repo root)
+        run: |
+          npm ci
+          npx cypress install
+
+      - name: Install frontend deps
+        run: npm ci --prefix frontend
+
+      - name: Run Cypress E2E (using root cypress.config.js)
+        env:
+          CYPRESS_BASE_URL: ${{ env.BASE_URL }}
+          CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+        run: |
+          npx cypress run --headless --config baseUrl=${{ env.BASE_URL }} ${CYPRESS_RECORD_KEY:+--record --key $CYPRESS_RECORD_KEY}
+
+      - name: Upload Cypress artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-cypress-results
+          path: |
+            cypress/videos
+            cypress/screenshots
+
+      - name: Teardown containers
+        if: always()
+        run: docker compose -f "${{ env.COMPOSE_FILE }}" down -v
+
+
+  # =============================
+  # 6) SUMMARY
+  # =============================
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [ backend-test, frontend-test, docker-backend, docker-frontend, e2e ]
+    steps:
+      - run: echo "Backend tests + Frontend tests + Docker images + E2E (compose + Cypress) finished."
