@@ -289,13 +289,14 @@ function MaintenanceSchedule() {
             throw err;
         }
 
-        // จากนี้ไปถือว่าสร้างสำเร็จแล้ว ถ้าพังจะไม่โยน error ออกไปอีก
+        // === จากนี้ไปสร้างสำเร็จแน่นอนแล้ว ===
         try {
             await loadSchedules();
         } catch (e) {
             console.error("Reload schedules failed (แต่สร้างสำเร็จแล้ว)", e);
         }
 
+        // Toast: แสดงว่าบันทึกสำเร็จ
         try {
             if (typeof showMaintenanceCreated === "function") {
                 showMaintenanceCreated({ scheduleTitle: newSch.title });
@@ -306,13 +307,17 @@ function MaintenanceSchedule() {
             console.error("Show toast failed (แต่สร้างสำเร็จแล้ว)", e);
         }
 
-        // try {
-        //     if (typeof refreshNotifications === "function") {
-        //         refreshNotifications();
-        //     }
-        // } catch (e) {
-        //     console.error("Refresh notifications failed (แต่สร้างสำเร็จแล้ว)", e);
-        // }
+        // ✅ ตรงนี้สำคัญ: refresh กระดิ่งแจ้งเตือนทันที หลังสร้าง schedule เสร็จ
+        try {
+            if (typeof refreshNotifications === "function") {
+                await refreshNotifications();
+            }
+        } catch (e) {
+            console.error(
+                "Refresh notifications failed (แต่สร้าง schedule สำเร็จแล้ว)",
+                e
+            );
+        }
     };
 
     const filtered = useMemo(() => {
