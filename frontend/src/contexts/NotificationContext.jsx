@@ -10,7 +10,7 @@ export function NotificationProvider({ children }) {
     const refreshNotifications = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${apiPath}/api/notifications/due`, { credentials: "include" });
+            const res = await fetch(`${apiPath}/notifications/due`, { credentials: "include" });
             const data = await res.json();
             setNotifications(Array.isArray(data) ? data : []);
         } catch (e) {
@@ -22,7 +22,7 @@ export function NotificationProvider({ children }) {
 
     // กดกากบาท = skip รอบ due นี้ (key = scheduleId + nextDueDate)
     const skipNotification = useCallback(async (n) => {
-        await fetch(`${apiPath}/api/notifications/schedule/${n.scheduleId}/due/${n.nextDueDate}/skip`, {
+        await fetch(`${apiPath}/notifications/schedule/${n.scheduleId}/due/${n.nextDueDate}/skip`, {
             method: "DELETE",
             credentials: "include",
         });

@@ -9,8 +9,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/contract-types")
-@CrossOrigin(origins = {"http://localhost:5173", "http://app.localtest.me"}, allowCredentials = "true")
+@RequestMapping({"/contract-types", "/api/contract-types"})
+@CrossOrigin(origins = {"http://localhost:5173",
+        "http://app.localtest.me",
+        "https://transcondylar-noncorporately-christen.ngrok-free.dev"}, allowCredentials = "true")
 public class ContractTypeController {
 
     private final ContractTypeService contractTypeService;

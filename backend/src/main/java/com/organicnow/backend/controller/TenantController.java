@@ -14,8 +14,10 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.*;
 
 @RestController
-@RequestMapping("/tenant")
-@CrossOrigin(origins = {"http://localhost:5173", "http://app.localtest.me"}, allowCredentials = "true")
+@RequestMapping({"/tenant", "/api/tenant"})
+@CrossOrigin(origins = {"http://localhost:5173",
+        "http://app.localtest.me",
+        "https://transcondylar-noncorporately-christen.ngrok-free.dev"}, allowCredentials = "true")
 public class TenantController {
 
     private final TenantService tenantService;

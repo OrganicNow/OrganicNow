@@ -23,8 +23,12 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/maintain")
-@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000", "http://localhost:4173", "http://app.localtest.me"}, allowCredentials = "true")
+@RequestMapping({"/maintain", "/api/maintain"})
+@CrossOrigin(origins = {"http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:4173",
+        "http://app.localtest.me",
+        "https://transcondylar-noncorporately-christen.ngrok-free.dev"}, allowCredentials = "true")
 @RequiredArgsConstructor
 public class MaintainController {
 

@@ -96,7 +96,7 @@ spec:
       terminationGracePeriodSeconds: 20
       containers:
         - name: backend
-          image: organicnow-backend
+          image: organicnow-backend:latest
           imagePullPolicy: IfNotPresent
           ports: [ { containerPort: 8080 } ]
           env:
@@ -155,7 +155,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: organicnow-frontend
+          image: organicnow-frontend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80
@@ -194,7 +194,7 @@ spec:
     - name: http
       port: 80
       targetPort: 80
-  type: ClusterIP
+  type: LoadBalancer
 
 ---
 # =========================================
@@ -203,26 +203,61 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: app-web
+  name: organicnow-ingress
   namespace: organicnow
   annotations:
     nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "http://app.localtest.me"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://transcondylar-noncorporately-christen.ngrok-free.dev"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization,Content-Type,Accept,Origin"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
     nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
 spec:
   ingressClassName: nginx
   rules:
-    - host: app.localtest.me
-      http:
+    - http:
         paths:
+          # 👇 ทุกอย่างที่ขึ้นต้นด้วย /api ยิงไป backend ตรง ๆ (ไม่ rewrite)
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+
+          # 👇 path อื่น ๆ ทั้งหมด (/, /login, /maintenanceschedule, /assets/...) ไป frontend
           - path: /
             pathType: Prefix
-            backend: { service: { name: frontend, port: { number: 80 } } }
-    - host: api.localtest.me
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend: { service: { name: backend, port: { number: 8080 } } }
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+
+
+#apiVersion: networking.k8s.io/v1
+#kind: Ingress
+#metadata:
+#  name: app-web
+#  namespace: organicnow
+#  annotations:
+#    nginx.ingress.kubernetes.io/enable-cors: "true"
+#    nginx.ingress.kubernetes.io/cors-allow-origin: "http://app.localtest.me"
+#    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+#    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization,Content-Type,Accept,Origin"
+#    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+#spec:
+#  ingressClassName: nginx
+#  rules:
+#    - host: app.localtest.me
+#      http:
+#        paths:
+#          - path: /
+#            pathType: Prefix
+#            backend: { service: { name: frontend, port: { number: 80 } } }
+#    - host: api.localtest.me
+#      http:
+#        paths:
+#          - path: /
+#            pathType: Prefix
+#            backend: { service: { name: backend, port: { number: 8080 } } }

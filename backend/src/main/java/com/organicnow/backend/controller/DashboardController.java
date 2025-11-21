@@ -16,9 +16,11 @@ import java.util.*;
  * ✅ Dashboard Controller — รองรับทั้ง "Nov 2025", "Nov_2025" หรือ "2025-11"
  */
 @RestController
-@RequestMapping("/dashboard")
+@RequestMapping({"/dashboard", "/api/dashboard"})
 @CrossOrigin(
-        origins = {"http://localhost:5173", "http://app.localtest.me"},
+        origins = {"http://localhost:5173",
+                "http://app.localtest.me",
+                "https://transcondylar-noncorporately-christen.ngrok-free.dev"},
         allowCredentials = "true"
 )
 @RequiredArgsConstructor

@@ -5,56 +5,78 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-import java.util.Arrays;
 import java.util.List;
 
-/**
- * CorsConfig - ตั้งค่าให้ Frontend กับ Backend คุยกันได้
- */
 @Configuration
-public class CorsConfig implements WebMvcConfigurer {
-
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-                // ✅ เพิ่ม origin ของ production เข้าไปด้วย
-                .allowedOrigins(
-                        "http://localhost:5173",        // dev
-                        "http://localhost:3000",        // alternative dev
-                        "http://localhost:4173",        // vite preview
-                        "http://app.localtest.me"       // prod (K8s)
-                )
-                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
-                .allowCredentials(true)
-                .maxAge(3600);
-    }
+public class CorsConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
+        CorsConfiguration config = new CorsConfiguration();
 
-        // ✅ ใส่ทั้ง dev และ prod
-        configuration.setAllowedOrigins(List.of(
-                "http://localhost:5173",
-                "http://localhost:3000",
-                "http://localhost:4173",
-                "http://app.localtest.me"
-        ));
+        // ✅ เปิดกว้างทุก origin ก่อน (ทั้ง localhost, ngrok, อื่น ๆ)
+        config.setAllowedOriginPatterns(List.of("*"));
 
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
-        configuration.setAllowCredentials(true);
-        configuration.setMaxAge(3600L);
+        // method / header อะไรก็ได้
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedHeaders(List.of("*"));
+
+        // เพราะ frontend ใช้ credentials: 'include'
+        config.setAllowCredentials(true);
+
+        config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        // ใช้ config นี้กับทุก path
+        source.registerCorsConfiguration("/**", config);
         return source;
     }
 }
+
+//@Configuration
+//public class CorsConfig implements WebMvcConfigurer {
+//
+//    @Override
+//    public void addCorsMappings(CorsRegistry registry) {
+//        registry.addMapping("/**")
+//                // ✅ เพิ่ม origin ของ production เข้าไปด้วย
+//                .allowedOrigins(
+//                        "http://localhost:5173",        // dev
+//                        "http://localhost:3000",        // alternative dev
+//                        "http://localhost:4173",        // vite preview
+//                        "http://app.localtest.me",       // prod (K8s)
+//                        "https://transcondylar-noncorporately-christen.ngrok-free.dev"
+//                )
+//                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+//                .allowedHeaders("*")
+//                .allowCredentials(true)
+//                .maxAge(3600);
+//    }
+//
+//    @Bean
+//    public CorsConfigurationSource corsConfigurationSource() {
+//        CorsConfiguration configuration = new CorsConfiguration();
+//
+//        // ✅ ใส่ทั้ง dev และ prod
+//        configuration.setAllowedOrigins(List.of(
+//                "http://localhost:5173",
+//                "http://localhost:3000",
+//                "http://localhost:4173",
+//                "http://app.localtest.me",
+//                "https://transcondylar-noncorporately-christen.ngrok-free.dev/login"
+//        ));
+//
+//        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+//        configuration.setAllowedHeaders(Arrays.asList("*"));
+//        configuration.setAllowCredentials(true);
+//        configuration.setMaxAge(3600L);
+//
+//        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+//        source.registerCorsConfiguration("/**", configuration);
+//        return source;
+//    }
+//}
 
 
 //package com.organicnow.backend.config;

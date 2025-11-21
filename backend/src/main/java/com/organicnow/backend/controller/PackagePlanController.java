@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/packages")
-@CrossOrigin(origins = {"http://localhost:5173", "http://app.localtest.me"}, allowCredentials = "true")
+@RequestMapping({"/packages", "/api/packages"})
+@CrossOrigin(origins = {"http://localhost:5173",
+        "http://app.localtest.me",
+        "https://transcondylar-noncorporately-christen.ngrok-free.dev"}, allowCredentials = "true")
 public class PackagePlanController {
 
     private final PackagePlanService packagePlanService;

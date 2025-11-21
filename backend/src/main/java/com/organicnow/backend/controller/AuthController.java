@@ -12,9 +12,13 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping({"/api/auth", "/auth"})
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000", "http://localhost:4173", "http://app.localtest.me"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:5173",
+        "http://localhost:3000",
+        "http://localhost:4173",
+        "http://app.localtest.me",
+        "https://transcondylar-noncorporately-christen.ngrok-free.dev"}, allowCredentials = "true")
 public class AuthController {
     
     private final AdminRepository adminRepository;
