@@ -4,12 +4,10 @@ import Layout from "../component/layout";
 import Modal from "../component/modal";
 import Pagination from "../component/pagination";
 import useMessage from "../component/useMessage";
-import { pageSize as defaultPageSize } from "../config_variable";
+import { pageSize as defaultPageSize, apiPath } from "../config_variable";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap-icons/font/bootstrap-icons.css";
-
-const API_BASE = import.meta.env?.VITE_API_URL ?? "http://localhost:8080";
 
 // ✅ เพิ่ม CSS เพื่อป้องกันการ auto-scroll
 const preventScrollCSS = `
@@ -445,7 +443,7 @@ function InvoiceManagement() {
       
       setLoading(true);
       setErr("");
-      const res = await fetch(`${API_BASE}/invoice/list`, {
+      const res = await fetch(`${apiPath}/invoice/list`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -493,7 +491,7 @@ function InvoiceManagement() {
   // ✅ ดึงข้อมูลห้องจาก backend
   const fetchRooms = async () => {
     try {
-      const res = await fetch(`${API_BASE}/room/list`, {
+      const res = await fetch(`${apiPath}/room/list`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -518,7 +516,7 @@ function InvoiceManagement() {
   // ✅ ดึงข้อมูล contract จาก backend
   const fetchContracts = async () => {
     try {
-      const res = await fetch(`${API_BASE}/contract/list`, {
+      const res = await fetch(`${apiPath}/contract/list`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -537,7 +535,7 @@ function InvoiceManagement() {
   // ✅ ดึงข้อมูล tenant จาก backend
   const fetchTenants = async () => {
     try {
-      const res = await fetch(`${API_BASE}/tenant/list`, {
+      const res = await fetch(`${apiPath}/tenant/list`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -558,7 +556,7 @@ function InvoiceManagement() {
   // ✅ ดึงข้อมูล packages จาก backend
   const fetchPackages = async () => {
     try {
-      const res = await fetch(`${API_BASE}/packages`, {
+      const res = await fetch(`${apiPath}/packages`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -744,7 +742,7 @@ function InvoiceManagement() {
 
     try {
       // หา Contract ID จากห้อง
-      const contractResponse = await fetch(`${API_BASE}/contract/by-room?floor=${floor}&room=${room}`, {
+      const contractResponse = await fetch(`${apiPath}/contract/by-room?floor=${floor}&room=${room}`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -757,8 +755,8 @@ function InvoiceManagement() {
       const contractId = contractData.contractId; // ใช้ contractId แทน id
 
       // ตรวจสอบยอดค้างจาก Outstanding Balance Service
-      console.log(`🔍 Calling Outstanding Balance API: ${API_BASE}/outstanding-balance/calculate/${contractId}`);
-      const outstandingResponse = await fetch(`${API_BASE}/outstanding-balance/calculate/${contractId}`, {
+      console.log(`🔍 Calling Outstanding Balance API: ${apiPath}/outstanding-balance/calculate/${contractId}`);
+      const outstandingResponse = await fetch(`${apiPath}/outstanding-balance/calculate/${contractId}`, {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
@@ -889,7 +887,7 @@ function InvoiceManagement() {
       showMessageSave(`กำลังสร้าง PDF สำหรับใบแจ้งหนี้ #${invoice.id}...`);
       
       // เรียก API backend เพื่อสร้าง PDF
-      const response = await fetch(`${API_BASE}/invoice/pdf/${invoice.id}`, {
+      const response = await fetch(`${apiPath}/invoice/pdf/${invoice.id}`, {
         method: 'GET',
         credentials: 'include',
       });
@@ -944,7 +942,7 @@ function InvoiceManagement() {
         if (!invoice) continue;
 
         try {
-          const response = await fetch(`${API_BASE}/invoice/pdf/${invoice.id}`, {
+          const response = await fetch(`${apiPath}/invoice/pdf/${invoice.id}`, {
             method: 'GET',
             credentials: 'include',
           });
@@ -1011,7 +1009,7 @@ function InvoiceManagement() {
     try {
       for (const invoiceId of selectedItems) {
         try {
-          const response = await fetch(`${API_BASE}/invoice/delete/${invoiceId}`, {
+          const response = await fetch(`${apiPath}/invoice/delete/${invoiceId}`, {
             method: 'DELETE',
             credentials: 'include',
           });
@@ -1075,7 +1073,7 @@ function InvoiceManagement() {
   const loadPaymentRecords = async (invoiceId) => {
     try {
       setLoadingPayments(true);
-      const response = await fetch(`${API_BASE}/api/payments/records/invoice/${invoiceId}`);
+      const response = await fetch(`${apiPath}/api/payments/records/invoice/${invoiceId}`);
       if (response.ok) {
         const data = await response.json();
         setPaymentRecords(data);
@@ -1095,8 +1093,8 @@ function InvoiceManagement() {
   const loadPaymentMethods = async () => {
     try {
       const [methodsResponse, statusesResponse] = await Promise.all([
-        fetch(`${API_BASE}/api/payments/payment-methods`).catch(() => null),
-        fetch(`${API_BASE}/api/payments/payment-statuses`).catch(() => null)
+        fetch(`${apiPath}/api/payments/payment-methods`).catch(() => null),
+        fetch(`${apiPath}/api/payments/payment-statuses`).catch(() => null)
       ]);
 
       if (methodsResponse?.ok) {
@@ -1144,7 +1142,7 @@ function InvoiceManagement() {
   const checkAndUpdateInvoiceStatus = async (invoiceId, newPaymentAmount) => {
     try {
       // โหลดข้อมูลใบแจ้งหนี้และการชำระเงินล่าสุด
-      const invoiceResponse = await fetch(`${API_BASE}/api/invoices/${invoiceId}`, {
+      const invoiceResponse = await fetch(`${apiPath}/api/invoices/${invoiceId}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -1163,7 +1161,7 @@ function InvoiceManagement() {
       // ตรวจสอบว่าจ่ายครบหรือไม่
       if (totalPaid >= totalInvoiceAmount && invoice.status !== 'COMPLETED') {
         // อัปเดตสถานะเป็น COMPLETED
-        const updateResponse = await fetch(`${API_BASE}/api/invoices/${invoiceId}/status`, {
+        const updateResponse = await fetch(`${apiPath}/api/invoices/${invoiceId}/status`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'COMPLETED' })
@@ -1231,7 +1229,7 @@ function InvoiceManagement() {
         recordedBy: paymentForm.recordedBy || 'admin'
       };
 
-      const response = await fetch(`${API_BASE}/api/payments/records`, {
+      const response = await fetch(`${apiPath}/api/payments/records`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1276,7 +1274,7 @@ function InvoiceManagement() {
   // ดาวน์โหลดหลักฐานการชำระเงิน
   const handleViewProof = async (proofId, fileName) => {
     try {
-      const response = await fetch(`${API_BASE}/api/payments/proofs/${proofId}/download`, {
+      const response = await fetch(`${apiPath}/api/payments/proofs/${proofId}/download`, {
         method: 'GET'
       });
 
@@ -1351,7 +1349,7 @@ function InvoiceManagement() {
         throw new Error('ไม่พบการบันทึกการชำระเงิน');
       }
 
-      const response = await fetch(`${API_BASE}/api/payments/records/${latestPaymentId}/proofs`, {
+      const response = await fetch(`${apiPath}/api/payments/records/${latestPaymentId}/proofs`, {
         method: 'POST',
         body: formData
       });
@@ -1388,7 +1386,7 @@ function InvoiceManagement() {
   // อัปเดตสถานะการชำระ
   const handleUpdatePaymentStatus = async (paymentId, newStatus) => {
     try {
-      const response = await fetch(`${API_BASE}/api/payments/records/${paymentId}`, {
+      const response = await fetch(`${apiPath}/api/payments/records/${paymentId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -1417,7 +1415,7 @@ function InvoiceManagement() {
     if (!result.isConfirmed) return;
     
     try {
-      const response = await fetch(`${API_BASE}/api/payments/records/${paymentId}`, {
+      const response = await fetch(`${apiPath}/api/payments/records/${paymentId}`, {
         method: 'DELETE'
       });
 
@@ -1443,7 +1441,7 @@ function InvoiceManagement() {
       setDeletingId(id);
       setErr("");
 
-      const res = await fetch(`${API_BASE}/invoice/delete/${id}`, {
+      const res = await fetch(`${apiPath}/invoice/delete/${id}`, {
         method: "DELETE",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -1558,7 +1556,7 @@ function InvoiceManagement() {
         room: invForm.room
       });
 
-      const res = await fetch(`${API_BASE}/invoice/create`, {
+      const res = await fetch(`${apiPath}/invoice/create`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -1637,7 +1635,7 @@ function InvoiceManagement() {
       const formData = new FormData();
       formData.append('file', csvFile);
 
-      const response = await fetch(`${API_BASE}/invoice/import-csv`, {
+      const response = await fetch(`${apiPath}/invoice/import-csv`, {
         method: 'POST',
         body: formData
       });
