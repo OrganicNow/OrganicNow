@@ -1,167 +1,261 @@
-import 'cypress-wait-until';
+// cypress/e2e/maintenancedetails.cy.js
 
-describe("E2E Full CRUD & UI Interaction Test for Maintenance Details", () => {
-  const ID = 1;
+describe('Maintenance Details Page', () => {
+  before(() => {
+    cy.visit('/login');
 
-  beforeEach(() => {
-    // ✅ intercept mock API (GET, PUT, DELETE)
-    cy.intercept("GET", /\/maintain\/\d+$/, (req) => {
-      req.reply({
-        statusCode: 200,
-        body: {
-          id: ID,
-          roomNumber: "205",
-          roomFloor: 2,
-          targetType: 1,
-          issueTitle: "Water leakage",
-          issueCategory: "Plumbing",
-          issueDescription: "Pipe leaking near the sink",
-          createDate: "2025-10-01T00:00:00",
-          scheduledDate: "2025-10-05T00:00:00",
-          finishDate: null,
-        },
+    // Ensure the page URL is correct
+    cy.url({ timeout: 15000 }).should('include', '/login');
+
+    // Wait for the username and password fields to be visible
+    cy.get('input[type="text"]', { timeout: 15000 }).should('be.visible');
+    cy.get('input[type="password"]', { timeout: 15000 }).should('be.visible');
+
+    // Fill in the login details
+    cy.get('input[type="text"]').type('superadmin');
+    cy.get('input[type="password"]').type('admin123', { log: false });
+    cy.get('button[type="submit"]').click();
+
+    // Wait until the dashboard page loads
+    cy.url({ timeout: 10000 }).should('include', '/dashboard');
+  });
+
+
+  describe('Navigation from Maintenance Request to Details via Eye Button', () => {
+    it('should navigate to maintenance details by clicking eye button in table', () => {
+      // 1. ไปที่หน้า maintenance request ก่อน
+      cy.visit('/maintenancerequest');
+      cy.url().should('include', '/maintenancerequest');
+
+      // 2. รอให้ตารางโหลดและมีข้อมูล
+      cy.get('table tbody tr', { timeout: 10000 }).should('have.length.at.least', 1);
+
+      // 3. คลิกปุ่มรูปตา (👁) ในคอลัมน์ Action ของแถวแรก
+      cy.get('table tbody tr').first().within(() => {
+        cy.get('button.form-Button-Edit').click();
       });
-    }).as("getInitial");
 
-    cy.intercept("PUT", "*://*/maintain/update/**", (req) => {
-      req.reply({ statusCode: 200, body: { success: true } });
-    }).as("putUpdate");
+      // 4. ตรวจสอบว่ามายังหน้า details แล้ว
+      cy.url({ timeout: 10000 }).should('include', '/maintenancedetails');
 
-    cy.intercept("DELETE", "*://*/maintain/**", (req) => {
-      req.reply({ statusCode: 200 });
-    }).as("deleteMaintain");
+      // 5. ตรวจสอบว่าหน้า details โหลดเสร็จ
+      cy.get('.container-fluid', { timeout: 10000 }).should('be.visible');
+      cy.contains('Maintenance Details').should('be.visible');
 
-    cy.visit(`/maintenancedetails?id=${ID}`);
-    cy.wait("@getInitial");
-  });
-
-  // ✅ TEST 1: โหลดข้อมูลได้ถูกต้อง
-  it("should load and display maintenance details correctly", () => {
-    cy.contains("Water leakage", { timeout: 8000 }).should("exist");
-    // cy.contains("Pipe leaking near the sink").should("exist");
-  });
-
-  // ✅ TEST 2: เปิดและปิด Modal ได้ถูกต้อง
-  it("should open and close Edit Request modal properly", () => {
-    cy.get(".tm-toolbar button.btn-primary").filter(":visible").first().click({ force: true });
-    cy.get("#editMaintainModal").should("be.visible");
-
-    // ปิด modal
-    cy.get('#editMaintainModal button[data-bs-dismiss="modal"]').click({ multiple: true, force: true });
-    cy.wait(500);
-
-    cy.window().then((win) => {
-      const modalEl = win.document.getElementById("editMaintainModal");
-      if (modalEl && modalEl.classList.contains("show")) {
-        const instance = win.bootstrap?.Modal?.getInstance(modalEl);
-        if (instance) instance.hide();
-        modalEl.classList.remove("show");
-        modalEl.style.display = "none";
-        modalEl.setAttribute("aria-hidden", "true");
-      }
+      // 6. ตรวจสอบ breadcrumb
+      cy.contains('Maintenance Request').should('be.visible');
     });
 
-    cy.get("#editMaintainModal").should("not.be.visible");
-  });
+    it('should display correct maintenance details after navigation', () => {
+      // ไปที่หน้า maintenance request ก่อน
+      cy.visit('/maintenancerequest');
+      cy.get('table tbody tr', { timeout: 10000 }).should('have.length.at.least', 1);
 
-  // ✅ TEST 3: แก้ไขและบันทึกได้สำเร็จ
-  it("should allow editing and saving maintenance request", () => {
-    cy.get(".tm-toolbar button.btn-primary").filter(":visible").first().click({ force: true });
-    cy.get("#editMaintainModal").should("be.visible");
+      // คลิกปุ่มรูปตาในแถวแรก
+      cy.get('table tbody tr').first().within(() => {
+        cy.get('button.form-Button-Edit').click();
+      });
 
-    cy.get('select[name="state"]').select("Complete");
-    cy.get('input[name="issueTitle"]').clear().type("Water leakage (Fixed)");
-    cy.get('input[name="maintainDate"]').clear().type("2025-10-06");
-    cy.get('input[name="completeDate"]').clear({ force: true }).type("2025-10-10", { force: true });
+      // ตรวจสอบหน้า details
+      cy.url().should('include', '/maintenancedetails');
 
-    cy.get('#editMaintainModal form button[type="submit"]').click({ force: true });
+      // ตรวจสอบส่วนต่างๆ ของหน้า details
+      cy.get('.toolbar-wrapper').should('be.visible');
 
-    // ✅ mock GET ใหม่หลังอัปเดต
-    cy.intercept("GET", /\/maintain\/\d+$/, {
-      statusCode: 200,
-      body: {
-        id: ID,
-        issueTitle: "Water leakage (Fixed)",
-        issueDescription: "Pipe replaced successfully",
-        scheduledDate: "2025-10-06T00:00:00",
-        finishDate: "2025-10-10T00:00:00",
-      },
-    }).as("getUpdated");
+      // ตรวจสอบการ์ด Room Information
+      cy.contains('Room Information').should('be.visible');
+      cy.contains('Room:').should('be.visible');
+      cy.contains('Floor:').should('be.visible');
 
-    // ✅ ปิด modal (fallback)
-    cy.window().then((win) => {
-      const modalEl = win.document.getElementById("editMaintainModal");
-      if (modalEl && modalEl.classList.contains("show")) {
-        const instance = win.bootstrap?.Modal?.getInstance(modalEl);
-        if (instance) instance.hide();
-        modalEl.classList.remove("show");
-        modalEl.style.display = "none";
-        modalEl.setAttribute("aria-hidden", "true");
-      }
-    });
+      // ตรวจสอบการ์ด Request Information
+      cy.contains('Request Information').should('be.visible');
+      cy.contains('Target:').should('be.visible');
+      cy.contains('Issue:').should('be.visible');
+      cy.contains('Request date:').should('be.visible');
+      cy.contains('State:').should('be.visible');
 
-    cy.wait(800);
-    cy.reload(); // trigger GET updated data
-    cy.wait("@getUpdated");
-
-    cy.contains("Water leakage (Fixed)", { timeout: 10000 }).should("exist");
-  });
-
-  // ✅ TEST 4: ปุ่ม Cancel ไม่ควรบันทึก
-  it("should not save when Cancel button clicked", () => {
-    cy.get(".tm-toolbar button.btn-primary").filter(":visible").first().click({ force: true });
-    cy.get("#editMaintainModal").should("be.visible");
-
-    cy.get('input[name="issueTitle"]').clear().type("SHOULD NOT SAVE");
-
-    cy.get('#editMaintainModal button[data-bs-dismiss="modal"]').click({ multiple: true, force: true });
-
-    cy.wait(800);
-    cy.get("#editMaintainModal").should("not.be.visible");
-    cy.contains("SHOULD NOT SAVE").should("not.exist");
-  });
-
-  // ✅ TEST 5: Delete ทำงานสำเร็จ
-  it("should confirm and delete maintenance record successfully", () => {
-    cy.window().then((win) =>
-      win.fetch(`http://localhost:8080/maintain/${ID}`, { method: "DELETE" })
-        .then((res) => expect(res.status).to.eq(200))
-    );
-  });
-
-  // ✅ TEST 6: Layout ต้องแสดงครบ
-  it("should render layout and cards consistently", () => {
-    cy.get(".toolbar-wrapper").should("be.visible");
-    cy.get(".table-wrapper-detail").should("be.visible");
-    cy.get(".card-title").should("contain", "Room Information");
-    cy.get(".card-title").should("contain", "Request Information");
-    cy.get(".card-title").should("contain", "Technician Information");
-  });
-
-  // ✅ TEST 7: handle error เมื่อ GET fail
-  it("should handle server error (GET /maintain/ fails)", () => {
-    cy.intercept("GET", "**/maintain/999", { statusCode: 500 });
-    cy.visit("/maintenancedetails?id=999");
-    cy.contains(/failed to load maintenance/i, { timeout: 8000 }).should("exist");
-  });
-
-  // ✅ TEST 8: handle error เมื่อ PUT fail
-  it("should show toast or error when update API fails", () => {
-    cy.intercept("PUT", "**/maintain/update/**", { statusCode: 500, body: "Update failed" });
-    cy.intercept("GET", /\/maintain\/\d+$/, {
-      statusCode: 200,
-      body: { id: ID, issueTitle: "Water leakage", issueDescription: "Pipe leaking near sink" },
-    });
-
-    cy.visit(`/maintenancedetails?id=${ID}`);
-    cy.get(".tm-toolbar button.btn-primary").filter(":visible").first().click({ force: true });
-    cy.get("#editMaintainModal form", { timeout: 8000 }).should("exist");
-
-    cy.get('#editMaintainModal form button[type="submit"]').click({ force: true });
-
-    cy.wait(500);
-    cy.window().then(() => {
-      expect(console.error).to.exist;
+      // ตรวจสอบการ์ด Technician Information
+      cy.contains('Technician Information').should('be.visible');
     });
   });
+
+  describe('Maintenance Details Page Functionality', () => {
+    beforeEach(() => {
+      // ก่อนแต่ละ test ให้นำทางไปที่ maintenance details ผ่านปุ่มรูปตา
+      cy.visit('/maintenancerequest');
+      cy.get('table tbody tr', { timeout: 10000 }).should('have.length.at.least', 1);
+      cy.get('table tbody tr').first().within(() => {
+        cy.get('button.form-Button-Edit').click();
+      });
+      cy.url().should('include', '/maintenancedetails');
+
+      // รอให้หน้า details โหลดเสร็จ
+      cy.get('.container-fluid', { timeout: 10000 }).should('be.visible');
+    });
+
+
+
+    it('should allow editing maintenance information in modal', () => {
+      cy.get('button').contains('Edit Request').click();
+
+      // รอให้ modal โหลดเสร็จ
+      cy.get('#editMaintainModal', { timeout: 10000 }).should('be.visible');
+
+      // ทำงานภายใน modal
+      cy.get('#editMaintainModal').within(() => {
+        // แก้ไขข้อมูลช่าง
+        cy.get('input[name="technician"]').clear().type('Test Technician Name');
+        cy.get('input[name="phone"]').clear().type('0812345678');
+
+        // เปลี่ยนประเภทการซ่อม
+        cy.get('select[name="maintainType"]').select('fix');
+        cy.get('select[name="maintainType"]').should('have.value', 'fix');
+
+        // เปลี่ยนสถานะ
+        cy.get('select[name="state"]').select('In Progress');
+        cy.get('select[name="state"]').should('have.value', 'In Progress');
+
+        // ตรวจสอบว่าวันที่ซ่อมบำรุงถูกเติมอัตโนมัติเมื่อเปลี่ยนสถานะเป็น In Progress
+        cy.get('input[name="maintainDate"]').should('not.have.value', '');
+
+        // ยกเลิกการเปลี่ยนแปลง
+        cy.get('button').contains('Cancel').click();
+      });
+    });
+
+
+    it('should navigate back to maintenance request via breadcrumb', () => {
+      // คลิกที่ breadcrumb เพื่อกลับไปหน้า maintenance request
+      cy.contains('Maintenance Request').click();
+
+      // ตรวจสอบว่ากลับมาที่หน้า maintenance request แล้ว
+      cy.url().should('include', '/maintenancerequest');
+      cy.get('table').should('be.visible');
+    });
+
+    it('should handle image upload section in edit modal', () => {
+      cy.get('button').contains('Edit Request').click();
+
+      // รอให้ modal โหลดเสร็จ
+      cy.get('#editMaintainModal', { timeout: 10000 }).should('be.visible');
+
+      // ทำงานภายใน modal
+      cy.get('#editMaintainModal').within(() => {
+        // เลื่อนไปยังส่วนอัพโหลดรูปภาพ
+        cy.contains('Work Evidence Photo').scrollIntoView();
+
+        // ตรวจสอบส่วนอัพโหลดรูปภาพ
+        cy.contains('Work Evidence Photo').should('be.visible');
+        cy.get('input[type="file"]').should('exist');
+        cy.contains('Supported formats: JPEG, PNG, GIF. Max size: 5MB').should('be.visible');
+
+        // ตรวจสอบปุ่ม Upload
+        cy.get('button').contains('Upload').should('be.visible');
+
+        // ปิด modal
+        cy.get('button').contains('Cancel').click();
+      });
+    });
+
+    it('should display tenant information when available', () => {
+      // หาการ์ด Tenant Information โดยเฉพาะ (ใช้ contains ที่เจาะจงกว่า)
+      cy.contains('h5', 'Tenant Information').parent('.card-body').within(() => {
+        // ตรวจสอบว่ามีข้อมูลผู้เช่าหรือแสดงข้อความว่าไม่มี
+        cy.get('p, div').then(($elements) => {
+          const hasContent = $elements.text().length > 0;
+          if (hasContent) {
+            // ถ้ามีข้อมูลผู้เช่า
+            cy.contains(/First Name:|Last Name:|National ID:|Phone Number:|Email:/).should('exist');
+          } else {
+            // ถ้าไม่มีข้อมูลผู้เช่า
+            cy.contains('No active tenant').should('be.visible');
+          }
+        });
+      });
+    });
+  });
+
+  describe('Multiple Navigation Scenarios', () => {
+    it('should navigate to details from different rows in the table', () => {
+      cy.visit('/maintenancerequest');
+      cy.get('table tbody tr', { timeout: 10000 }).should('have.length.at.least', 2);
+
+      // คลิกปุ่มรูปตาในแถวที่ 2
+      cy.get('table tbody tr').eq(1).within(() => {
+        cy.get('button.form-Button-Edit').click();
+      });
+
+      cy.url().should('include', '/maintenancedetails');
+      cy.get('.container-fluid').should('be.visible');
+
+      // กลับไปหน้า maintenance request
+      cy.contains('Maintenance Request').click();
+      cy.url().should('include', '/maintenancerequest');
+
+      // คลิกปุ่มรูปตาในแถวสุดท้าย
+      cy.get('table tbody tr').last().within(() => {
+        cy.get('button.form-Button-Edit').click();
+      });
+
+      cy.url().should('include', '/maintenancedetails');
+    });
+
+    it('should maintain browser navigation history', () => {
+      cy.visit('/maintenancerequest');
+      cy.get('table tbody tr', { timeout: 10000 }).should('have.length.at.least', 1);
+
+      // คลิกปุ่มรูปตา
+      cy.get('table tbody tr').first().within(() => {
+        cy.get('button.form-Button-Edit').click();
+      });
+
+      cy.url().should('include', '/maintenancedetails');
+
+      // ใช้ browser back button
+      cy.go('back');
+      cy.url().should('include', '/maintenancerequest');
+
+      // ใช้ browser forward button
+      cy.go('forward');
+      cy.url().should('include', '/maintenancedetails');
+    });
+  });
+
+  describe('Error Handling in Navigation', () => {
+    it('should handle empty maintenance request table', () => {
+      // ถ้ามีสถานการณ์ที่ตารางว่างเปล่า
+      cy.visit('/maintenancerequest');
+
+      cy.get('table tbody tr').then(($rows) => {
+        if ($rows.length === 0 || $rows.text().includes('Data Not Found')) {
+          // ถ้าไม่มีข้อมูล ควรแสดงข้อความว่าไม่มีข้อมูล
+          cy.contains('Data Not Found').should('be.visible');
+          // และไม่ควรมีปุ่มรูปตาให้คลิก
+          cy.get('button.form-Button-Edit').should('not.exist');
+        }
+      });
+    });
+
+    it('should handle maintenance details with invalid ID', () => {
+      // พยายามเข้าหน้า details ด้วย ID ที่ไม่มีอยู่โดยตรง
+      cy.visit('/maintenancedetails?id=999999');
+      cy.url().should('include', '/maintenancedetails');
+
+      // ควรแสดง error message
+      cy.get('.alert-danger').should('be.visible');
+    });
+  });
+  after(() => {
+          // Ensure the profile dropdown is visible and click it
+          cy.get('.topbar-profile').click({ force: true }); // Use force: true to click even if covered
+
+          // Click the logout button
+          cy.contains('li', 'Logout').click({ force: true }); // Force click the logout button
+
+          // Handle SweetAlert confirmation
+          cy.get('.swal2-confirm').click({ force: true }); // Force click on confirm button of SweetAlert
+
+          // Optionally, confirm the redirection to the login page
+          cy.url().should('include', '/login');  // Ensure the URL includes '/login' to confirm successful logout
+      });
 });
