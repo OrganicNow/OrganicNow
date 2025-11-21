@@ -12,9 +12,6 @@ jobs:
   deploy:
     name: Deploy to Kubernetes
     runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_run' &&
-      github.event.workflow.conclusion == 'success'
 
     steps:
       - name: Checkout
