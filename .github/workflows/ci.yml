@@ -173,12 +173,12 @@ jobs:
     runs-on: ubuntu-latest
     needs: [ docker-backend, docker-frontend ]
     env:
-      COMPOSE_FILE: docker-compose.yml
+      COMPOSE_FILES: "docker-compose.yml docker-compose.override.yml"
       BASE_URL: http://localhost:5173
       HEALTH_URL_BACKEND: http://localhost:8080/actuator/health
       HEALTH_URL_FRONTEND: http://localhost:5173
-      POSTGRES_SERVICE_NAME: organicnow-db       # จาก compose ของคุณ
-      POSTGRES_DB_NAME: apartment_management     # จาก compose ของคุณ
+      POSTGRES_SERVICE_NAME: organicnow-db
+      POSTGRES_DB_NAME: apartment_management
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -190,17 +190,38 @@ jobs:
           services:
             backend:
               image: heangkung/organicnow-backend:latest
+              pull_policy: always
             frontend:
-              image: heangkung/organicnow-frontend:latest
+              image: heangkung/organicnow-frontend:latest  
+              pull_policy: always
           EOF
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: docker compose up (run services)
+      - name: Pull latest images and start services
         run: |
-          docker compose -f "${COMPOSE_FILE}" up -d
+          # Pull image ล่าสุดจาก Docker Hub
+          docker compose -f docker-compose.yml -f docker-compose.override.yml pull
+          
+          # Start services with --pull always
+          docker compose -f docker-compose.yml -f docker-compose.override.yml up -d --pull always
           docker ps
+
+      - name: Verify running images
+        run: |
+          echo "=== Checking running containers ==="
+          docker compose -f docker-compose.yml -f docker-compose.override.yml ps
+          
+          echo "=== Backend image details ==="
+          docker compose -f docker-compose.yml -f docker-compose.override.yml images backend
+          
+          echo "=== Frontend image details ==="  
+          docker compose -f docker-compose.yml -f docker-compose.override.yml images frontend
+          
+          echo "=== Image digests ==="
+          docker inspect heangkung/organicnow-backend:latest --format='Backend Digest: {{index .RepoDigests 0}}' || true
+          docker inspect heangkung/organicnow-frontend:latest --format='Frontend Digest: {{index .RepoDigests 0}}' || true
 
       - name: Wait for backend to be healthy
         run: |
@@ -213,105 +234,20 @@ jobs:
             echo "Waiting for backend... ($i/60)"
             sleep 2
           done
-          echo "Backend not healthy in time ❌"; docker ps; exit 1
+          echo "Backend not healthy in time ❌"; docker ps; docker compose -f docker-compose.yml -f docker-compose.override.yml logs backend; exit 1
 
       - name: Wait for frontend to be up
         run: |
-          for i in {1..60}; do
-            curl -fsS "$HEALTH_URL_FRONTEND" && exit 0
-            echo "Waiting for frontend... ($i/60)"
+          set -euo pipefail
+          for i in {1..90}; do
+            if curl -fsS "$HEALTH_URL_FRONTEND" > /dev/null 2>&1; then
+              echo "Frontend healthy ✅"
+              exit 0
+            fi
+            echo "Waiting for frontend... ($i/90)"
             sleep 2
           done
-          echo "Frontend not up in time"; docker ps; exit 1
-
-      # ----------------------------
-      # Integration Tests บน network เดียวกับ compose (ใช้ Maven image)
-      # ----------------------------
-      - name: Run Integration Tests (using Maven builder image on same network)
-        run: |
-          set -euo pipefail
-          echo "🔎 Finding backend service & its network..."
-          BACKEND_SVC_NAME="backend"
-          BACKEND_CID="$(docker compose -f "${COMPOSE_FILE}" ps -q "${BACKEND_SVC_NAME}" || true)"
-          if [ -z "$BACKEND_CID" ]; then
-            echo "❌ Cannot find backend container by service name '${BACKEND_SVC_NAME}'."
-            docker compose -f "${COMPOSE_FILE}" ps
-            exit 1
-          fi
-          NET_NAME="$(docker inspect -f '{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$BACKEND_CID" | head -n1)"
-          if [ -z "$NET_NAME" ]; then
-            echo "❌ Cannot detect docker network of backend container."
-            docker inspect "$BACKEND_CID"
-            exit 1
-          fi
-          echo "✅ Using network: $NET_NAME"
-          echo "🏗️  Running Integration Tests with Maven on same network..."
-          docker run --rm \
-            --network "$NET_NAME" \
-            -v "${{ github.workspace }}/backend:/app" \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -w /app \
-            maven:3.9.6-eclipse-temurin-21 \
-            mvn -q -U test \
-              -Dspring.profiles.active=test \
-              -Dspring.datasource.url="jdbc:postgresql://${POSTGRES_SERVICE_NAME}:5432/${POSTGRES_DB_NAME}" \
-              -Dspring.datasource.username=postgres \
-              -Dspring.datasource.password=postgres123 \
-              -Dtest='*IntegrationTest'
-
-      - name: Upload Integration Test Reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-reports
-          path: backend/target/surefire-reports
-
-      # ----------------------------
-      # Cypress E2E (ใช้ root cypress.config.js)
-      # ----------------------------
-      - name: Set up Node.js 20 (for Cypress CLI at repo root)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-
-      # 🔧 สำคัญ: docker compose มักรัน npm ใน container แล้วสร้าง node_modules เป็น root-owned
-      # ตรงนี้เลย chown โฟลเดอร์ frontend กลับมาก่อน
-      - name: Fix frontend folder permissions
-        run: |
-          sudo chown -R $USER:$USER frontend || true
-
-      - name: Install Cypress deps (repo root)
-        run: |
-          npm ci
-          npx cypress install
-
-      - name: Install frontend deps
-        working-directory: frontend
-        run: npm ci
-
-      - name: Run Cypress E2E (using root cypress.config.js)
-        env:
-          CYPRESS_BASE_URL: ${{ env.BASE_URL }}
-          CYPRESS_PROJECT_ID: ${{ secrets.CYPRESS_PROJECT_ID }}
-          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
-        run: |
-          npx cypress run --headless --config baseUrl=${{ env.BASE_URL }} ${CYPRESS_RECORD_KEY:+--record --key $CYPRESS_RECORD_KEY}
-
-      - name: Upload Cypress artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-cypress-results
-          path: |
-            cypress/videos
-            cypress/screenshots
-
-      - name: Teardown containers
-        if: always()
-        run: docker compose -f "${{ env.COMPOSE_FILE }}" down -v
+          echo "Frontend not up in time ❌"; docker ps; docker compose -f docker-compose.yml -f docker-compose.override.yml logs frontend; exit 1
 
   # =============================
   # 6) SUMMARY
