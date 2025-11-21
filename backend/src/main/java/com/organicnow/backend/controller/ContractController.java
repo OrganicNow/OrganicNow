@@ -8,9 +8,11 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/contract") // เปลี่ยนจาก /contracts เป็น /contract
+@RequestMapping({"/contract", "/api/contract"}) // เปลี่ยนจาก /contracts เป็น /contract
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:5173", "http://app.localtest.me"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:5173",
+        "http://app.localtest.me",
+        "https://transcondylar-noncorporately-christen.ngrok-free.dev"}, allowCredentials = "true")
 public class ContractController {
 
     private final ContractService contractService;

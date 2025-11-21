@@ -1,3 +1,261 @@
+CREATE TABLE room (
+                      room_id BIGSERIAL PRIMARY KEY,
+                      room_number VARCHAR(30) NOT NULL,
+                      room_floor INTEGER NOT NULL,
+                      room_size INTEGER NOT NULL DEFAULT 0,
+                      CONSTRAINT uk_room_room_number UNIQUE (room_number)
+);
+
+CREATE TABLE tenant (
+                        tenant_id BIGSERIAL PRIMARY KEY,
+                        first_name VARCHAR(100) NOT NULL,
+                        last_name VARCHAR(100) NOT NULL,
+                        phone_number VARCHAR(50),
+                        email VARCHAR(255),
+                        national_id VARCHAR(50) NOT NULL,
+                        CONSTRAINT uk_tenant_national_id UNIQUE (national_id)
+);
+
+CREATE TABLE contract_type (
+                               contract_type_id BIGSERIAL PRIMARY KEY,
+                               contract_name VARCHAR(100) NOT NULL,
+                               duration INTEGER
+);
+
+CREATE TABLE asset_group (
+                             asset_group_id BIGSERIAL PRIMARY KEY,
+                             asset_group_name VARCHAR(100) NOT NULL,
+                             monthly_addon_fee NUMERIC(10,2) DEFAULT 0.00,
+                             one_time_damage_fee NUMERIC(10,2) DEFAULT 0.00,
+                             free_replacement BOOLEAN DEFAULT TRUE,
+                             updated_at TIMESTAMP,
+                             CONSTRAINT uk_asset_group_name UNIQUE (asset_group_name)
+);
+
+CREATE TABLE fee (
+                     fee_id BIGSERIAL PRIMARY KEY,
+                     fee_name VARCHAR(120) NOT NULL,
+                     unit_fee INTEGER NOT NULL,
+                     CONSTRAINT uk_fee_name UNIQUE (fee_name)
+);
+
+CREATE TABLE package_plan (
+                              package_id BIGSERIAL PRIMARY KEY,
+                              contract_type_id BIGINT NOT NULL,
+                              price NUMERIC(12,2),
+                              is_active INTEGER NOT NULL,
+                              room_size INTEGER NOT NULL,
+                              CONSTRAINT fk_package_plan_contract_type
+                                  FOREIGN KEY (contract_type_id)
+                                      REFERENCES contract_type(contract_type_id)
+);
+
+CREATE TABLE asset (
+                       asset_id BIGSERIAL PRIMARY KEY,
+                       asset_group_id BIGINT NOT NULL,
+                       asset_name VARCHAR(120) NOT NULL,
+                       status VARCHAR(20) NOT NULL,
+                       CONSTRAINT fk_asset_asset_group
+                           FOREIGN KEY (asset_group_id)
+                               REFERENCES asset_group(asset_group_id),
+                       CONSTRAINT uk_asset_group_asset_name
+                           UNIQUE (asset_group_id, asset_name)
+);
+
+CREATE TABLE contract (
+                          contract_id BIGSERIAL PRIMARY KEY,
+                          room_id BIGINT NOT NULL,
+                          tenant_id BIGINT NOT NULL,
+                          package_id BIGINT NOT NULL,
+                          sign_date TIMESTAMP,
+                          start_date TIMESTAMP,
+                          end_date TIMESTAMP,
+                          status INTEGER NOT NULL,
+                          deposit NUMERIC(12,2),
+                          rent_amount_snapshot NUMERIC(12,2),
+                          CONSTRAINT fk_contract_room
+                              FOREIGN KEY (room_id)
+                                  REFERENCES room(room_id),
+                          CONSTRAINT fk_contract_tenant
+                              FOREIGN KEY (tenant_id)
+                                  REFERENCES tenant(tenant_id),
+                          CONSTRAINT fk_contract_package
+                              FOREIGN KEY (package_id)
+                                  REFERENCES package_plan(package_id)
+);
+
+CREATE TABLE contract_file (
+                               id BIGSERIAL PRIMARY KEY,
+                               contract_id BIGINT NOT NULL UNIQUE,
+                               signed_pdf BYTEA,
+                               uploaded_at TIMESTAMP,
+                               CONSTRAINT fk_contract_file_contract
+                                   FOREIGN KEY (contract_id)
+                                       REFERENCES contract(contract_id)
+                                       ON DELETE CASCADE
+);
+
+CREATE TABLE invoice (
+                         invoice_id BIGSERIAL PRIMARY KEY,
+                         contract_id BIGINT NOT NULL,
+                         create_date TIMESTAMP NOT NULL,
+                         due_date TIMESTAMP NOT NULL,
+                         invoice_status INTEGER NOT NULL,
+                         pay_date TIMESTAMP,
+                         pay_method INTEGER,
+                         sub_total INTEGER NOT NULL,
+                         penalty_total INTEGER NOT NULL,
+                         net_amount INTEGER NOT NULL,
+                         previous_balance INTEGER,
+                         paid_amount INTEGER,
+                         remaining_balance INTEGER,
+                         penalty_applied_at TIMESTAMP,
+                         package_id BIGINT,
+                         requested_floor INTEGER,
+                         requested_room VARCHAR(255),
+                         requested_rent INTEGER,
+                         requested_water INTEGER,
+                         requested_water_unit INTEGER,
+                         requested_electricity INTEGER,
+                         requested_electricity_unit INTEGER,
+                         CONSTRAINT fk_invoice_contract
+                             FOREIGN KEY (contract_id)
+                                 REFERENCES contract(contract_id)
+);
+
+CREATE TABLE invoice_item (
+                              invoice_detail_id BIGSERIAL PRIMARY KEY,
+                              fee_id BIGINT NOT NULL,
+                              invoice_id BIGINT NOT NULL,
+                              total_fee INTEGER NOT NULL,
+                              CONSTRAINT fk_invoice_item_fee
+                                  FOREIGN KEY (fee_id)
+                                      REFERENCES fee(fee_id),
+                              CONSTRAINT fk_invoice_item_invoice
+                                  FOREIGN KEY (invoice_id)
+                                      REFERENCES invoice(invoice_id),
+                              CONSTRAINT uk_invoice_item_invoice_fee
+                                  UNIQUE (invoice_id, fee_id)
+);
+
+CREATE TABLE payment_records (
+                                 id BIGSERIAL PRIMARY KEY,
+                                 invoice_id BIGINT NOT NULL,
+                                 payment_amount NUMERIC(10,2) NOT NULL,
+                                 payment_method VARCHAR(50) NOT NULL,
+                                 payment_status VARCHAR(50) NOT NULL,
+                                 payment_date TIMESTAMP NOT NULL,
+                                 transaction_reference VARCHAR(255),
+                                 notes VARCHAR(1000),
+                                 recorded_by VARCHAR(100),
+                                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                                 updated_at TIMESTAMP,
+                                 CONSTRAINT fk_payment_records_invoice
+                                     FOREIGN KEY (invoice_id)
+                                         REFERENCES invoice(invoice_id)
+);
+
+CREATE TABLE payment_proofs (
+                                id BIGSERIAL PRIMARY KEY,
+                                payment_record_id BIGINT NOT NULL,
+                                file_name VARCHAR(255) NOT NULL,
+                                file_path VARCHAR(500) NOT NULL,
+                                file_size BIGINT,
+                                content_type VARCHAR(100),
+                                proof_type VARCHAR(50) NOT NULL,
+                                description VARCHAR(500),
+                                uploaded_by VARCHAR(100),
+                                uploaded_at TIMESTAMP NOT NULL DEFAULT NOW(),
+                                CONSTRAINT fk_payment_proofs_payment_record
+                                    FOREIGN KEY (payment_record_id)
+                                        REFERENCES payment_records(id)
+);
+
+CREATE TABLE room_asset (
+                            room_asset_id BIGSERIAL PRIMARY KEY,
+                            asset_id BIGINT NOT NULL,
+                            room_id BIGINT NOT NULL,
+                            CONSTRAINT fk_room_asset_asset
+                                FOREIGN KEY (asset_id)
+                                    REFERENCES asset(asset_id),
+                            CONSTRAINT fk_room_asset_room
+                                FOREIGN KEY (room_id)
+                                    REFERENCES room(room_id),
+                            CONSTRAINT uk_room_asset_unique
+                                UNIQUE (room_id, asset_id)
+);
+
+CREATE TABLE asset_event (
+                             event_id BIGSERIAL PRIMARY KEY,
+                             room_id BIGINT NOT NULL,
+                             asset_id BIGINT NOT NULL,
+                             event_type VARCHAR(20) NOT NULL,
+                             reason_type VARCHAR(20),
+                             note TEXT,
+                             created_at TIMESTAMP,
+                             CONSTRAINT fk_asset_event_room
+                                 FOREIGN KEY (room_id)
+                                     REFERENCES room(room_id),
+                             CONSTRAINT fk_asset_event_asset
+                                 FOREIGN KEY (asset_id)
+                                     REFERENCES asset(asset_id)
+);
+
+CREATE TABLE maintain (
+                          maintain_id BIGSERIAL PRIMARY KEY,
+                          target_type INTEGER NOT NULL,
+                          room_id BIGINT NOT NULL,
+                          room_asset_id BIGINT,
+                          issue_category INTEGER NOT NULL,
+                          issue_title VARCHAR(200) NOT NULL,
+                          issue_description TEXT,
+                          create_date TIMESTAMP NOT NULL,
+                          scheduled_date TIMESTAMP,
+                          finish_date TIMESTAMP,
+                          maintain_type VARCHAR(50),
+                          technician_name VARCHAR(100),
+                          technician_phone VARCHAR(20),
+                          work_image_url VARCHAR(500),
+                          CONSTRAINT fk_maintain_room
+                              FOREIGN KEY (room_id)
+                                  REFERENCES room(room_id),
+                          CONSTRAINT fk_maintain_room_asset
+                              FOREIGN KEY (room_asset_id)
+                                  REFERENCES room_asset(room_asset_id)
+);
+
+CREATE TABLE maintenance_schedule (
+                                      schedule_id BIGSERIAL PRIMARY KEY,
+                                      schedule_scope INTEGER NOT NULL,
+                                      asset_group_id BIGINT,
+                                      cycle_month INTEGER NOT NULL,
+                                      last_done_date TIMESTAMP,
+                                      next_due_date TIMESTAMP,
+                                      notify_before_date INTEGER,
+                                      schedule_title VARCHAR(200) NOT NULL,
+                                      schedule_description TEXT,
+                                      CONSTRAINT fk_schedule_asset_group
+                                          FOREIGN KEY (asset_group_id)
+                                              REFERENCES asset_group(asset_group_id)
+);
+
+CREATE TABLE maintenance_notification_skip (
+                                               skip_id BIGSERIAL PRIMARY KEY,
+                                               schedule_id BIGINT NOT NULL,
+                                               due_date DATE NOT NULL,
+                                               skipped_by_user_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                                               CONSTRAINT ux_mns_schedule_due
+                                                   UNIQUE (schedule_id, due_date)
+);
+
+CREATE TABLE admin (
+                       admin_id BIGSERIAL PRIMARY KEY,
+                       admin_username VARCHAR(60) NOT NULL,
+                       admin_password VARCHAR(255) NOT NULL,
+                       admin_role INTEGER NOT NULL DEFAULT 0,
+                       CONSTRAINT uk_admin_username UNIQUE (admin_username)
+);
+
 -- ========================
 -- Admin (ข้อมูลเริ่มต้น)
 -- ========================

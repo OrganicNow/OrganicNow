@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ hk-ci ]
+    branches: [ main ]
   pull_request:
-    branches: [ hk-ci ]
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:

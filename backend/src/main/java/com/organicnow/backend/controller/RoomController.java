@@ -12,10 +12,13 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/room")
+@RequestMapping({"/room", "/api/room"})
 @RequiredArgsConstructor
 @CrossOrigin(
-        origins = {"http://localhost:5173", "http://localhost:3000", "http://app.localtest.me"},
+        origins = {"http://localhost:5173",
+                "http://localhost:3000",
+                "http://app.localtest.me",
+                "https://transcondylar-noncorporately-christen.ngrok-free.dev"},
         allowCredentials = "true",
         allowedHeaders = "*",
         methods = {

@@ -36,7 +36,7 @@ export const AuthProvider = ({ children }) => {
                 headers['Authorization'] = `Bearer ${sessionToken}`;
               }
               
-              const response = await fetch(`${apiPath}/api/auth/check`, {
+              const response = await fetch(`${apiPath}/auth/check`, {
                 credentials: 'include',
                 headers,
               });            if (response.ok) {
@@ -78,7 +78,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      const response = await fetch(`${apiPath}/api/auth/login`, {
+      const response = await fetch(`${apiPath}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -109,7 +109,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async (navigateTo = '/dashboard') => {
     try {
       // เรียก logout API
-      await fetch(`${apiPath}/api/auth/logout`, {
+      await fetch(`${apiPath}/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });

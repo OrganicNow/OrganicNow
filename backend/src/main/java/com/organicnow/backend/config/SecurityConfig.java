@@ -13,24 +13,47 @@ import org.springframework.web.cors.CorsConfigurationSource;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Autowired
-    private CorsConfigurationSource corsConfigurationSource;
-
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, CorsConfigurationSource corsConfigurationSource) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource))
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                .maximumSessions(1)
-                .maxSessionsPreventsLogin(false)
-            )
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
-                .anyRequest().permitAll()
-            );
-        
+                .csrf(csrf -> csrf.disable())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                        .maximumSessions(1)
+                        .maxSessionsPreventsLogin(false)
+                )
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/auth/**", "/auth/**").permitAll()
+                        .anyRequest().permitAll()
+                );
+
         return http.build();
     }
 }
+
+//@Configuration
+//@EnableWebSecurity
+//public class SecurityConfig {
+//
+//    @Autowired
+//    private CorsConfigurationSource corsConfigurationSource;
+//
+//    @Bean
+//    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+//        http
+//            .csrf(csrf -> csrf.disable())
+//            .cors(cors -> cors.configurationSource(corsConfigurationSource))
+//            .sessionManagement(session -> session
+//                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+//                .maximumSessions(1)
+//                .maxSessionsPreventsLogin(false)
+//            )
+//            .authorizeHttpRequests(auth -> auth
+//                .requestMatchers("/api/auth/**").permitAll()
+//                .anyRequest().permitAll()
+//            );
+//
+//        return http.build();
+//    }
+//}

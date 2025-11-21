@@ -15,8 +15,11 @@ import java.util.Map;
  * Controller สำหรับจัดการยอดค้างชำระ (Outstanding Balance)
  */
 @RestController
-@RequestMapping("/outstanding-balance")
-@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000", "http://app.localtest.me"}, allowCredentials = "true")
+@RequestMapping({"/outstanding-balance", "/api/outstanding-balance"})
+@CrossOrigin(origins = {"http://localhost:5173",
+        "http://localhost:3000",
+        "http://app.localtest.me",
+        "https://transcondylar-noncorporately-christen.ngrok-free.dev"}, allowCredentials = "true")
 public class OutstandingBalanceController {
 
     private final OutstandingBalanceService outstandingBalanceService;

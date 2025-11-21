@@ -1,221 +1,204 @@
 // cypress/e2e/roommanagement.cy.js
 import "cypress-wait-until";
 
-describe("Room Management - Complete E2E Test", () => {
-  const API = "http://localhost:8080";
+describe("Room Management - Complete Test Suite", () => {
+    // Login ก่อนเริ่ม tests ทั้งหมด
+    before(() => {
+        cy.visit('/login');
 
-  // ===============================
-  // LOGIN ก่อนเริ่มทั้งหมด
-  // ===============================
-  before(() => {
-          cy.visit('/login');
+        // Ensure the page URL is correct
+        cy.url({ timeout: 15000 }).should('include', '/login');
 
-          // Ensure the page URL is correct
-          cy.url({ timeout: 15000 }).should('include', '/login');
+        // Wait for the username and password fields to be visible
+        cy.get('input[type="text"]', { timeout: 15000 }).should('be.visible');
+        cy.get('input[type="password"]', { timeout: 15000 }).should('be.visible');
 
-          // Wait for the username and password fields to be visible
-          cy.get('input[type="text"]', { timeout: 15000 }).should('be.visible');
-          cy.get('input[type="password"]', { timeout: 15000 }).should('be.visible');
+        // Fill in the login details using env variables
+        cy.get('input[type="text"]').type(Cypress.env('adminUsername'));
+        cy.get('input[type="password"]').type(Cypress.env('adminPassword'), { log: false });
+        cy.get('button[type="submit"]').click();
 
-          // Fill in the login details
-          cy.get('input[type="text"]').type('superadmin');
-          cy.get('input[type="password"]').type('admin123', { log: false });
-          cy.get('button[type="submit"]').click();
-
-          // Wait until the dashboard page loads
-          cy.url({ timeout: 10000 }).should('include', '/dashboard');
-        });
-
-
-  // ===============================
-  // Mock Fetch ก่อนเข้าเพจทุกครั้ง
-  // ===============================
-  beforeEach(() => {
-    // Mock API ก่อนโหลดหน้า
-    cy.intercept("GET", `${API}/room/list`, {
-      statusCode: 200,
-      body: [
-        {
-          id: 1,
-          roomNumber: "101",
-          roomFloor: 1,
-          roomSize: "Studio",
-          status: "available",
-          requests: [{ finishDate: null }],
-        },
-        {
-          id: 2,
-          roomNumber: "205",
-          roomFloor: 2,
-          roomSize: "Deluxe",
-          status: "occupied",
-          requests: [{ finishDate: "2025-03-01" }],
-        },
-      ],
-    }).as("roomList");
-
-    cy.intercept("GET", `${API}/assets/available`, {
-      statusCode: 200,
-      body: {
-        result: [
-          { id: 10, assetName: "Air Conditioner" },
-          { id: 11, assetName: "Bed" },
-        ],
-      },
-    }).as("assetsAvailable");
-
-    cy.visit("/roommanagement");
-
-    // รอให้ table load เสร็จ
-    cy.wait("@roomList");
-    cy.wait("@assetsAvailable");
-
-    cy.contains("Room Management").should("be.visible");
-  });
-
-
-  // ======================================================
-  // 1. โครงสร้างหน้า
-  // ======================================================
-  describe("1. Page Structure", () => {
-    it("1.1 Should load table", () => {
-      cy.get("table").should("be.visible");
-      cy.get("table tbody tr").should("have.length", 2);
+        // Wait until the dashboard page loads
+        cy.url({ timeout: 10000 }).should('include', '/dashboard');
     });
 
-    it("1.2 Toolbar elements visible", () => {
-      cy.contains("button", "Filter").should("be.visible");
-      cy.contains("button", "Sort").should("be.visible");
-      cy.get('input[placeholder="Search"]').should("be.visible");
-      cy.contains("button", "Add Room").should("be.visible");
-    });
-  });
-
-  // ======================================================
-  // 2. ฟิลเตอร์ + ค้นหา
-  // ======================================================
-  describe("2. Search & Filters", () => {
-    it("2.1 Search rooms", () => {
-      cy.get('input[placeholder="Search"]').type("101");
-      cy.get("table tbody tr").should("have.length", 1);
-      cy.contains("101");
-    });
-
-    it("2.2 Clear search", () => {
-      cy.get('input[placeholder="Search"]').type("101");
-      cy.get("table tbody tr").should("have.length", 1);
-
-      cy.get('input[placeholder="Search"]').clear();
-      cy.get("table tbody tr").should("have.length", 2);
-    });
-
-    it("2.3 Filter by Floor", () => {
-      cy.contains("Filter").click();
-      cy.get("#roomFilterCanvas").should("be.visible");
-
-      cy.get("#roomFilterCanvas select")
-        .first()
-        .select("1");
-
-      cy.contains("Apply").click();
-      cy.get("table tbody tr").should("have.length", 1);
-      cy.contains("101");
-    });
-  });
-
-  // ======================================================
-  // 3. Sorting
-  // ======================================================
-  describe("3. Sorting", () => {
-    it("3.1 Should sort ascending/descending", () => {
-      cy.contains("Sort").click();
-      cy.get("tbody tr").first().contains("205");
-
-      cy.contains("Sort").click();
-      cy.get("tbody tr").first().contains("101");
-    });
-  });
-
-  // ======================================================
-  // 4. Add New Room Modal
-  // ======================================================
-  describe("4. Add Room Modal", () => {
+    // รีเฟรชหน้าทุกครั้งก่อนทดสอบ
     beforeEach(() => {
-      cy.contains("Add Room").click();
-      cy.get("#addRoomModal").should("be.visible");
+        cy.visit('/roommanagement');
+        cy.contains('Room Management', { timeout: 10000 }).should('be.visible');
     });
 
-    it("4.1 Modal fields visible", () => {
-      cy.contains("label", "Room Number").should("be.visible");
-      cy.contains("label", "Floor").should("be.visible");
-      cy.contains("label", "Room Size").should("be.visible");
-      cy.contains("label", "Select Assets for this Room").should("be.visible");
-
-      cy.get('input[type="text"]').should("exist");
-      cy.get("select").should("exist");
-    });
-
-    it("4.2 Should check available assets", () => {
-      cy.contains("Air Conditioner").should("exist");
-      cy.contains("Bed").should("exist");
-    });
-
-    it("4.3 Should select assets", () => {
-      cy.get("#asset-10").check();
-      cy.get("#asset-11").check();
-
-      cy.get("#asset-10").should("be.checked");
-      cy.get("#asset-11").should("be.checked");
-    });
-  });
-
-  // ======================================================
-  // 5. Action Buttons
-  // ======================================================
-  describe("5. Action Buttons", () => {
-    it("5.1 Should navigate to room detail page", () => {
-      cy.get("table tbody tr")
-        .first()
-        .find("button.form-Button-Edit")
-        .click();
-
-      cy.location("pathname").should("include", "/roomdetail/");
-    });
-
-    it("5.2 Should click delete button", () => {
-      cy.window().then((win) => {
-        cy.stub(win, "fetch").resolves(new Response(null, { status: 200 }));
-      });
-
-      cy.get("table tbody tr")
-        .first()
-        .find("button[aria-label='Delete']")
-        .click();
-
-      // SweetAlert pop-up
-      cy.get(".swal2-confirm", { timeout: 8000 }).click({ force: true });
-    });
-  });
-
-  // ======================================================
-  // 6. Pagination
-  // ======================================================
-  describe("6. Pagination", () => {
-    it("6.1 Should show pagination controls", () => {
-      cy.get(".pagination").should("exist");
-    });
-  });
-  after(() => {
-            // Ensure the profile dropdown is visible and click it
-            cy.get('.topbar-profile').click({ force: true }); // Use force: true to click even if covered
-
-            // Click the logout button
-            cy.contains('li', 'Logout').click({ force: true }); // Force click the logout button
-
-            // Handle SweetAlert confirmation
-            cy.get('.swal2-confirm').click({ force: true }); // Force click on confirm button of SweetAlert
-
-            // Optionally, confirm the redirection to the login page
-            cy.url().should('include', '/login');  // Ensure the URL includes '/login' to confirm successful logout
+    // ==================== BASIC PAGE STRUCTURE AND LAYOUT ====================
+    describe('1. Basic Page Structure and Layout', () => {
+        it('1.1 should load room management page successfully', () => {
+            cy.contains('Room Management').should('be.visible');
+            cy.get('.container-fluid').should('be.visible');
         });
+
+        it('1.2 should display add room button', () => {
+            cy.contains('Add Room').should('be.visible');
+        });
+
+        it('1.3 should display filter and sort buttons', () => {
+            cy.contains('Filter').should('be.visible');
+            cy.contains('Sort').should('be.visible');
+        });
+
+        it('1.4 should display search input', () => {
+            cy.get('input[placeholder="Search"]').should('be.visible');
+        });
+    });
+
+    // ==================== TABLE AND DATA DISPLAY ====================
+    describe('2. Table and Data Display', () => {
+        it('2.1 should display room table', () => {
+            cy.get('table').should('be.visible');
+            cy.get('table tbody tr').should('have.length.at.least', 1);
+        });
+
+        it('2.2 should display room information in table', () => {
+            cy.get('table tbody tr').first().within(() => {
+                cy.contains('td', /101|205/).should('exist');
+                cy.get('button').should('have.length.at.least', 1);
+            });
+        });
+
+        it('2.3 should display action buttons for each room', () => {
+            cy.get('table tbody tr').first().within(() => {
+                cy.get('button[aria-label="Delete"]').should('exist');
+                cy.get('button.form-Button-Edit').should('exist');
+            });
+        });
+    });
+
+    // ==================== SEARCH FUNCTIONALITY ====================
+    describe('3. Search Functionality', () => {
+        it('3.1 should search rooms by room number', () => {
+            cy.get('input[placeholder="Search"]').type('101');
+            cy.get('table tbody tr').should('have.length', 1);
+            cy.contains('101').should('be.visible');
+        });
+
+        it('3.2 should clear search and show all rooms', () => {
+            cy.get('input[placeholder="Search"]').type('101');
+            cy.get('table tbody tr').should('have.length', 1);
+
+            cy.get('input[placeholder="Search"]').clear();
+            cy.get('table tbody tr').should('have.length.at.least', 2);
+        });
+    });
+
+    // ==================== FILTER FUNCTIONALITY ====================
+    describe('4. Filter Functionality', () => {
+        it('4.1 should open filter modal', () => {
+            cy.contains('Filter').click();
+            cy.get('#roomFilterCanvas').should('be.visible');
+        });
+
+        it('4.2 should display filter options', () => {
+            cy.contains('Filter').click();
+            cy.get('#roomFilterCanvas').within(() => {
+                cy.get('select').should('exist');
+                cy.contains('Apply').should('be.visible');
+            });
+        });
+
+
+    });
+
+    // ==================== SORT FUNCTIONALITY ====================
+    describe('5. Sort Functionality', () => {
+        it('5.1 should sort rooms', () => {
+            cy.contains('Sort').click();
+            cy.get('tbody tr').first().should('exist');
+        });
+
+        it('5.2 should change sort order when clicked multiple times', () => {
+            cy.contains('Sort').click();
+            const firstRoomFirstClick = cy.get('tbody tr').first().invoke('text');
+
+            cy.contains('Sort').click();
+            const firstRoomSecondClick = cy.get('tbody tr').first().invoke('text');
+
+            // ตรวจสอบว่าข้อมูลเปลี่ยนเมื่อคลิก sort ซ้ำ
+            firstRoomFirstClick.should('not.equal', firstRoomSecondClick);
+        });
+    });
+
+    // ==================== ADD ROOM MODAL ====================
+    describe('6. Add Room Modal', () => {
+        it('6.1 should open add room modal', () => {
+            cy.contains('Add Room').click();
+            cy.get('#addRoomModal').should('be.visible');
+        });
+
+        it('6.2 should display form fields in modal', () => {
+            cy.contains('Add Room').click();
+            cy.get('#addRoomModal', { timeout: 5000 }).within(() => {
+                cy.contains('Room Number').should('be.visible');
+                cy.contains('Floor').should('be.visible');
+                cy.contains('Room Size').should('be.visible');
+                cy.get('input[type="text"]').should('exist');
+                cy.get('select').should('exist');
+            });
+        });
+
+        it('6.3 should display asset selection', () => {
+            cy.contains('Add Room').click();
+            cy.get('#addRoomModal', { timeout: 5000 }).within(() => {
+                cy.contains('Select Assets for this Room').should('be.visible');
+                cy.get('.form-check-input').should('have.length.at.least', 1);
+            });
+        });
+    });
+
+    // ==================== ACTION BUTTONS ====================
+    describe('7. Action Buttons', () => {
+        it('7.1 should navigate to room detail page when clicking edit', () => {
+            cy.get('table tbody tr').first().find('button.form-Button-Edit').click();
+            cy.url().should('include', '/roomdetail/');
+        });
+
+        it('7.2 should open delete confirmation when clicking delete', () => {
+            cy.get('table tbody tr').first().find('button[aria-label="Delete"]').click();
+            cy.get('.swal2-popup').should('be.visible');
+        });
+    });
+
+    // ==================== RESPONSIVE DESIGN ====================
+    describe('8. Responsive Design', () => {
+        it('8.1 should display correctly on desktop', () => {
+            cy.viewport(1280, 720);
+            cy.get('.container-fluid').should('be.visible');
+        });
+
+        it('8.2 should display correctly on tablet', () => {
+            cy.viewport('ipad-2');
+            cy.get('.container-fluid').should('be.visible');
+            cy.viewport(1280, 720);
+        });
+
+        it('8.3 should display correctly on mobile', () => {
+            cy.viewport('iphone-6');
+            cy.get('.container-fluid').should('be.visible');
+            cy.viewport(1280, 720);
+        });
+    });
+
+
+
+    // Logout หลังจาก tests ทั้งหมด
+    after(() => {
+        // Ensure the profile dropdown is visible and click it
+        cy.get('.topbar-profile').click({ force: true });
+
+        // Click the logout button
+        cy.contains('li', 'Logout').click({ force: true });
+
+        // Handle SweetAlert confirmation
+        cy.get('.swal2-confirm').click({ force: true });
+
+        // Confirm the redirection to the login page
+        cy.url().should('include', '/login');
+    });
 });

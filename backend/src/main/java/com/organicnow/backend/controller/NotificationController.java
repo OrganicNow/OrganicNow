@@ -11,9 +11,12 @@ import java.time.LocalDate;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/notifications")
+@RequestMapping({"/notifications", "/api/notifications"})
 @RequiredArgsConstructor
-@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:3000", "http://app.localtest.me"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:5173",
+        "http://localhost:3000",
+        "http://app.localtest.me",
+        "https://transcondylar-noncorporately-christen.ngrok-free.dev"}, allowCredentials = "true")
 public class NotificationController {
 
     private final NotificationService notificationService;
