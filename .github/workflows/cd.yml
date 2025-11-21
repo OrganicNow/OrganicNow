@@ -3,53 +3,78 @@ name: CD
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]   # deploy ทุกครั้งที่ push
+    branches: [ main ]
 
 jobs:
-
   deploy:
     name: Deploy to Kubernetes + ngrok
-    runs-on: self-hosted   # label ต้องตรงกับ runner ของคุณ
-    steps:
+    runs-on: ubuntu-latest
 
+    steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Ensure kubectl context is docker-desktop
-        shell: pwsh
+      - name: Set up Kubernetes (minikube)
         run: |
-          kubectl config use-context docker-desktop
+          # ติดตั้ง minikube
+          curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+          sudo install minikube-linux-amd64 /usr/local/bin/minikube
+          
+          # Start minikube cluster
+          minikube start --driver=docker
+          
+          # ตรวจสอบ
+          kubectl get nodes
+          kubectl config get-contexts
+
+      - name: Create namespace
+        run: kubectl create namespace organicnow --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Apply K8s manifests
-        shell: pwsh
         run: kubectl apply -f deploy/k8s-all.yaml
 
       - name: Update Deployment Image
-        shell: pwsh
         run: |
           kubectl set image deployment/backend backend=heangkung/organicnow-backend:latest -n organicnow
           kubectl set image deployment/frontend nginx=heangkung/organicnow-frontend:latest -n organicnow
 
       - name: Wait for rollout
-        shell: pwsh
         run: |
-          kubectl rollout status deployment/backend -n organicnow
-          kubectl rollout status deployment/frontend -n organicnow
+          kubectl rollout status deployment/backend -n organicnow --timeout=300s
+          kubectl rollout status deployment/frontend -n organicnow --timeout=300s
 
-      - name: Restart ngrok tunnel
-        shell: pwsh
+      - name: Set up ngrok
         run: |
-          Write-Host "Killing old ngrok..."
-          Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-          Start-Sleep -Seconds 2
+          # ติดตั้ง ngrok
+          wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+          tar xzf ngrok-v3-stable-linux-amd64.tgz
+          sudo mv ngrok /usr/local/bin/
+          
+          # ตั้งค่า auth token (ต้องมี NGROK_AUTH_TOKEN ใน GitHub Secrets)
+          ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
 
-          Write-Host "Starting new ngrok tunnel..."
-          Start-Process "ngrok.exe" `
-            -ArgumentList "http --domain=transcondylar-noncorporately-christen.ngrok-free.dev 80" `
-            -NoNewWindow
+      - name: Start ngrok tunnel
+        run: |
+          # Start ngrok ใน background
+          ngrok http --domain=transcondylar-noncorporately-christen.ngrok-free.dev 8080 &
+          NGORK_PID=$!
+          echo "NGORK_PID=$NGORK_PID" >> $GITHUB_ENV
+          
+          # รอให้ ngrok start
+          sleep 10
+          
+          # ตรวจสอบ tunnels
+          curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[] | "\(.name): \(.public_url)"' || true
 
-          Write-Host ""
-          Write-Host "====================================="
-          Write-Host " 🌐 LIVE URL via ngrok:"
-          Write-Host "   https://transcondylar-noncorporately-christen.ngrok-free.dev"
-          Write-Host "====================================="
+      - name: Display deployment info
+        run: |
+          echo ""
+          echo "====================================="
+          echo " 🚀 DEPLOYMENT SUCCESSFUL"
+          echo "====================================="
+          echo " 🌐 LIVE URL: https://transcondylar-noncorporately-christen.ngrok-free.dev"
+          echo " 📦 Kubernetes Services:"
+          kubectl get svc -n organicnow
+          echo " 🐳 Pods status:"
+          kubectl get pods -n organicnow
+          echo "====================================="
