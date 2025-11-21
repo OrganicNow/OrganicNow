@@ -8,6 +8,10 @@ on:
     types:
       - completed
 
+permissions:
+  actions: read
+  contents: write
+
 jobs:
   deploy:
     name: Deploy to Kubernetes
