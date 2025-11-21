@@ -9,7 +9,7 @@ jobs:
 
   deploy:
     name: Deploy to Kubernetes + ngrok
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
 
       - name: Checkout
