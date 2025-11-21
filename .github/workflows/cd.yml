@@ -1,0 +1,55 @@
+name: CD
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]   # deploy ทุกครั้งที่ push
+
+jobs:
+
+  deploy:
+    name: Deploy to Kubernetes + ngrok
+    runs-on: [self-hosted, organicnow-deploy]   # label ต้องตรงกับ runner ของคุณ
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure kubectl context is docker-desktop
+        shell: pwsh
+        run: |
+          kubectl config use-context docker-desktop
+
+      - name: Apply K8s manifests
+        shell: pwsh
+        run: kubectl apply -f deploy/k8s-all.yaml
+
+      - name: Update Deployment Image
+        shell: pwsh
+        run: |
+          kubectl set image deployment/backend backend=heangkung/organicnow-backend:latest -n organicnow
+          kubectl set image deployment/frontend nginx=heangkung/organicnow-frontend:latest -n organicnow
+
+      - name: Wait for rollout
+        shell: pwsh
+        run: |
+          kubectl rollout status deployment/backend -n organicnow
+          kubectl rollout status deployment/frontend -n organicnow
+
+      - name: Restart ngrok tunnel
+        shell: pwsh
+        run: |
+          Write-Host "Killing old ngrok..."
+          Get-Process ngrok -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 2
+
+          Write-Host "Starting new ngrok tunnel..."
+          Start-Process "ngrok.exe" `
+            -ArgumentList "http --domain=transcondylar-noncorporately-christen.ngrok-free.dev 80" `
+            -NoNewWindow
+
+          Write-Host ""
+          Write-Host "====================================="
+          Write-Host " 🌐 LIVE URL via ngrok:"
+          Write-Host "   https://transcondylar-noncorporately-christen.ngrok-free.dev"
+          Write-Host "====================================="
