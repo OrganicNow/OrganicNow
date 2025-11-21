@@ -9,7 +9,7 @@ jobs:
 
   deploy:
     name: Deploy to Kubernetes + ngrok
-    runs-on: [self-hosted, organicnow-deploy]   # label ต้องตรงกับ runner ของคุณ
+    runs-on: self-hosted   # label ต้องตรงกับ runner ของคุณ
     steps:
 
       - name: Checkout
