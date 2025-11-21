@@ -11,7 +11,6 @@ permissions:
   contents: read
 
 jobs:
-
   # =============================
   # 1) BACKEND TEST (WITH POSTGRES SERVICE + JACOCO)
   # =============================
@@ -334,7 +333,7 @@ jobs:
         if: always()
         # 🔥 ใช้ compose files ที่ถูกต้องเมื่อลง
         run: docker compose -f docker-compose.yml -f docker-compose.override.yml down -v
-
+      
   # =============================
   # 6) SUMMARY
   # =============================
