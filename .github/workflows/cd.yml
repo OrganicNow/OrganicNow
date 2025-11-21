@@ -1,26 +1,20 @@
 name: CD
 
 on:
-  # รันอัตโนมัติเมื่อ workflow "CI" รันจบ (บน branch main)
   workflow_run:
     workflows: ["CI"]
-    branches: [ main ]
+    branches:
+      - main
     types:
       - completed
-
-  # เผื่อไว้ กดรัน deploy เองก็ได้
-  workflow_dispatch:
 
 jobs:
   deploy:
     name: Deploy to Kubernetes
     runs-on: ubuntu-latest
-    # รันเมื่อ:
-    # - เป็น manual run (workflow_dispatch)
-    # - หรือเป็น workflow_run และ CI conclusion = success
     if: >
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      github.event_name == 'workflow_run' &&
+      github.event.workflow.conclusion == 'success'
 
     steps:
       - name: Checkout
