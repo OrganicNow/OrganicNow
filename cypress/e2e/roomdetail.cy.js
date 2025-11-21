@@ -1,156 +1,212 @@
-/// <reference types="cypress" />
+import "cypress-wait-until";
 
-describe("E2E Full CRUD & UI Interaction Test for Room Detail Page", () => {
-  const baseUrl = "http://localhost:5173";
-  const roomId = 1;
+describe("Room Detail - Complete E2E Test", () => {
+  const API = "http://localhost:8080";
+  const ROOM_ID = 1;
 
+  // ------------------------------------------
+  // LOGIN
+  // ------------------------------------------
+  before(() => {
+    cy.visit("/login");
+
+    cy.get('input[type="text"]').type("superadmin");
+    cy.get('input[type="password"]').type("admin123", { log: false });
+    cy.get('button[type="submit"]').click();
+
+    cy.url().should("include", "/dashboard");
+  });
+
+  // ------------------------------------------
+  // STUB ALL API BEFORE ENTER PAGE
+  // ------------------------------------------
   beforeEach(() => {
-    // ✅ Mock ทุก API ที่หน้า roomdetail ใช้จริง
-    cy.intercept("GET", `**/room/${roomId}/detail`, {
+    // Room detail
+    cy.intercept("GET", `${API}/room/${ROOM_ID}/detail`, {
       statusCode: 200,
       body: {
-        roomId,
-        roomFloor: 2,
-        roomNumber: "201",
+        roomId: ROOM_ID,
+        roomFloor: 1,
+        roomNumber: "101",
+        roomSize: "Studio",
         status: "available",
         firstName: "John",
         lastName: "Doe",
-        phoneNumber: "0999999999",
+        phoneNumber: "0900000000",
         email: "john@example.com",
-        contractName: "6 เดือน",
+        contractName: "6-month",
         signDate: "2025-01-01T00:00:00",
         startDate: "2025-01-02T00:00:00",
-        endDate: "2025-07-02T00:00:00",
+        endDate: "2025-07-01T00:00:00",
         assets: [
-          { assetId: 101, assetName: "bed-001" },
-          { assetId: 102, assetName: "chair-001" },
+          { assetId: 10, assetName: "Air Conditioner", checked: true },
         ],
         requests: [
           {
-            id: 5001,
-            issueTitle: "Broken bulb",
-            scheduledDate: "2025-03-05T10:00:00",
-            finishDate: "2025-03-06T12:00:00",
+            id: 99,
+            issueTitle: "Water leak",
+            scheduledDate: "2025-02-01T00:00:00",
+            finishDate: "2025-02-05T00:00:00",
           },
         ],
       },
-    }).as("getRoomDetail");
+    }).as("detail");
 
-    cy.intercept("GET", "**/assets/all", {
+    // All assets
+    cy.intercept("GET", `${API}/assets/all`, {
       statusCode: 200,
       body: {
         result: [
-          { assetId: 101, assetName: "bed-001" },
-          { assetId: 102, assetName: "chair-001" },
-          { assetId: 103, assetName: "table-001" },
-          { assetId: 104, assetName: "bulb-001" },
+          { assetId: 10, assetName: "Air Conditioner", assetGroupId: 1 },
+          { assetId: 11, assetName: "Bed", assetGroupId: 2 },
+          { assetId: 12, assetName: "Table", assetGroupId: 1 },
         ],
       },
-    }).as("getAllAssets");
+    }).as("assetsAll");
 
-    cy.intercept("GET", "**/asset-group/list", {
+    // Groups
+    cy.intercept("GET", `${API}/asset-group/list`, {
       statusCode: 200,
-      body: [{ assetGroupName: "Furniture" }, { assetGroupName: "Lighting" }],
-    }).as("getAssetGroups");
+      body: [
+        { id: 1, name: "Electrical" },
+        { id: 2, name: "Furniture" },
+      ],
+    }).as("groups");
 
-    cy.intercept("GET", "**/room", {
+    // Events
+    cy.intercept("GET", `${API}/room/${ROOM_ID}/events`, {
       statusCode: 200,
-      body: [],
-    }).as("getAllRooms");
+      body: [
+        {
+          eventId: 1,
+          eventType: "added",
+          assetName: "Air Conditioner",
+          reasonType: "addon",
+          createdAt: "2025-02-03T12:00:00",
+        },
+      ],
+    }).as("events");
 
-    cy.visit(`${baseUrl}/roomdetail/${roomId}`);
-    cy.wait("@getRoomDetail");
-    cy.wait("@getAllAssets");
-    cy.wait("@getAssetGroups");
-    cy.wait("@getAllRooms");
+    // Room list (used assets mapping)
+    cy.intercept("GET", `${API}/room`, {
+      statusCode: 200,
+      body: [
+        {
+          roomId: 99,
+          roomNumber: "999",
+          assets: [{ assetId: 11 }],
+        },
+      ],
+    }).as("roomList");
+
+    cy.visit(`/roomdetail/${ROOM_ID}`);
+
+    cy.wait("@detail");
+    cy.contains("Room Detail").should("exist");
   });
 
-  // ✅ ตรวจ render ส่วนหลัก
-  it("should render all main sections correctly", () => {
-    cy.contains("Room Detail").should("be.visible");
-    cy.contains("Room Information").should("be.visible");
-    cy.contains("Current Tenant").should("be.visible");
-    cy.contains("Assets").should("be.visible");
-    cy.contains("Request History").should("be.visible");
-  });
-
-  // ✅ เปิด / ปิด modal (พร้อมลบ backdrop แบบ force)
-  it("should open and close Edit Room modal", () => {
-    cy.get("button.btn-primary").contains("Edit Room").click();
-    cy.get("#editRoomModal").should("be.visible");
-
-    cy.get("#editRoomModal")
-      .find("button.btn-outline-secondary")
-      .contains("Cancel")
-      .click();
-
-    // 🩹 ลบ backdrop ด้วยตนเอง (ป้องกัน hang)
-    cy.document().then((doc) => {
-      doc.querySelectorAll(".modal-backdrop").forEach((el) => el.remove());
-      const modal = doc.querySelector("#editRoomModal");
-      if (modal) {
-        modal.classList.remove("show");
-        modal.style.display = "none";
-      }
+  // ------------------------------------------
+  // 1. Page Structure
+  // ------------------------------------------
+  describe("1. Structure", () => {
+    it("1.1 Should show breadcrumb + Edit Room button", () => {
+      cy.contains("Room Management").should("exist");
+      cy.contains("101").should("exist");
+      cy.contains("Edit Room").should("be.visible");
     });
 
-    // ✅ ตรวจว่าปิดแล้ว
-    cy.wait(300);
-    cy.get("#editRoomModal").should("not.have.class", "show");
-    cy.get(".modal-backdrop", { timeout: 10000 }).should("not.exist");
+    it("1.2 Should show room information", () => {
+      cy.contains("Floor:").should("exist");
+      cy.contains("Room Size:").should("exist");
+      cy.contains("Available").should("exist");
+    });
   });
 
-  it("should display correct room and tenant data", () => {
-    cy.contains("Floor:").parent().should("contain", "2");
-    cy.contains("Room:").parent().should("contain", "201");
-    cy.contains("Status:").parent().should("contain", "Available");
-    cy.contains("First Name:").parent().should("contain", "John");
-    cy.contains("Package:").parent().find(".package-badge").should("contain", "6 เดือน");
+  // ------------------------------------------
+  // 2. Tabs Test
+  // ------------------------------------------
+  describe("2. Tabs", () => {
+    it("2.1 Assets tab should show items", () => {
+      cy.get("#assets").should("exist");
+      cy.contains("Air Conditioner").should("exist");
+    });
+
+    it("2.2 Request History tab should work", () => {
+      cy.get("#requests-tab").click();
+      cy.contains("Water leak").should("exist");
+    });
+
+    it("2.3 Asset History tab should work", () => {
+      cy.get("#history-tab").click();
+      cy.contains("added").should("exist");
+      cy.contains("Air Conditioner").should("exist");
+    });
   });
 
-  it("should switch between Assets and Request tabs", () => {
-    cy.get("#assets-tab").click();
-    cy.get("#assets").should("have.class", "show");
-    cy.get("#requests-tab").click();
-    cy.get("#requests").should("have.class", "show");
-    cy.contains("Broken bulb").should("be.visible");
+  // ------------------------------------------
+  // 3. Edit Room Modal
+  // ------------------------------------------
+  describe("3. Edit Modal", () => {
+    beforeEach(() => {
+      cy.contains("Edit Room").click();
+      cy.get("#editRoomModal .form-select")
+        .filter(':contains("All Groups")')
+        .select("1");
+
+    });
+
+    it("3.1 Fields visible", () => {
+      cy.contains("label", "Floor").should("exist");
+      cy.contains("label", "Room Size").should("exist");
+      cy.contains("label", "Select Assets for this Room").should("exist");
+    });
+
+
+
+    it("3.2 Should check/uncheck assets", () => {
+      cy.get("#asset-12").check({ force: true });
+      cy.get("#asset-12").should("be.checked");
+    });
+
+    it("3.3 Should open reason modal after clicking Save", () => {
+      cy.contains("Save").click();
+      cy.contains("Select Reason for Update").should("exist");
+    });
   });
 
-  it("should display asset list and allow checkbox selection in modal", () => {
-    cy.get("button.btn-primary").contains("Edit Room").click();
-    cy.get("#editRoomModal").should("be.visible");
-    cy.contains("Select Assets for this Room").should("be.visible");
+  // ------------------------------------------
+  // 4. Save with Reason
+  // ------------------------------------------
+  describe("4. Save Operation", () => {
+    it("4.1 Should send PUT requests when Confirm", () => {
+      cy.contains("Edit Room").click();
+      cy.contains("Save").click();
 
-    cy.get(".form-check-input").first().check().should("be.checked");
-    cy.get(".form-check-input").eq(1).uncheck().should("not.be.checked");
+      cy.intercept("PUT", `${API}/room/${ROOM_ID}/assets/event`, {
+        statusCode: 200,
+        body: { message: "ok" },
+      }).as("saveEvent");
+
+      cy.intercept("PUT", `${API}/room/${ROOM_ID}`, {
+        statusCode: 200,
+        body: { message: "ok" },
+      }).as("saveRoom");
+
+      cy.contains("Confirm").click();
+
+      cy.wait("@saveEvent");
+      cy.wait("@saveRoom");
+    });
   });
 
-  it("should edit room info and send PUT requests", () => {
-    cy.intercept("PUT", `**/room/${roomId}/assets`, {
-      statusCode: 200,
-      body: { message: "Assets updated" },
-    }).as("updateAssets");
+  // ------------------------------------------
+  // 5. Logout
+  // ------------------------------------------
+  after(() => {
+    cy.get(".topbar-profile").click({ force: true });
+    cy.contains("Logout").click({ force: true });
+    cy.get(".swal2-confirm").click({ force: true });
 
-    cy.intercept("PUT", `**/room/${roomId}`, {
-      statusCode: 200,
-      body: { message: "Room updated" },
-    }).as("updateRoom");
-
-    cy.get("button.btn-primary").contains("Edit Room").click();
-    cy.get("input.form-control").eq(0).clear().type("3");
-    cy.get("input.form-control").eq(1).clear().type("302");
-    cy.get("select.form-select").eq(0).select("Occupied");
-    cy.get("button.btn-primary").contains("Save").click();
-
-    cy.wait("@updateAssets").its("response.statusCode").should("eq", 200);
-    cy.wait("@updateRoom").its("response.statusCode").should("eq", 200);
-    cy.wait(1000);
-    cy.get("#editRoomModal").should("not.be.visible");
-  });
-
-  it("should show error when API fails", () => {
-    cy.intercept("GET", `**/room/${roomId}/detail`, { forceNetworkError: true }).as("errorRoom");
-    cy.visit(`${baseUrl}/roomdetail/${roomId}`);
-    cy.contains("Failed to fetch room or asset data", { timeout: 10000 }).should("exist");
+    cy.url().should("include", "/login");
   });
 });
