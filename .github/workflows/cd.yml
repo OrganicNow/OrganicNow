@@ -1,52 +1,33 @@
 name: CD
 
 on:
-  workflow_dispatch:
-  push:
+  # รันอัตโนมัติเมื่อ workflow "CI" รันจบ (บน branch main)
+  workflow_run:
+    workflows: ["CI"]
     branches: [ main ]
+    types:
+      - completed
+
+  # เผื่อไว้ กดรัน deploy เองก็ได้
+  workflow_dispatch:
 
 jobs:
   deploy:
     name: Deploy to Kubernetes
     runs-on: ubuntu-latest
-    if: ${{ always() && github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
+    # รันเมื่อ:
+    # - เป็น manual run (workflow_dispatch)
+    # - หรือเป็น workflow_run และ CI conclusion = success
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       # =========================
-      # 1) Build & Push Docker Images
-      # =========================
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build & Push Backend Image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./backend
-          file: ./backend/Dockerfile.prod
-          push: true
-          tags: |
-            heangkung/organicnow-backend:latest
-
-      - name: Build & Push Frontend Image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile.prod
-          push: true
-          tags: |
-            heangkung/organicnow-frontend:latest
-
-      # =========================
-      # 2) Setup Minikube & Deploy
+      # 1) Setup Minikube & K8s
       # =========================
       - name: Set up Kubernetes (minikube)
         run: |
@@ -67,8 +48,13 @@ jobs:
       - name: Apply K8s manifests
         run: kubectl apply -f deploy/k8s-all.yaml
 
+      # =========================
+      # 2) ใช้ image ที่ CI push แล้ว
+      # =========================
       - name: Update Deployment Image
         run: |
+          # ตอนนี้ CI push เป็น :latest แล้ว
+          # ดังนั้น CD แค่บอกให้ deployment ใช้ image ล่าสุด
           kubectl set image deployment/backend backend=heangkung/organicnow-backend:latest -n organicnow
           kubectl set image deployment/frontend nginx=heangkung/organicnow-frontend:latest -n organicnow
 
