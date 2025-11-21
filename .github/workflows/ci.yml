@@ -164,7 +164,6 @@ jobs:
             ${{ env.IMAGE_NAME }}:${{ github.sha }}
             ${{ env.IMAGE_NAME }}:latest
 
-
   # =============================
   # 5) E2E TEST (COMPOSE + INTEGRATION TEST + CYPRESS)
   # =============================
