@@ -7,9 +7,10 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to Kubernetes + ngrok
+    name: Deploy to Kubernetes
     runs-on: ubuntu-latest
-    
+    if: ${{ always() && github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main' }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
