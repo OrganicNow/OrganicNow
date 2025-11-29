@@ -17,7 +17,7 @@ export default defineConfig({
         // ใช้ proxy เหมือนเดิม เพราะตอน Dev ใช้ base: '/'
         proxy: {
             '/api': {
-                target: 'http://localhost:8080',
+                target: 'https://muict.app/organicnow-backend',
                 changeOrigin: true,
             },
         },

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -164,9 +164,9 @@ function App() {
   return (
     <AuthProvider>
       <NotificationProvider>
-        <Router>
+        <BrowserRouter basename={import.meta.env.BASE_URL}>
           <AppRoutes />
-        </Router>
+        </BrowserRouter>
       </NotificationProvider>
     </AuthProvider>
   );
