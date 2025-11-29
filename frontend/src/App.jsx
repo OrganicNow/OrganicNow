@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
@@ -164,9 +164,9 @@ function App() {
   return (
     <AuthProvider>
       <NotificationProvider>
-        <BrowserRouter basename={import.meta.env.BASE_URL}>
+        <Router basename="/organicnow-frontend">
           <AppRoutes />
-        </BrowserRouter>
+        </Router>
       </NotificationProvider>
     </AuthProvider>
   );
