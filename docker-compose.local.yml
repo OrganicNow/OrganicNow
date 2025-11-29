@@ -1,0 +1,138 @@
+services:
+
+  # ----------------------------------------------------------
+  # PostgreSQL (local)
+  # ----------------------------------------------------------
+  postgres-local:
+    image: postgres:17-alpine
+    container_name: postgres-local
+    restart: always
+    environment:
+      POSTGRES_DB: apartment_management
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata_local:/var/lib/postgresql/data
+    networks:
+      - organicnow-net
+
+
+  # ----------------------------------------------------------
+  # Backend
+  # ----------------------------------------------------------
+  backend-local:
+    build:
+      context: ./backend
+    container_name: organicnow-backend-local
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-local:5432/apartment_management
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres123
+    volumes:
+      - ./backend/logs:/app/logs
+    depends_on:
+      - postgres-local
+    networks:
+      - organicnow-net
+
+
+  # ----------------------------------------------------------
+  # Frontend
+  # ----------------------------------------------------------
+  frontend-local:
+    build: ./frontend
+    container_name: organicnow-frontend-local
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8080
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend-local
+    networks:
+      - organicnow-net
+
+
+  # ----------------------------------------------------------
+  # Loki (Log storage)
+  # ----------------------------------------------------------
+  loki-local:
+    image: grafana/loki:2.9.0
+    container_name: loki-local
+    command: -config.file=/etc/loki/local-config.yaml
+    user: "root"
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring-local/loki/loki-config.yml:/etc/loki/local-config.yaml
+      - ./monitoring-local/loki/data:/loki
+    networks:
+      - organicnow-net
+
+
+  # ----------------------------------------------------------
+  # Promtail (Log collector)
+  # ----------------------------------------------------------
+  promtail-local:
+    image: grafana/promtail:2.9.0
+    container_name: promtail-local
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./monitoring-local/promtail/promtail-config.yml:/etc/promtail/config.yml
+      - ./backend/logs:/logs
+      - promtail_positions:/positions
+    depends_on:
+      - loki-local
+      - backend-local
+    networks:
+      - organicnow-net
+
+
+  # ----------------------------------------------------------
+  # Prometheus
+  # ----------------------------------------------------------
+  prometheus-local:
+    image: prom/prometheus:latest
+    container_name: prometheus-local
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring-local/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - organicnow-net
+
+
+  # ----------------------------------------------------------
+  # Grafana
+  # ----------------------------------------------------------
+  grafana-local:
+    image: grafana/grafana:latest
+    container_name: grafana-local
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - loki-local
+      - prometheus-local
+    networks:
+      - organicnow-net
+
+
+# ----------------------------------------------------------
+# Volumes & Network
+# ----------------------------------------------------------
+volumes:
+  pgdata_local:
+  grafana_data:
+  promtail_positions:
+
+networks:
+  organicnow-net:
+    external: true

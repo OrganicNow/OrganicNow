@@ -4,10 +4,10 @@ import react from '@vitejs/plugin-react'
 // ใช้ proxy เฉพาะตอน dev เท่านั้น
 export default defineConfig({
     plugins: [react()],
-    base: '/',                 // ✅ สำคัญ: ให้ index.html อ้าง /assets/... เสมอ
+    base: '/organicnow-frontend/',                 
     build: {
-        outDir: 'dist',          // ค่ามาตรฐาน
-        assetsDir: 'assets',     // ให้ไฟล์ JS/CSS ลงโฟลเดอร์ /assets
+        outDir: 'dist',          
+        assetsDir: 'assets',     
     },
     server: {
         proxy: {

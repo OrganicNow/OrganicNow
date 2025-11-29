@@ -3,7 +3,7 @@
     "sweetalert2": "^11.23.0"
   },
   "devDependencies": {
-    "cypress": "^15.4.0",
+    "cypress": "^15.7.0",
     "cypress-wait-until": "^3.0.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
